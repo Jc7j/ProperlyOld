@@ -1,0 +1,82 @@
+// src/prisma/schema.ts
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model ManagementGroup {
+  id              String          @id @unique
+  name            String          @unique
+  slug            String          @unique
+  stripe        Json?        
+  ownerId       String          @unique
+  createdAt     DateTime?       @default(now())
+  updatedAt     DateTime?       @updatedAt
+}
+
+model User {
+  id              String          @id @unique
+  email           String          @unique
+  stripe            Json?
+  groups            Json?
+  createdAt      DateTime?       @default(now())
+  updatedAt      DateTime?       @updatedAt
+}
+
+model Property {
+  id              String          @id @default(uuid())
+  managementGroupId  String
+  name            String
+  locationInfo   Json?
+  owner           Json?           // Stores owner details as a JSON object: { name, email, phone, address }
+  createdAt      DateTime?       @default(now())
+  updatedAt      DateTime?       @updatedAt
+  createdBy     String
+  updatedBy     String
+}
+
+model Invoice {
+  id              String          @id @default(uuid())
+  managementGroupId String
+  invoiceDate    DateTime
+  propertyId     String?
+  financialDetails Json            // Stores total_amount, subtotal, tax as a JSON object
+  status          String          @default("draft") // draft | pending | paid
+  createdAt      DateTime?       @default(now())
+  updatedAt      DateTime?       @updatedAt
+  createdBy   String
+  UpdatedBy   String
+}
+
+model ManagementGroupItems {
+  id              String          @id @default(uuid())
+  managementGroupId String
+  name            String
+  description     String?
+  defaultPrice   Decimal
+  link            String?
+  quantityOnHand Int           @default(0)
+  quantityUsed    Int           @default(0)
+  quantityTotal   Int           @default(0)
+  createdAt      DateTime?       @default(now())
+  updatedAt      DateTime?       @updatedAt
+  createdBy   String
+  UpdatedBy   String
+}
+
+model InvoiceItem {
+  id              String          @id @default(uuid())
+  invoiceId      String
+  itemId         String?
+  quantity        Int             @default(0)
+  price           Decimal
+  customItemName String?
+  date            DateTime?       @default(now())
+  createdAt      DateTime?       @default(now())
+  updatedAt      DateTime?       @updatedAt
+}
