@@ -18,9 +18,9 @@ const styles = {
     // Disabled
     'data-disabled:opacity-50',
     // Icon sizing - Mobile First
-    '*:data-[slot=icon]:-mx-0.5 *:data-[slot=icon]:my-0.5 *:data-[slot=icon]:size-4 *:data-[slot=icon]:shrink-0 *:data-[slot=icon]:text-(--btn-icon)',
+    'data-[slot=icon]:*:-mx-0.5 data-[slot=icon]:*:my-0.5 data-[slot=icon]:*:size-4 data-[slot=icon]:*:shrink-0 data-[slot=icon]:*:text-(--btn-icon)',
     // Icon sizing - Desktop
-    'sm:*:data-[slot=icon]:size-5 sm:*:data-[slot=icon]:my-0.5',
+    'sm:data-[slot=icon]:*:size-5 sm:data-[slot=icon]:*:my-0.5',
     // Icon colors
     'forced-colors:[--btn-icon:ButtonText] forced-colors:data-hover:[--btn-icon:ButtonText]',
   ],
@@ -32,7 +32,7 @@ const styles = {
     // Button background, implemented as foreground layer to stack on top of pseudo-border layer
     'before:absolute before:inset-0 before:-z-10 before:rounded-[calc(var(--radius-lg)-1px)] before:bg-(--btn-bg)',
     // Drop shadow, applied to the inset `before` layer so it blends with the border
-    'before:shadow-sm',
+    'before:shadow-xs',
     // Background color is moved to control and shadow is removed in dark mode so hide `before` pseudo
     'dark:before:hidden',
     // Dark mode: Subtle white outline is applied using a border

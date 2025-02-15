@@ -1,8 +1,8 @@
-import Image from 'next/image'
-import Link from 'next/link'
-import { ThemeToggle } from '~/components/ui'
+import Image from "next/image";
+import Link from "next/link";
+import { ThemeToggle } from "~/components/ui";
 
-import backgroundImage from '/public/background-auth.jpg'
+import backgroundImage from "/public/background-auth.jpg";
 
 export function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -13,7 +13,7 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
             href="/"
             className="text-xl font-bold text-zinc-900 dark:text-white"
           >
-            CourtConnect
+            Properly
           </Link>
         </div>
         <main className="mx-auto w-full max-w-md sm:px-4 md:w-96 md:max-w-sm md:px-0">
@@ -34,5 +34,5 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
         />
       </div>
     </div>
-  )
+  );
 }

@@ -87,20 +87,20 @@ function PropertiesTableSkeleton() {
       <div className="rounded-md border">
         <div className="bg-muted/50 border-b px-4 py-3">
           <div className="flex">
-            <div className="bg-muted h-4 w-1/4 animate-pulse rounded" />
-            <div className="bg-muted ml-4 h-4 w-1/4 animate-pulse rounded" />
-            <div className="bg-muted ml-4 h-4 w-1/4 animate-pulse rounded" />
-            <div className="bg-muted ml-4 h-4 w-1/4 animate-pulse rounded" />
+            <div className="bg-muted h-4 w-1/4 animate-pulse rounded-sm" />
+            <div className="bg-muted ml-4 h-4 w-1/4 animate-pulse rounded-sm" />
+            <div className="bg-muted ml-4 h-4 w-1/4 animate-pulse rounded-sm" />
+            <div className="bg-muted ml-4 h-4 w-1/4 animate-pulse rounded-sm" />
           </div>
         </div>
         <div className="divide-y">
           {[...Array(5)].map((_, i) => (
             <div key={i} className="px-4 py-3">
               <div className="flex items-center">
-                <div className="bg-muted/50 h-4 w-1/4 animate-pulse rounded" />
-                <div className="bg-muted/50 ml-4 h-4 w-1/4 animate-pulse rounded" />
-                <div className="bg-muted/50 ml-4 h-4 w-1/4 animate-pulse rounded" />
-                <div className="bg-muted/50 ml-4 h-4 w-1/4 animate-pulse rounded" />
+                <div className="bg-muted/50 h-4 w-1/4 animate-pulse rounded-sm" />
+                <div className="bg-muted/50 ml-4 h-4 w-1/4 animate-pulse rounded-sm" />
+                <div className="bg-muted/50 ml-4 h-4 w-1/4 animate-pulse rounded-sm" />
+                <div className="bg-muted/50 ml-4 h-4 w-1/4 animate-pulse rounded-sm" />
               </div>
             </div>
           ))}

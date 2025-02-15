@@ -17,8 +17,8 @@ export default function PropertyIdPage() {
       <div className="p-4">
         <div className="bg-muted h-8 w-[200px] animate-pulse rounded-md" />
         <div className="mt-4 space-y-4">
-          <div className="bg-muted/50 h-4 w-1/3 animate-pulse rounded" />
-          <div className="bg-muted/50 h-4 w-1/2 animate-pulse rounded" />
+          <div className="bg-muted/50 h-4 w-1/3 animate-pulse rounded-sm" />
+          <div className="bg-muted/50 h-4 w-1/2 animate-pulse rounded-sm" />
         </div>
       </div>
     );

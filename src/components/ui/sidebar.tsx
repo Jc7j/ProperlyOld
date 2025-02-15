@@ -138,11 +138,11 @@ export const SidebarItem = forwardRef(function SidebarItem(
     // Base
     'flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left text-base/6 sm:py-2 sm:text-sm/5',
     // Leading icon/icon-only
-    '*:data-[slot=icon]:size-6 *:data-[slot=icon]:shrink-0 *:data-[slot=icon]:fill-zinc-500 sm:*:data-[slot=icon]:size-5',
+    'data-[slot=icon]:*:size-6 data-[slot=icon]:*:shrink-0 data-[slot=icon]:*:fill-zinc-500 sm:data-[slot=icon]:*:size-5',
     // Trailing icon (down chevron or similar)
-    '*:last:data-[slot=icon]:ml-auto *:last:data-[slot=icon]:size-5 sm:*:last:data-[slot=icon]:size-4',
+    'data-[slot=icon]:last:*:ml-auto data-[slot=icon]:last:*:size-5 sm:data-[slot=icon]:last:*:size-4',
     // Avatar
-    '*:data-[slot=avatar]:-m-0.5 *:data-[slot=avatar]:size-7 *:data-[slot=avatar]:[--ring-opacity:10%] sm:*:data-[slot=avatar]:size-6',
+    'data-[slot=avatar]:*:-m-0.5 data-[slot=avatar]:*:size-7 data-[slot=avatar]:*:[--ring-opacity:10%] sm:data-[slot=avatar]:*:size-6',
     // Hover
     'data-hover:bg-(--primary-50) data-hover:text-(--primary-900) dark:data-hover:bg-(--primary-950)/50 dark:data-hover:text-(--primary-300)',
     // Active
@@ -150,9 +150,9 @@ export const SidebarItem = forwardRef(function SidebarItem(
     // Current
     'data-current:bg-(--primary-50) data-current:text-(--primary-900) dark:data-current:bg-(--primary-950)/50 dark:data-current:text-(--primary-300)',
     // Icon colors
-    'data-hover:*:data-[slot=icon]:fill-(--primary-900) dark:data-hover:*:data-[slot=icon]:fill-(--primary-300)',
-    'data-active:*:data-[slot=icon]:fill-(--primary-900) dark:data-active:*:data-[slot=icon]:fill-(--primary-300)',
-    'data-current:*:data-[slot=icon]:fill-(--primary-900) dark:data-current:*:data-[slot=icon]:fill-(--primary-300)'
+    'data-[slot=icon]:*:data-hover:fill-(--primary-900) dark:data-[slot=icon]:*:data-hover:fill-(--primary-300)',
+    'data-[slot=icon]:*:data-active:fill-(--primary-900) dark:data-[slot=icon]:*:data-active:fill-(--primary-300)',
+    'data-[slot=icon]:*:data-current:fill-(--primary-900) dark:data-[slot=icon]:*:data-current:fill-(--primary-300)'
   )
 
   return (
