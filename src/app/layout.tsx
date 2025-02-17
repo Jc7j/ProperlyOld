@@ -1,24 +1,24 @@
-import "~/styles/globals.css";
+import { ClerkProvider } from '@clerk/nextjs'
+import { auth } from '@clerk/nextjs/server'
+import { GeistSans } from 'geist/font/sans'
+import { type Metadata } from 'next'
+import { SyncActiveOrganization } from '~/components/clerk/SyncActiveOrganizations'
+import '~/styles/globals.css'
+import { TRPCReactProvider } from '~/trpc/react'
 
-import { ClerkProvider } from "@clerk/nextjs";
-import { GeistSans } from "geist/font/sans";
-import { type Metadata } from "next";
-
-import { TRPCReactProvider } from "~/trpc/react";
-import { SyncActiveOrganization } from "~/components/clerk/SyncActiveOrganizations";
-import { ThemeProvider } from "./ThemeProvider";
-import { auth } from "@clerk/nextjs/server";
+import { ThemeProvider } from './ThemeProvider'
 
 export const metadata: Metadata = {
-  title: "Properly | Streamline your Property Management",
-  description: "",
-  icons: [{ rel: "icon", url: "/favicon.ico" }],
-};
+  title: 'Properly | Streamline your Property Management',
+  description: '',
+  icons: [{ rel: 'icon', url: '/favicon.ico' }],
+}
 
 export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const { sessionClaims } = await auth();
+  const { sessionClaims } = await auth()
+
   return (
     <ClerkProvider>
       <SyncActiveOrganization
@@ -32,5 +32,5 @@ export default async function RootLayout({
         </body>
       </html>
     </ClerkProvider>
-  );
+  )
 }

@@ -1,3 +1,4 @@
+export * from "./dropdown-menu";
 export * from "./sidebar";
 export * from "./sidebar-layout";
 export * from "./button";

@@ -11,6 +11,7 @@
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
     "dev": "next dev",
+    "clerk:webhook": "ngrok http --url=enabling-bug-hugely.ngrok-free.app 3000",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
     "format:write": "prettier --write \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
     "postinstall": "prisma generate",
@@ -23,6 +24,7 @@
   "dependencies": {
     "@clerk/nextjs": "^6.11.3",
     "@headlessui/react": "^2.2.0",
+    "@hookform/resolvers": "^4.1.0",
     "@prisma/client": "^6.3.1",
     "@prisma/extension-accelerate": "^1.2.2",
     "@t3-oss/env-nextjs": "^0.10.1",
