@@ -11,7 +11,6 @@ export function SyncActiveOrganization({
   const { setActive, isLoaded } = useOrganizationList()
 
   const { orgId } = useAuth()
-  console.log('orgId', orgId)
   const firstOrgId = Object.keys(membership ?? {})?.[0]
 
   useEffect(() => {

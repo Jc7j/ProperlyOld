@@ -63,7 +63,7 @@ const mainItems: NavigationItem[] = [
     exact: true,
   },
   {
-    title: 'Invoicing',
+    title: 'Properties',
     url: ROUTES.DASHBOARD.PROPERTIES,
     icon: ShoppingBag,
     exact: true,
@@ -175,22 +175,6 @@ export function AppSidebar({ children }: { children: ReactNode }) {
                 renderNavigationItems(mainItems)
               )}
             </SidebarSection>
-
-            {!isSettingsPage && (
-              <>
-                <SidebarSpacer />
-
-                <SidebarSection>
-                  <SidebarItem
-                    href="/changelog"
-                    className="text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-white"
-                  >
-                    <Sparkles className="h-4 w-4" />
-                    <SidebarLabel>What&apos;s New</SidebarLabel>
-                  </SidebarItem>
-                </SidebarSection>
-              </>
-            )}
           </SidebarBody>
 
           <SidebarFooter className="">

@@ -1,11 +1,45 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
   --font-sans:
     var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
-    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+    'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+
+  /* Primary (Green) */
+  --primary-50: oklch(98% 0.02 142); /* EFFEF5 */
+  --primary-100: oklch(96% 0.04 142); /* D7F5DF */
+  --primary-200: oklch(94% 0.06 142); /* B5EBC7 */
+  --primary-300: oklch(90% 0.1 142); /* 8BDBA8 */
+  --primary-400: oklch(85% 0.15 142); /* 4DC77F */
+  --primary-500: oklch(80% 0.18 142); /* 22B35F */
+  --primary-600: oklch(75% 0.2 142); /* 0B994D */
+  --primary-700: oklch(70% 0.18 142); /* 087F41 */
+  --primary-800: oklch(65% 0.15 142); /* 066535 */
+  --primary-900: oklch(55% 0.12 142); /* 044B27 */
+  --primary-950: oklch(45% 0.1 142); /* 023518 */
+
+  /* Semantic Colors */
+  --success-50: oklch(98% 0.02 142);
+  --success-100: oklch(96% 0.04 142);
+  --success-500: oklch(80% 0.18 142);
+  --success-900: oklch(50% 0.08 142);
+
+  --warning-50: oklch(98% 0.02 85);
+  --warning-100: oklch(96% 0.04 85);
+  --warning-500: oklch(80% 0.18 85);
+  --warning-900: oklch(50% 0.08 85);
+
+  --info-50: oklch(98% 0.02 250);
+  --info-100: oklch(96% 0.04 250);
+  --info-500: oklch(80% 0.18 250);
+  --info-900: oklch(50% 0.08 250);
+
+  --destructive-50: oklch(98% 0.02 0);
+  --destructive-100: oklch(96% 0.04 0);
+  --destructive-500: oklch(80% 0.18 0);
+  --destructive-900: oklch(50% 0.08 0);
 }
 
 /*

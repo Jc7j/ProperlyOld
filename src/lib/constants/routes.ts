@@ -1,23 +1,25 @@
 export const ROUTES = {
-  HOME: "/",
+  HOME: '/',
   AUTH: {
-    SIGNUP: "/sign-up",
-    SIGNIN: "/sign-in",
+    SIGNUP: '/sign-up',
+    SIGNIN: '/sign-in',
   },
   DASHBOARD: {
-    HOME: "/dashboard",
-    PROPERTIES: "/properties",
+    HOME: '/dashboard',
+    PROPERTIES: '/dashboard/properties',
+    PROPERTY: '/dashboard/properties/:propertyId',
     SETTINGS: {
-      MANAGEMENT_GROUP: "/dashboard/settings/management-group",
-      ACCOUNT: "/dashboard/settings/account",
+      MANAGEMENT_GROUP: '/dashboard/settings/management-group',
+      ACCOUNT: '/dashboard/settings/account',
     },
+    INVOICE: '/dashboard/properties/:propertyId/invoice/:invoiceId',
   },
-} as const;
+} as const
 
 export const ASSET_PATHS = {
-  IMAGES: "/images",
+  IMAGES: '/images',
   SVG: {
-    BRAND: "/svg/brand",
-    UI: "/svg/ui",
+    BRAND: '/svg/brand',
+    UI: '/svg/ui',
   },
-} as const;
+} as const

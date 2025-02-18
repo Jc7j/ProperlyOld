@@ -1,43 +1,197 @@
-import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, protectedProcedure } from "../trpc";
-import { z } from "zod";
+import { clerkClient } from '@clerk/nextjs/server'
+import { type Property } from '@prisma/client'
+import { TRPCError } from '@trpc/server'
+import { z } from 'zod'
+
+import { createTRPCRouter, protectedProcedure } from '../trpc'
+
+export const locationInfoSchema = z.object({
+  address: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  postalCode: z.string().optional(),
+  country: z.string().optional(),
+  timezone: z.string().optional(),
+})
+
+export const ownerSchema = z.object({
+  name: z.string().optional(),
+  email: z.string().optional(),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+})
+
+export type ParsedProperty = Property & {
+  locationInfo: z.infer<typeof locationInfoSchema> | null
+  owner: z.infer<typeof ownerSchema> | null
+  invoices: Array<{
+    id: string
+    invoiceDate: Date
+    financialDetails: {
+      totalAmount: number
+    } | null
+    updatedAt: Date | null
+    updatedBy: string
+    updatedByName: string
+    updatedByImageUrl: string
+  }>
+}
 
 export const propertyRouter = createTRPCRouter({
   getOne: protectedProcedure
-    .input(z.object({ propertyId: z.string() }))
+    .input(
+      z.object({
+        propertyId: z.string(),
+      })
+    )
     .query(async ({ ctx, input }) => {
-      const { orgId } = ctx.auth;
+      const { orgId } = ctx.auth
 
       if (!orgId) {
         throw new TRPCError({
-          code: "UNAUTHORIZED",
-          message: "No organization selected",
-        });
+          code: 'UNAUTHORIZED',
+          message: 'No organization selected',
+        })
       }
 
-      return ctx.db.property.findUnique({
+      const property = await ctx.db.property.findFirst({
         where: {
-          managementGroupId: orgId,
           id: input.propertyId,
+          managementGroupId: orgId,
         },
-      });
+        include: {
+          invoices: {
+            orderBy: {
+              invoiceDate: 'desc',
+            },
+            select: {
+              id: true,
+              invoiceDate: true,
+              financialDetails: true,
+              updatedAt: true,
+              updatedBy: true,
+            },
+          },
+        },
+      })
+
+      if (!property) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Property not found',
+        })
+      }
+
+      const client = await clerkClient()
+
+      // Get user info for all invoices in parallel
+      const userInfos = await Promise.all(
+        property.invoices.map((invoice) =>
+          client.users.getUser(invoice.updatedBy)
+        )
+      )
+
+      return {
+        ...property,
+        locationInfo: property.locationInfo
+          ? (JSON.parse(property.locationInfo as string) as z.infer<
+              typeof locationInfoSchema
+            >)
+          : null,
+        owner: property.owner
+          ? (JSON.parse(property.owner as string) as z.infer<
+              typeof ownerSchema
+            >)
+          : null,
+        invoices: property.invoices.map((invoice, index) => ({
+          ...invoice,
+          financialDetails: invoice.financialDetails
+            ? (JSON.parse(invoice.financialDetails as string) as {
+                totalAmount: number
+              })
+            : null,
+          updatedByName:
+            userInfos[index]?.firstName && userInfos[index]?.lastName
+              ? `${userInfos[index].firstName} ${userInfos[index].lastName}`
+              : (userInfos[index]?.firstName ??
+                userInfos[index]?.lastName ??
+                'Unknown User'),
+          updatedByImageUrl:
+            userInfos[index]?.imageUrl ??
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(
+              userInfos[index]?.firstName ?? ''
+            )}+${encodeURIComponent(
+              userInfos[index]?.lastName ?? ''
+            )}&background=random`,
+        })),
+      } satisfies ParsedProperty
     }),
 
   getMany: protectedProcedure.query(async ({ ctx }) => {
-    const { orgId } = ctx.auth;
+    const { orgId } = ctx.auth
 
     if (!orgId) {
       throw new TRPCError({
-        code: "UNAUTHORIZED",
-        message: "No organization selected",
-      });
+        code: 'UNAUTHORIZED',
+        message: 'No organization selected',
+      })
     }
 
-    return ctx.db.property.findMany({
+    const properties = await ctx.db.property.findMany({
       where: {
         managementGroupId: orgId,
       },
-      orderBy: { name: "asc" },
-    });
+      orderBy: { name: 'asc' },
+    })
+
+    return properties.map((property) => ({
+      ...property,
+      locationInfo: property.locationInfo
+        ? (JSON.parse(property.locationInfo as string) as z.infer<
+            typeof locationInfoSchema
+          >)
+        : null,
+      owner: property.owner
+        ? (JSON.parse(property.owner as string) as z.infer<typeof ownerSchema>)
+        : null,
+    })) as ParsedProperty[]
   }),
-});
+
+  create: protectedProcedure.mutation(async ({ ctx }) => {
+    const { orgId, userId } = ctx.auth
+
+    if (!orgId) {
+      throw new TRPCError({
+        code: 'UNAUTHORIZED',
+        message: 'No organization selected',
+      })
+    }
+
+    if (!userId) {
+      throw new TRPCError({
+        code: 'UNAUTHORIZED',
+        message: 'User not authenticated',
+      })
+    }
+
+    const newProperty = await ctx.db.property.create({
+      data: {
+        managementGroupId: orgId,
+        name: 'New Property',
+        createdBy: userId,
+        updatedBy: userId,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    })
+
+    if (!newProperty) {
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to create property',
+      })
+    }
+
+    return newProperty.id
+  }),
+})

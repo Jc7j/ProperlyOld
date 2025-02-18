@@ -38,6 +38,8 @@ model Property {
   updatedAt      DateTime?       @updatedAt
   createdBy     String
   updatedBy     String
+  // One-to-many relation: One Property can have many Invoices
+  invoices      Invoice[]
 }
 
 model Invoice {
@@ -45,36 +47,45 @@ model Invoice {
   managementGroupId String
   invoiceDate    DateTime
   propertyId     String?
-  financialDetails Json            // Stores total_amount, subtotal, tax as a JSON object
-  status          String          @default("draft") // draft | pending | paid
+  property       Property?       @relation(fields: [propertyId], references: [id])
+  financialDetails Json?         // Stores total_amount, subtotal, tax as a JSON object
   createdAt      DateTime?       @default(now())
   updatedAt      DateTime?       @updatedAt
   createdBy   String
-  UpdatedBy   String
+  updatedBy   String
+  items      InvoiceItem[]
 }
 
 model ManagementGroupItems {
   id              String          @id @default(uuid())
   managementGroupId String
   name            String
-  description     String?
   defaultPrice   Decimal
-  link            String?
   quantityOnHand Int           @default(0)
   quantityUsed    Int           @default(0)
   quantityTotal   Int           @default(0)
+  description     String?
+  link            String?
   createdAt      DateTime?       @default(now())
   updatedAt      DateTime?       @updatedAt
   createdBy   String
-  UpdatedBy   String
+  updatedBy   String
+  // One-to-many relation: One ManagementGroupItems can have many InvoiceItems
+  // This allows Prisma to automatically include related items using include() in queries
+  // Example: await prisma.invoiceItem.findUnique({ include: { managementGroupItem: true } })
+  invoiceItems   InvoiceItem[]
 }
 
 model InvoiceItem {
   id              String          @id @default(uuid())
   invoiceId      String
-  itemId         String?
   quantity        Int             @default(0)
   price           Decimal
+  managementGroupItemsId String?
+  // Many-to-one relation with Invoice
+  invoice     Invoice     @relation(fields: [invoiceId], references: [id])
+  // Many-to-one relation with ManagementGroupItems
+  managementGroupItem ManagementGroupItems? @relation(fields: [managementGroupItemsId], references: [id])
   customItemName String?
   date            DateTime?       @default(now())
   createdAt      DateTime?       @default(now())
