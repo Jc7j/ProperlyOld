@@ -1,9 +1,14 @@
 'use client'
 
-import { ChevronRight, Home, Pencil } from 'lucide-react'
+import { ChevronRight, Home, Pencil, Plus } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
+import React, { useState } from 'react'
+import ReactDatePicker from 'react-datepicker'
+import 'react-datepicker/dist/react-datepicker.css'
+import { useForm } from 'react-hook-form'
+import { InvoiceDetails } from '~/components/invoice/InvoiceDetails'
 import { Button, Card, Spinner } from '~/components/ui'
 import {
   Table,
@@ -13,6 +18,23 @@ import {
   TableHeader,
   TableRow,
 } from '~/components/ui'
+import {
+  Dialog,
+  DialogActions,
+  DialogBody,
+  DialogDescription,
+  DialogTitle,
+} from '~/components/ui'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '~/components/ui'
+import { Select } from '~/components/ui'
+import { Input } from '~/components/ui'
 import dayjs from '~/lib/utils/day'
 import { formatCurrency } from '~/lib/utils/format'
 import { type InvoiceWithUser } from '~/server/api/routers/invoice'
@@ -162,128 +184,6 @@ function InvoiceSummary({
   )
 }
 
-function InvoiceDetails({ invoice }: { invoice: InvoiceWithUser }) {
-  const managementFee = invoice.items?.find(
-    (item) => item.customItemName === 'Property Management Fee'
-  )
-  const maintenanceItems = invoice.items?.filter(
-    (item) =>
-      item.customItemName && item.customItemName !== 'Property Management Fee'
-  )
-  const supplyItems = invoice.items?.filter(
-    (item) => item.managementGroupItem !== null
-  )
-
-  const managementFeeAmount = managementFee
-    ? managementFee.price * managementFee.quantity
-    : 0
-  const subtotalWithoutManagementFee =
-    invoice.items?.reduce((acc, item) => {
-      if (item.customItemName !== 'Property Management Fee') {
-        return acc + item.price * item.quantity
-      }
-      return acc
-    }, 0) ?? 0
-  const taxAmount = subtotalWithoutManagementFee * 0.08375
-
-  return (
-    <div className="space-y-6">
-      <Table>
-        <TableHead>
-          <TableRow>
-            <TableHeader className="w-[50%]">Description</TableHeader>
-            <TableHeader className="w-[10%] text-center">Quantity</TableHeader>
-            <TableHeader className="w-[20%] text-center">Amount</TableHeader>
-            <TableHeader className="w-[20%] text-center">Actions</TableHeader>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {/* Management Fee Section */}
-          {managementFee && (
-            <TableRow>
-              <TableCell>Property Management Fee</TableCell>
-              <TableCell className="text-center">
-                {managementFee.quantity}
-              </TableCell>
-              <TableCell className="text-center">
-                {formatCurrency(managementFeeAmount)}
-              </TableCell>
-              <TableCell className="text-center">
-                <Button plain>
-                  <Pencil className="h-4 w-4" />
-                </Button>
-              </TableCell>
-            </TableRow>
-          )}
-
-          {/* Maintenance Items Section */}
-          {maintenanceItems?.length > 0 && (
-            <>
-              <TableRow>
-                <TableCell colSpan={4} className="bg-zinc-50 dark:bg-zinc-900">
-                  <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                    Maintenance Items
-                  </span>
-                </TableCell>
-              </TableRow>
-              {maintenanceItems.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell>
-                    <div>
-                      <div>{item.customItemName}</div>
-                      {item.date && (
-                        <div className="text-sm text-zinc-500">
-                          {dayjs(item.date).format('MMM D, YYYY')}
-                        </div>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center">{item.quantity}</TableCell>
-                  <TableCell className="text-center">
-                    {formatCurrency(item.price * item.quantity)}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Button plain>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </>
-          )}
-
-          {/* Supply Items Section */}
-          {supplyItems?.length > 0 && (
-            <>
-              <TableRow>
-                <TableCell colSpan={4} className="bg-zinc-50 dark:bg-zinc-900">
-                  <span className="font-medium text-blue-600 dark:text-blue-400">
-                    Supply Items (Taxed at 8.375%)
-                  </span>
-                </TableCell>
-              </TableRow>
-              {supplyItems.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell>{item.managementGroupItem?.name}</TableCell>
-                  <TableCell className="text-center">{item.quantity}</TableCell>
-                  <TableCell className="text-center">
-                    {formatCurrency(item.price * item.quantity)}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Button plain>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </>
-          )}
-        </TableBody>
-      </Table>
-    </div>
-  )
-}
-
 export default function InvoicePage() {
   const params = useParams<{
     propertyId: string // property id
@@ -373,9 +273,6 @@ export default function InvoicePage() {
 
           <Card className="lg:col-span-2 lg:row-span-2 lg:row-end-2">
             <div className="p-6">
-              <h2 className="mb-6 text-base font-semibold text-zinc-900 dark:text-zinc-50">
-                Invoice Details
-              </h2>
               <InvoiceDetails invoice={invoice} />
             </div>
           </Card>

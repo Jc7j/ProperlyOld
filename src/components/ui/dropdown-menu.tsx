@@ -1,89 +1,73 @@
-"use client";
+'use client'
 
-import * as Headless from "@headlessui/react";
-import type React from "react";
-import { cn } from "~/lib/utils/cn";
+import * as Headless from '@headlessui/react'
+import type React from 'react'
+import { cn } from '~/lib/utils/cn'
 
-import { Button } from "./button";
-import { Link } from "./link";
+import { Button } from './button'
+import { Link } from './link'
 
 export function Dropdown(props: Headless.MenuProps) {
-  return <Headless.Menu {...props} />;
+  return <Headless.Menu {...props} />
 }
 
 export function DropdownButton<T extends React.ElementType = typeof Button>({
   as = Button,
-  buttonColor = "plain",
+  buttonColor = 'plain',
   ...props
 }: { className?: string; buttonColor?: string } & Omit<
   Headless.MenuButtonProps<T>,
-  "className"
+  'className'
 >) {
-  return <Headless.MenuButton color={buttonColor} as={as} {...props} />;
+  return <Headless.MenuButton color={buttonColor} as={as} {...props} />
 }
 
 export function DropdownMenu({
-  anchor = "bottom",
+  anchor = 'bottom',
   className,
   ...props
-}: { className?: string } & Omit<Headless.MenuItemsProps, "as" | "className">) {
+}: { className?: string } & Omit<Headless.MenuItemsProps, 'as' | 'className'>) {
   return (
     <Headless.MenuItems
       {...props}
       transition
       anchor={anchor}
       className={cn(
-        className,
-        // Anchor positioning
-        "[--anchor-gap:--spacing(2)] [--anchor-padding:--spacing(1)] data-[anchor~=end]:[--anchor-offset:6px] data-[anchor~=start]:[--anchor-offset:-6px] sm:data-[anchor~=end]:[--anchor-offset:4px] sm:data-[anchor~=start]:[--anchor-offset:-4px]",
-        // Base styles
-        "isolate w-max rounded-xl p-1",
-        // Invisible border that is only visible in `forced-colors` mode for accessibility purposes
-        "outline outline-transparent focus:outline-hidden",
-        // Handle scrolling when menu won't fit in viewport
-        "overflow-y-auto",
-        // Popover background
-        "bg-white/75 backdrop-blur-xl dark:bg-zinc-800/75",
-        // Shadows
-        "ring-1 shadow-lg ring-zinc-950/10 dark:ring-white/10 dark:ring-inset",
-        // Define grid at the menu level if subgrid is supported
-        "supports-[grid-template-columns:subgrid]:grid supports-[grid-template-columns:subgrid]:grid-cols-[auto_1fr_1.5rem_0.5rem_auto]",
-        // Transitions
-        "transition data-leave:duration-100 data-leave:ease-in data-closed:data-leave:opacity-0",
+        'z-50 min-w-[8rem] rounded-lg bg-white/95 p-1 shadow-lg dark:bg-zinc-800/95',
+        'backdrop-blur-sm backdrop-saturate-150',
+        'ring-1 ring-zinc-950/10 dark:ring-white/10',
+        'animate-in fade-in zoom-in-95 duration-200',
+        'data-closed:animate-out data-closed:fade-out data-closed:zoom-out-95 data-closed:duration-150',
+        'data-[anchor=top]:slide-in-from-bottom-2',
+        'data-[anchor=bottom]:slide-in-from-top-2',
+        className
       )}
     />
-  );
+  )
 }
 
 export function DropdownItem({
   className,
   ...props
 }: { className?: string } & (
-  | Omit<Headless.MenuItemProps<"button">, "as" | "className">
-  | Omit<Headless.MenuItemProps<typeof Link>, "as" | "className">
+  | Omit<Headless.MenuItemProps<'button'>, 'as' | 'className'>
+  | Omit<Headless.MenuItemProps<typeof Link>, 'as' | 'className'>
 )) {
   const classes = cn(
-    className,
-    // Base styles
-    "group cursor-default rounded-lg px-3.5 py-2.5 focus:outline-hidden sm:px-3 sm:py-1.5",
-    // Text styles
-    "text-left text-base/6 text-zinc-950 sm:text-sm/6 dark:text-white forced-colors:text-[CanvasText]",
-    // Focus
-    "data-focus:bg-(--secondary-200) data-focus:text-black dark:data-focus:bg-(--secondary-800) dark:data-focus:text-white",
-    // Disabled state
-    "data-disabled:opacity-50",
-    // Forced colors mode
-    "forced-color-adjust-none forced-colors:data-focus:bg-[Highlight] forced-colors:data-focus:text-[HighlightText] forced-colors:data-focus:*:data-[slot=icon]:text-[HighlightText]",
-    // Use subgrid when available but fallback to an explicit grid layout if not
-    "col-span-full grid grid-cols-[auto_1fr_1.5rem_0.5rem_auto] items-center supports-[grid-template-columns:subgrid]:grid-cols-subgrid",
-    // Icons
-    "*:data-[slot=icon]:col-start-1 *:data-[slot=icon]:row-start-1 *:data-[slot=icon]:mr-2.5 *:data-[slot=icon]:-ml-0.5 *:data-[slot=icon]:size-5 sm:*:data-[slot=icon]:mr-2 sm:*:data-[slot=icon]:size-4",
-    "*:data-[slot=icon]:text-(--secondary-500) data-focus:*:data-[slot=icon]:text-white dark:*:data-[slot=icon]:text-(--secondary-400) dark:data-focus:*:data-[slot=icon]:text-white",
-    // Avatar
-    "*:data-[slot=avatar]:mr-2.5 *:data-[slot=avatar]:-ml-1 *:data-[slot=avatar]:size-6 sm:*:data-[slot=avatar]:mr-2 sm:*:data-[slot=avatar]:size-5",
-  );
+    'relative flex w-full select-none items-center rounded-md px-2 py-1.5 text-sm outline-none',
+    'text-zinc-700 dark:text-zinc-300',
+    'transition-all duration-200',
+    'hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-700/50 dark:hover:text-zinc-50',
+    'focus:bg-zinc-100 focus:text-zinc-900 dark:focus:bg-zinc-700/50 dark:focus:text-zinc-50',
+    'active:bg-zinc-200 dark:active:bg-zinc-700',
+    'disabled:pointer-events-none disabled:opacity-50',
+    '[&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-zinc-500 [&>svg]:dark:text-zinc-400',
+    '[&>svg]:transition-colors [&>svg]:duration-200',
+    'hover:[&>svg]:text-zinc-900 dark:hover:[&>svg]:text-zinc-50',
+    className
+  )
 
-  return "href" in props ? (
+  return 'href' in props ? (
     <Headless.MenuItem as={Link} {...props} className={classes} />
   ) : (
     <Headless.MenuItem
@@ -92,19 +76,23 @@ export function DropdownItem({
       {...props}
       className={classes}
     />
-  );
+  )
 }
 
 export function DropdownHeader({
   className,
   ...props
-}: React.ComponentPropsWithoutRef<"div">) {
+}: React.ComponentPropsWithoutRef<'div'>) {
   return (
     <div
       {...props}
-      className={cn(className, "col-span-5 px-3.5 pt-2.5 pb-1 sm:px-3")}
+      className={cn(
+        'px-2 py-1.5 text-sm font-semibold',
+        'text-zinc-900 dark:text-zinc-50',
+        className
+      )}
     />
-  );
+  )
 }
 
 export function DropdownSection({
@@ -112,18 +100,9 @@ export function DropdownSection({
   ...props
 }: { className?: string } & Omit<
   Headless.MenuSectionProps,
-  "as" | "className"
+  'as' | 'className'
 >) {
-  return (
-    <Headless.MenuSection
-      {...props}
-      className={cn(
-        className,
-        // Define grid at the section level instead of the item level if subgrid is supported
-        "col-span-full supports-[grid-template-columns:subgrid]:grid supports-[grid-template-columns:subgrid]:grid-cols-[auto_1fr_1.5rem_0.5rem_auto]",
-      )}
-    />
-  );
+  return <Headless.MenuSection {...props} className={cn('py-1', className)} />
 }
 
 export function DropdownHeading({
@@ -131,17 +110,17 @@ export function DropdownHeading({
   ...props
 }: { className?: string } & Omit<
   Headless.MenuHeadingProps,
-  "as" | "className"
+  'as' | 'className'
 >) {
   return (
     <Headless.MenuHeading
       {...props}
       className={cn(
-        className,
-        "col-span-full grid grid-cols-[1fr_auto] gap-x-12 px-3.5 pt-2 pb-1 text-sm/5 font-medium text-(--secondary-500) sm:px-3 sm:text-xs/5 dark:text-(--secondary-400)",
+        'px-2 py-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400',
+        className
       )}
     />
-  );
+  )
 }
 
 export function DropdownDivider({
@@ -149,31 +128,36 @@ export function DropdownDivider({
   ...props
 }: { className?: string } & Omit<
   Headless.MenuSeparatorProps,
-  "as" | "className"
+  'as' | 'className'
 >) {
   return (
     <Headless.MenuSeparator
       {...props}
       className={cn(
-        className,
-        "col-span-full mx-3.5 my-1 h-px border-0 bg-(--secondary-100) sm:mx-3 dark:bg-(--secondary-800) forced-colors:bg-[CanvasText]",
+        'my-1 h-px',
+        'bg-gradient-to-r from-zinc-200 via-zinc-200 to-transparent',
+        'dark:from-zinc-700 dark:via-zinc-700',
+        className
       )}
     />
-  );
+  )
 }
 
 export function DropdownLabel({
   className,
   ...props
-}: { className?: string } & Omit<Headless.LabelProps, "as" | "className">) {
+}: { className?: string } & Omit<Headless.LabelProps, 'as' | 'className'>) {
   return (
     <Headless.Label
       {...props}
-      data-slot="label"
-      className={cn(className, "col-start-2 row-start-1")}
-      {...props}
+      className={cn(
+        'px-2 py-1.5 text-sm font-medium',
+        'text-zinc-700 dark:text-zinc-300',
+        'transition-colors duration-200',
+        className
+      )}
     />
-  );
+  )
 }
 
 export function DropdownDescription({
@@ -181,18 +165,21 @@ export function DropdownDescription({
   ...props
 }: { className?: string } & Omit<
   Headless.DescriptionProps,
-  "as" | "className"
+  'as' | 'className'
 >) {
   return (
     <Headless.Description
-      data-slot="description"
       {...props}
       className={cn(
-        className,
-        "col-span-2 col-start-2 row-start-2 text-sm/5 text-(--secondary-500) group-data-focus:text-white sm:text-xs/5 dark:text-(--secondary-400) forced-colors:group-data-focus:text-[HighlightText]",
+        'text-sm',
+        'text-zinc-500 dark:text-zinc-400',
+        'transition-colors duration-200',
+        'group-hover:text-zinc-900 dark:group-hover:text-zinc-50',
+        'group-focus:text-zinc-900 dark:group-focus:text-zinc-50',
+        className
       )}
     />
-  );
+  )
 }
 
 export function DropdownShortcut({
@@ -200,27 +187,30 @@ export function DropdownShortcut({
   className,
   ...props
 }: { keys: string | string[]; className?: string } & Omit<
-  Headless.DescriptionProps<"kbd">,
-  "as" | "className"
+  Headless.DescriptionProps<'kbd'>,
+  'as' | 'className'
 >) {
   return (
     <Headless.Description
       as="kbd"
       {...props}
-      className={cn(className, "col-start-5 row-start-1 flex justify-self-end")}
+      className={cn('ml-auto flex items-center gap-1', className)}
     >
-      {(Array.isArray(keys) ? keys : keys.split("")).map((char, index) => (
+      {(Array.isArray(keys) ? keys : keys.split('')).map((key, index) => (
         <kbd
           key={index}
-          className={cn([
-            "min-w-[2ch] text-center font-sans text-(--secondary-500) capitalize group-data-focus:text-white forced-colors:group-data-focus:text-[HighlightText]",
-            // Make sure key names that are longer than one character (like "Tab") have extra space
-            index > 0 && char.length > 1 && "pl-1",
-          ])}
+          className={cn(
+            'min-w-[1.25rem] rounded px-1 text-center text-xs',
+            'bg-zinc-100 text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400',
+            'transition-colors duration-200',
+            'group-hover:bg-zinc-200 group-hover:text-zinc-900',
+            'dark:group-hover:bg-zinc-600 dark:group-hover:text-zinc-50',
+            index > 0 && key.length > 1 && 'ml-1'
+          )}
         >
-          {char}
+          {key}
         </kbd>
       ))}
     </Headless.Description>
-  );
+  )
 }

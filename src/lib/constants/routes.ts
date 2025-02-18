@@ -8,6 +8,7 @@ export const ROUTES = {
     HOME: '/dashboard',
     PROPERTIES: '/dashboard/properties',
     PROPERTY: '/dashboard/properties/:propertyId',
+    SUPPLIES: '/dashboard/supplies',
     SETTINGS: {
       MANAGEMENT_GROUP: '/dashboard/settings/management-group',
       ACCOUNT: '/dashboard/settings/account',

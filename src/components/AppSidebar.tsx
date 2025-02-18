@@ -3,20 +3,15 @@
 import { useAuth, useOrganization, useUser } from '@clerk/nextjs'
 import {
   Building2,
-  CalendarDays,
   ChevronLeft,
   ChevronsUpDown,
   Home,
-  LayoutGrid,
   LogOut,
   Moon,
-  Plug,
+  Package,
   Settings,
-  ShoppingBag,
-  Sparkles,
   Sun,
   UserCircle,
-  Users,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import Image from 'next/image'
@@ -65,7 +60,13 @@ const mainItems: NavigationItem[] = [
   {
     title: 'Properties',
     url: ROUTES.DASHBOARD.PROPERTIES,
-    icon: ShoppingBag,
+    icon: Building2,
+    exact: true,
+  },
+  {
+    title: 'Supplies',
+    url: ROUTES.DASHBOARD.SUPPLIES,
+    icon: Package,
     exact: true,
   },
 ]

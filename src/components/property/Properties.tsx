@@ -10,7 +10,7 @@ import {
   TableRow,
 } from '~/components/ui'
 import dayjs from '~/lib/utils/day'
-import { type ParsedProperty } from '~/server/api/types'
+import { type ParsedProperty } from '~/server/api/routers/property'
 
 interface PropertiesProps {
   properties: ParsedProperty[]
@@ -24,7 +24,7 @@ export default function Properties({ properties }: PropertiesProps) {
       <TableHead>
         <TableRow>
           <TableHeader>Name</TableHeader>
-          <TableHeader align="right">Location</TableHeader>
+          <TableHeader align="right">Address</TableHeader>
           <TableHeader align="right">Owner</TableHeader>
           <TableHeader align="right">Last Updated</TableHeader>
         </TableRow>

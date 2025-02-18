@@ -1,10 +1,15 @@
 'use client'
 
-import { ChevronRight, Home, Pencil, Plus } from 'lucide-react'
+import { Pencil, Plus } from 'lucide-react'
+import { ChevronRight, Home } from 'lucide-react'
 import Image from 'next/image'
+import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { Suspense, useState } from 'react'
 import DatePicker from 'react-datepicker'
+import { useForm } from 'react-hook-form'
+import { type z } from 'zod'
+import PlacesAutocomplete from '~/components/google/PlacesAutocomplete'
 import {
   Button,
   Card,
@@ -19,6 +24,20 @@ import {
   TableRow,
 } from '~/components/ui'
 import {
+  Dialog,
+  DialogActions,
+  DialogBody,
+  DialogDescription,
+  DialogTitle,
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+  Input,
+} from '~/components/ui'
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -27,15 +46,341 @@ import { ROUTES } from '~/lib/constants/routes'
 import dayjs from '~/lib/utils/day'
 import { formatCurrency } from '~/lib/utils/format'
 import { type ParsedProperty } from '~/server/api/routers/property'
+import {
+  type editLocationSchema,
+  type editOwnerSchema,
+} from '~/server/api/routers/property'
 import { api } from '~/trpc/react'
 
+function EditNameDialog({
+  isOpen,
+  onClose,
+  property,
+}: {
+  isOpen: boolean
+  onClose: () => void
+  property: ParsedProperty
+}) {
+  const utils = api.useUtils()
+  const { mutate: editName, isPending } = api.property.editName.useMutation({
+    onSuccess: () => {
+      void utils.property.getOne.invalidate()
+      form.reset()
+      onClose()
+    },
+  })
+
+  const form = useForm<{ propertyId: string; name: string }>({
+    defaultValues: {
+      propertyId: property.id,
+      name: property.name,
+    },
+  })
+
+  function onSubmit(data: { propertyId: string; name: string }) {
+    editName(data)
+  }
+
+  return (
+    <Dialog open={isOpen} onClose={onClose}>
+      <DialogTitle>Edit Property Name</DialogTitle>
+      <DialogDescription>Update the property name.</DialogDescription>
+
+      <DialogBody>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Enter property name" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <DialogActions>
+              <Button type="button" outline onClick={onClose}>
+                Cancel
+              </Button>
+              <Button type="submit" color="primary-solid" disabled={isPending}>
+                {isPending ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </DialogActions>
+          </form>
+        </Form>
+      </DialogBody>
+    </Dialog>
+  )
+}
+
+function EditLocationDialog({
+  isOpen,
+  onClose,
+  property,
+}: {
+  isOpen: boolean
+  onClose: () => void
+  property: ParsedProperty
+}) {
+  const utils = api.useUtils()
+  const { mutate: editLocation, isPending } =
+    api.property.editLocation.useMutation({
+      onSuccess: () => {
+        void utils.property.getOne.invalidate()
+        form.reset()
+        onClose()
+      },
+    })
+
+  const form = useForm<z.infer<typeof editLocationSchema>>({
+    defaultValues: {
+      propertyId: property.id,
+      address: property.locationInfo?.address ?? '',
+      city: property.locationInfo?.city ?? '',
+      state: property.locationInfo?.state ?? '',
+      postalCode: property.locationInfo?.postalCode ?? '',
+    },
+  })
+
+  function handlePlaceSelect(place: google.maps.places.PlaceResult) {
+    const addressComponents = place.address_components ?? []
+    const streetNumber = addressComponents.find((c) =>
+      c.types.includes('street_number')
+    )?.long_name
+    const route = addressComponents.find((c) =>
+      c.types.includes('route')
+    )?.long_name
+    const city = addressComponents.find(
+      (c) => c.types.includes('locality') || c.types.includes('sublocality')
+    )?.long_name
+    const state = addressComponents.find((c) =>
+      c.types.includes('administrative_area_level_1')
+    )?.short_name
+    const postalCode = addressComponents.find((c) =>
+      c.types.includes('postal_code')
+    )?.long_name
+
+    form.setValue(
+      'address',
+      streetNumber && route
+        ? `${streetNumber} ${route}`
+        : (place.formatted_address ?? '')
+    )
+    if (city) form.setValue('city', city)
+    if (state) form.setValue('state', state)
+    if (postalCode) form.setValue('postalCode', postalCode)
+  }
+
+  function onSubmit(data: z.infer<typeof editLocationSchema>) {
+    editLocation(data)
+  }
+
+  return (
+    <Dialog open={isOpen} onClose={onClose}>
+      <DialogTitle>Edit Location</DialogTitle>
+      <DialogDescription>
+        Update the property location details.
+      </DialogDescription>
+
+      <DialogBody>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="address"
+              render={({ field: { onChange, ...field } }) => (
+                <FormItem>
+                  <FormLabel>Address</FormLabel>
+                  <FormControl>
+                    <PlacesAutocomplete
+                      onPlaceSelect={handlePlaceSelect}
+                      placeholder="Search for address"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="city"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>City</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Enter city" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="state"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>State</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Enter state" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="postalCode"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Postal Code</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Enter postal code" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <DialogActions>
+              <Button type="button" outline onClick={onClose}>
+                Cancel
+              </Button>
+              <Button type="submit" color="primary-solid" disabled={isPending}>
+                {isPending ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </DialogActions>
+          </form>
+        </Form>
+      </DialogBody>
+    </Dialog>
+  )
+}
+
+function EditOwnerDialog({
+  isOpen,
+  onClose,
+  property,
+}: {
+  isOpen: boolean
+  onClose: () => void
+  property: ParsedProperty
+}) {
+  const utils = api.useUtils()
+  const { mutate: editOwner, isPending } = api.property.editOwner.useMutation({
+    onSuccess: () => {
+      void utils.property.getOne.invalidate()
+      form.reset()
+      onClose()
+    },
+  })
+
+  const form = useForm<z.infer<typeof editOwnerSchema>>({
+    defaultValues: {
+      propertyId: property.id,
+      name: property.owner?.name ?? '',
+      email: property.owner?.email ?? '',
+      phone: property.owner?.phone ?? '',
+    },
+  })
+
+  function onSubmit(data: z.infer<typeof editOwnerSchema>) {
+    editOwner(data)
+  }
+
+  return (
+    <Dialog open={isOpen} onClose={onClose}>
+      <DialogTitle>Edit Owner</DialogTitle>
+      <DialogDescription>Update the property owner details.</DialogDescription>
+
+      <DialogBody>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Enter owner name" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="email"
+                      placeholder="Enter owner email"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="phone"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Phone</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="tel"
+                      placeholder="Enter owner phone"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <DialogActions>
+              <Button type="button" outline onClick={onClose}>
+                Cancel
+              </Button>
+              <Button type="submit" color="primary-solid" disabled={isPending}>
+                {isPending ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </DialogActions>
+          </form>
+        </Form>
+      </DialogBody>
+    </Dialog>
+  )
+}
+
 function LocationInfo({ property }: { property: ParsedProperty | null }) {
+  const [isEditing, setIsEditing] = useState(false)
+
   return (
     <Card>
-      <div className="border-b border-zinc-950/5 px-4 py-3 dark:border-white/5 sm:px-6">
+      <div className="flex items-center justify-between border-b border-zinc-950/5 px-4 py-3 dark:border-white/5 sm:px-6">
         <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-          Location Information
+          Address
         </h2>
+        <Button plain onClick={() => setIsEditing(true)}>
+          <Pencil className="size-4" />
+        </Button>
       </div>
       <div className="p-4 sm:p-6">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -65,17 +410,29 @@ function LocationInfo({ property }: { property: ParsedProperty | null }) {
           </div>
         </div>
       </div>
+      {property && (
+        <EditLocationDialog
+          isOpen={isEditing}
+          onClose={() => setIsEditing(false)}
+          property={property}
+        />
+      )}
     </Card>
   )
 }
 
 function OwnerInfo({ property }: { property: ParsedProperty | null }) {
+  const [isEditing, setIsEditing] = useState(false)
+
   return (
     <Card>
-      <div className="border-b border-zinc-950/5 px-4 py-3 dark:border-white/5 sm:px-6">
+      <div className="flex items-center justify-between border-b border-zinc-950/5 px-4 py-3 dark:border-white/5 sm:px-6">
         <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-          Owner Information
+          Owner
         </h2>
+        <Button plain onClick={() => setIsEditing(true)}>
+          <Pencil className="size-4" />
+        </Button>
       </div>
       <div className="p-4 sm:p-6">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -93,6 +450,13 @@ function OwnerInfo({ property }: { property: ParsedProperty | null }) {
           </div>
         </div>
       </div>
+      {property && (
+        <EditOwnerDialog
+          isOpen={isEditing}
+          onClose={() => setIsEditing(false)}
+          property={property}
+        />
+      )}
     </Card>
   )
 }
@@ -262,39 +626,129 @@ function InvoicesTable({
   )
 }
 
+function Breadcrumb({ propertyName }: { propertyName: string }) {
+  const pages = [
+    {
+      name: 'Properties',
+      href: '/dashboard/properties',
+      current: false,
+    },
+    {
+      name: propertyName,
+      href: '#',
+      current: true,
+    },
+  ]
+
+  return (
+    <nav aria-label="Breadcrumb" className="mb-4">
+      <ol role="list" className="flex items-center space-x-4">
+        <li>
+          <div>
+            <Link
+              href="/dashboard"
+              className="text-zinc-400 transition-colors hover:text-zinc-500 dark:text-zinc-500 dark:hover:text-zinc-400"
+            >
+              <Home className="size-5 shrink-0" />
+              <span className="sr-only">Dashboard</span>
+            </Link>
+          </div>
+        </li>
+        {pages.map((page) => (
+          <li key={page.name}>
+            <div className="flex items-center">
+              <ChevronRight
+                className="size-5 shrink-0 text-zinc-400 dark:text-zinc-600"
+                aria-hidden="true"
+              />
+              <Link
+                href={page.href}
+                aria-current={page.current ? 'page' : undefined}
+                className={`ml-4 text-sm font-medium ${
+                  page.current
+                    ? 'text-zinc-800 dark:text-zinc-200'
+                    : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300'
+                }`}
+              >
+                {page.name}
+              </Link>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </nav>
+  )
+}
+
 export default function PropertyPage() {
   const { propertyId } = useParams<{ propertyId: string }>()
   const { data: property, isLoading } = api.property.getOne.useQuery({
     propertyId,
   })
+  const [isEditingName, setIsEditingName] = useState(false)
 
   if (isLoading) return <Spinner size="lg" />
   if (!property) return <div>Property not found</div>
 
   return (
-    <div className="space-y-6 p-6">
-      <Heading level={1}>{property.name}</Heading>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        <Suspense fallback={<Spinner />}>
-          <LocationInfo property={property} />
-        </Suspense>
-
-        <Suspense fallback={<Spinner />}>
-          <OwnerInfo property={property} />
-        </Suspense>
-      </div>
-
-      <Card>
-        <div className="border-b border-zinc-950/5 px-4 py-3 dark:border-white/5 sm:px-6">
-          <InvoicesHeader propertyId={propertyId} />
+    <div className="space-y-6">
+      <header className="relative isolate">
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 -z-10 overflow-hidden"
+        >
+          <div className="absolute left-16 top-full -mt-16 transform-gpu opacity-50 blur-3xl xl:left-1/2 xl:-ml-80">
+            <div className="aspect-[1154/678] w-[72.125rem] bg-gradient-to-br from-[#FF80B5] to-[#9089FC]" />
+          </div>
+          <div className="absolute inset-x-0 bottom-0 h-px bg-zinc-900/5 dark:bg-white/5" />
         </div>
-        <div className="p-4 sm:p-6">
+
+        <div className="mx-auto max-w-7xl px-4 pb-12 pt-20 sm:px-6 lg:px-8">
+          <Breadcrumb propertyName={property.name} />
+          <div className="flex items-center gap-3">
+            <Heading level={1}>{property.name}</Heading>
+            <Button plain onClick={() => setIsEditingName(true)}>
+              <Pencil className="size-4" />
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="grid gap-6 md:grid-cols-2">
           <Suspense fallback={<Spinner />}>
-            <InvoicesTable property={property} />
+            <LocationInfo property={property} />
+          </Suspense>
+
+          <Suspense fallback={<Spinner />}>
+            <OwnerInfo property={property} />
           </Suspense>
         </div>
-      </Card>
+
+        <Card className="mt-6">
+          <div className="border-b border-zinc-950/5 px-4 py-3 dark:border-white/5 sm:px-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                Invoices
+              </h2>
+              <CreateInvoiceButton propertyId={propertyId} />
+            </div>
+          </div>
+          <div className="p-4 sm:p-6">
+            <Suspense fallback={<Spinner />}>
+              <InvoicesTable property={property} />
+            </Suspense>
+          </div>
+        </Card>
+      </div>
+
+      {isEditingName && (
+        <EditNameDialog
+          isOpen={isEditingName}
+          onClose={() => setIsEditingName(false)}
+          property={property}
+        />
+      )}
     </div>
   )
 }

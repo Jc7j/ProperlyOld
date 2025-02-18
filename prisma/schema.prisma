@@ -88,6 +88,6 @@ model InvoiceItem {
   managementGroupItem ManagementGroupItems? @relation(fields: [managementGroupItemsId], references: [id])
   customItemName String?
   date            DateTime?       @default(now())
-  createdAt      DateTime?       @default(now())
-  updatedAt      DateTime?       @updatedAt
+  createdAt      DateTime       @default(now())
+  createdBy      String
 }

@@ -1,29 +1,12 @@
-import { clerkClient } from '@clerk/nextjs/server'
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
+import { getUserDisplayInfo } from '~/lib/utils/clerk'
 
 import { createTRPCRouter, protectedProcedure } from '../trpc'
 
 export const financialDetailsSchema = z.object({
   totalAmount: z.number(),
 })
-
-// Helper function to get user display info
-async function getUserDisplayInfo(userId: string) {
-  const client = await clerkClient()
-  const user = await client.users.getUser(userId)
-  return {
-    imageUrl:
-      user.imageUrl ??
-      `https://ui-avatars.com/api/?name=${encodeURIComponent(
-        user.firstName ?? ''
-      )}+${encodeURIComponent(user.lastName ?? '')}&background=random`,
-    name:
-      user.firstName && user.lastName
-        ? `${user.firstName} ${user.lastName}`
-        : (user.firstName ?? user.lastName ?? 'Unknown User'),
-  }
-}
 
 export interface InvoiceWithUser {
   id: string
@@ -105,18 +88,16 @@ export const invoiceRouter = createTRPCRouter({
 
       return {
         ...invoice,
-        financialDetails: invoice.financialDetails
-          ? (JSON.parse(invoice.financialDetails as string) as z.infer<
-              typeof financialDetailsSchema
-            >)
-          : null,
+        financialDetails: invoice.financialDetails as z.infer<
+          typeof financialDetailsSchema
+        > | null,
         createdByName: createdByInfo.name,
         createdByImageUrl: createdByInfo.imageUrl,
         updatedByName: updatedByInfo.name,
         updatedByImageUrl: updatedByInfo.imageUrl,
         items: invoice.items.map((item) => ({
           ...item,
-          price: Number(item.price), // Convert Decimal to number
+          price: Number(item.price),
         })),
       } satisfies InvoiceWithUser
     }),

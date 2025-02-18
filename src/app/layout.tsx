@@ -2,6 +2,7 @@ import { ClerkProvider } from '@clerk/nextjs'
 import { auth } from '@clerk/nextjs/server'
 import { GeistSans } from 'geist/font/sans'
 import { type Metadata } from 'next'
+import { Toaster } from 'sonner'
 import { SyncActiveOrganization } from '~/components/clerk/SyncActiveOrganizations'
 import '~/styles/globals.css'
 import { TRPCReactProvider } from '~/trpc/react'
@@ -28,6 +29,7 @@ export default async function RootLayout({
         <body>
           <TRPCReactProvider>
             <ThemeProvider>{children}</ThemeProvider>
+            <Toaster />
           </TRPCReactProvider>
         </body>
       </html>

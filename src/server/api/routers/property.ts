@@ -1,9 +1,10 @@
-import { clerkClient } from '@clerk/nextjs/server'
 import { type Property } from '@prisma/client'
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
+import { getUsersDisplayInfo } from '~/lib/utils/clerk'
 
 import { createTRPCRouter, protectedProcedure } from '../trpc'
+import { type financialDetailsSchema } from './invoice'
 
 export const locationInfoSchema = z.object({
   address: z.string().optional(),
@@ -19,6 +20,21 @@ export const ownerSchema = z.object({
   email: z.string().optional(),
   phone: z.string().optional(),
   address: z.string().optional(),
+})
+
+export const editLocationSchema = z.object({
+  propertyId: z.string(),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  postalCode: z.string().optional(),
+})
+
+export const editOwnerSchema = z.object({
+  propertyId: z.string(),
+  name: z.string().optional(),
+  email: z.string().email().optional(),
+  phone: z.string().optional(),
 })
 
 export type ParsedProperty = Property & {
@@ -82,48 +98,26 @@ export const propertyRouter = createTRPCRouter({
         })
       }
 
-      const client = await clerkClient()
-
-      // Get user info for all invoices in parallel
-      const userInfos = await Promise.all(
-        property.invoices.map((invoice) =>
-          client.users.getUser(invoice.updatedBy)
-        )
-      )
+      const userIds = [...new Set(property.invoices.map((i) => i.updatedBy))]
+      const userMap = await getUsersDisplayInfo(userIds)
 
       return {
         ...property,
-        locationInfo: property.locationInfo
-          ? (JSON.parse(property.locationInfo as string) as z.infer<
-              typeof locationInfoSchema
-            >)
-          : null,
-        owner: property.owner
-          ? (JSON.parse(property.owner as string) as z.infer<
-              typeof ownerSchema
-            >)
-          : null,
-        invoices: property.invoices.map((invoice, index) => ({
-          ...invoice,
-          financialDetails: invoice.financialDetails
-            ? (JSON.parse(invoice.financialDetails as string) as {
-                totalAmount: number
-              })
-            : null,
-          updatedByName:
-            userInfos[index]?.firstName && userInfos[index]?.lastName
-              ? `${userInfos[index].firstName} ${userInfos[index].lastName}`
-              : (userInfos[index]?.firstName ??
-                userInfos[index]?.lastName ??
-                'Unknown User'),
-          updatedByImageUrl:
-            userInfos[index]?.imageUrl ??
-            `https://ui-avatars.com/api/?name=${encodeURIComponent(
-              userInfos[index]?.firstName ?? ''
-            )}+${encodeURIComponent(
-              userInfos[index]?.lastName ?? ''
-            )}&background=random`,
-        })),
+        locationInfo: property.locationInfo as z.infer<
+          typeof locationInfoSchema
+        > | null,
+        owner: property.owner as z.infer<typeof ownerSchema> | null,
+        invoices: property.invoices.map((invoice) => {
+          const userInfo = userMap.get(invoice.updatedBy)!
+          return {
+            ...invoice,
+            financialDetails: invoice.financialDetails as z.infer<
+              typeof financialDetailsSchema
+            > | null,
+            updatedByName: userInfo.name,
+            updatedByImageUrl: userInfo.imageUrl,
+          }
+        }),
       } satisfies ParsedProperty
     }),
 
@@ -146,14 +140,10 @@ export const propertyRouter = createTRPCRouter({
 
     return properties.map((property) => ({
       ...property,
-      locationInfo: property.locationInfo
-        ? (JSON.parse(property.locationInfo as string) as z.infer<
-            typeof locationInfoSchema
-          >)
-        : null,
-      owner: property.owner
-        ? (JSON.parse(property.owner as string) as z.infer<typeof ownerSchema>)
-        : null,
+      locationInfo: property.locationInfo as z.infer<
+        typeof locationInfoSchema
+      > | null,
+      owner: property.owner as z.infer<typeof ownerSchema> | null,
     })) as ParsedProperty[]
   }),
 
@@ -194,4 +184,97 @@ export const propertyRouter = createTRPCRouter({
 
     return newProperty.id
   }),
+
+  editLocation: protectedProcedure
+    .input(editLocationSchema)
+    .mutation(async ({ ctx, input }) => {
+      const { orgId, userId } = ctx.auth
+
+      if (!orgId) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'No organization selected',
+        })
+      }
+
+      const locationInfo = {
+        address: input.address,
+        city: input.city,
+        state: input.state,
+        postalCode: input.postalCode,
+      }
+
+      return ctx.db.property.update({
+        where: {
+          id: input.propertyId,
+          managementGroupId: orgId,
+        },
+        data: {
+          locationInfo,
+          updatedBy: userId,
+          updatedAt: new Date(),
+        },
+      })
+    }),
+
+  editOwner: protectedProcedure
+    .input(editOwnerSchema)
+    .mutation(async ({ ctx, input }) => {
+      const { orgId, userId } = ctx.auth
+
+      if (!orgId) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'No organization selected',
+        })
+      }
+
+      const ownerInfo = {
+        name: input.name,
+        email: input.email,
+        phone: input.phone,
+      }
+
+      return ctx.db.property.update({
+        where: {
+          id: input.propertyId,
+          managementGroupId: orgId,
+        },
+        data: {
+          owner: ownerInfo,
+          updatedBy: userId,
+          updatedAt: new Date(),
+        },
+      })
+    }),
+
+  editName: protectedProcedure
+    .input(
+      z.object({
+        propertyId: z.string(),
+        name: z.string().min(1, 'Name is required'),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { orgId, userId } = ctx.auth
+
+      if (!orgId) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'No organization selected',
+        })
+      }
+
+      return ctx.db.property.update({
+        where: {
+          id: input.propertyId,
+          managementGroupId: orgId,
+        },
+        data: {
+          name: input.name,
+          updatedBy: userId,
+          updatedAt: new Date(),
+        },
+      })
+    }),
 })

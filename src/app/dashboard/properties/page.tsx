@@ -10,16 +10,12 @@ import { api } from '~/trpc/react'
 
 export default function PropertiesPage() {
   const router = useRouter()
+  const utils = api.useUtils()
   const { data: properties } = api.property.getMany.useQuery()
   const createProperty = api.property.create.useMutation({
-    onSuccess: async () => {
-      const updatedProperties = await utils.property.getMany.fetch()
-      if (updatedProperties && updatedProperties.length > 0) {
-        const newProperty = updatedProperties[updatedProperties.length - 1]
-        if (newProperty) {
-          router.push(`${ROUTES.DASHBOARD.PROPERTIES}/${newProperty.id}`)
-        }
-      }
+    onSuccess: async (newProperty) => {
+      await utils.property.getMany.invalidate()
+      router.push(`${ROUTES.DASHBOARD.PROPERTIES}/${newProperty}`)
     },
     onError: (error) => {
       console.error(error)
@@ -28,7 +24,6 @@ export default function PropertiesPage() {
       )
     },
   })
-  const utils = api.useUtils()
 
   return (
     <div className="space-y-4 p-4">
@@ -38,13 +33,13 @@ export default function PropertiesPage() {
           onClick={() => createProperty.mutate()}
           disabled={createProperty.isPending}
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="size-4" />
           <span>Add Property</span>
         </Button>
       </div>
 
       {properties?.length && properties.length > 0 ? (
-        <Suspense fallback={<Spinner size="lg" />}>
+        <Suspense fallback={<Spinner size="lg" className="mx-auto mt-8" />}>
           <Properties properties={properties} />
         </Suspense>
       ) : (
