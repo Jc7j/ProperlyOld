@@ -1,29 +1,29 @@
-"use client";
+'use client'
 
-import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useEffect } from "react";
-import { IntroStep } from "~/components/welcome/IntroStep";
-import { CreateGroupStep } from "~/components/welcome/CreateGroupStep";
-import { ThemeStep } from "~/components/welcome/ThemeStep";
-import { CompleteStep } from "~/components/welcome/CompleteStep";
-import { SignOutButton } from "@clerk/nextjs";
-import { useUser } from "@clerk/nextjs";
+import { SignOutButton } from '@clerk/nextjs'
+import { useUser } from '@clerk/nextjs'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { CompleteStep } from '~/components/welcome/CompleteStep'
+import { CreateGroupStep } from '~/components/welcome/CreateGroupStep'
+import { IntroStep } from '~/components/welcome/IntroStep'
+import { ThemeStep } from '~/components/welcome/ThemeStep'
 
-const STEPS = ["intro", "createGroup", "theme", "complete"] as const;
-type StepType = (typeof STEPS)[number];
+const STEPS = ['intro', 'createGroup', 'theme', 'complete'] as const
+type StepType = (typeof STEPS)[number]
 
 export default function WelcomePage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const { user, isLoaded: isUserLoaded } = useUser();
-  const [currentStep, setCurrentStep] = useState<StepType>("intro");
-  const userEmail = user?.primaryEmailAddress?.emailAddress;
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { user } = useUser()
+  const [currentStep, setCurrentStep] = useState<StepType>('intro')
+  const userEmail = user?.primaryEmailAddress?.emailAddress
   useEffect(() => {
-    const step = searchParams.get("step") as StepType;
+    const step = searchParams.get('step') as StepType
     if (step && STEPS.includes(step)) {
-      setCurrentStep(step);
+      setCurrentStep(step)
     }
-  }, [searchParams]);
+  }, [searchParams])
 
   return (
     <div>
@@ -60,8 +60,8 @@ export default function WelcomePage() {
                     key={index}
                     className={`h-2 w-2 rounded-full transition-colors duration-500 ${
                       index <= STEPS.indexOf(currentStep)
-                        ? "bg-primary"
-                        : "bg-muted"
+                        ? 'bg-primary'
+                        : 'bg-muted'
                     }`}
                   />
                 ))}
@@ -70,48 +70,48 @@ export default function WelcomePage() {
           </div>
 
           <div className="min-h-[400px]">
-            {currentStep === "intro" && (
+            {currentStep === 'intro' && (
               <IntroStep
                 onNext={() =>
                   router.push(
-                    `/welcome?step=${STEPS[STEPS.indexOf(currentStep) + 1]}`,
+                    `/welcome?step=${STEPS[STEPS.indexOf(currentStep) + 1]}`
                   )
                 }
               />
             )}
-            {currentStep === "createGroup" && (
+            {currentStep === 'createGroup' && (
               <CreateGroupStep
                 onNext={() =>
                   router.push(
-                    `/welcome?step=${STEPS[STEPS.indexOf(currentStep) + 1]}`,
+                    `/welcome?step=${STEPS[STEPS.indexOf(currentStep) + 1]}`
                   )
                 }
                 onBack={() =>
                   router.push(
-                    `/welcome?step=${STEPS[STEPS.indexOf(currentStep) - 1]}`,
+                    `/welcome?step=${STEPS[STEPS.indexOf(currentStep) - 1]}`
                   )
                 }
               />
             )}
-            {currentStep === "theme" && (
+            {currentStep === 'theme' && (
               <ThemeStep
                 onNext={() =>
                   router.push(
-                    `/welcome?step=${STEPS[STEPS.indexOf(currentStep) + 1]}`,
+                    `/welcome?step=${STEPS[STEPS.indexOf(currentStep) + 1]}`
                   )
                 }
                 onBack={() =>
                   router.push(
-                    `/welcome?step=${STEPS[STEPS.indexOf(currentStep) - 1]}`,
+                    `/welcome?step=${STEPS[STEPS.indexOf(currentStep) - 1]}`
                   )
                 }
               />
             )}
-            {currentStep === "complete" && (
+            {currentStep === 'complete' && (
               <CompleteStep
                 onBack={() =>
                   router.push(
-                    `/welcome?step=${STEPS[STEPS.indexOf(currentStep) - 1]}`,
+                    `/welcome?step=${STEPS[STEPS.indexOf(currentStep) - 1]}`
                   )
                 }
               />
@@ -120,5 +120,5 @@ export default function WelcomePage() {
         </div>
       </div>
     </div>
-  );
+  )
 }

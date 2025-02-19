@@ -1,23 +1,14 @@
 'use client'
 
-import { ChevronRight, Home, Pencil, Plus } from 'lucide-react'
+import { ChevronRight, Home, Trash2 } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import React, { useState } from 'react'
-import ReactDatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
-import { useForm } from 'react-hook-form'
+import { exportInvoiceToPdf } from '~/components/invoice/ExportInvoice'
 import { InvoiceDetails } from '~/components/invoice/InvoiceDetails'
 import { Button, Card, Spinner } from '~/components/ui'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '~/components/ui'
 import {
   Dialog,
   DialogActions,
@@ -25,16 +16,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from '~/components/ui'
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '~/components/ui'
-import { Select } from '~/components/ui'
-import { Input } from '~/components/ui'
+import { ROUTES } from '~/lib/constants/routes'
 import dayjs from '~/lib/utils/day'
 import { formatCurrency } from '~/lib/utils/format'
 import { type InvoiceWithUser } from '~/server/api/routers/invoice'
@@ -106,16 +88,16 @@ function Breadcrumb({
 }
 
 function InvoiceSummary({
-  subtotalWithoutManagementFee,
+  subtotal,
   managementFeeAmount,
   taxAmount,
-  totalDue,
+  totalAmount,
   invoice,
 }: {
-  subtotalWithoutManagementFee: number
+  subtotal: number
   managementFeeAmount: number
   taxAmount: number
-  totalDue: number
+  totalAmount: number
   invoice: InvoiceWithUser
 }) {
   return (
@@ -130,7 +112,7 @@ function InvoiceSummary({
               <span className="text-zinc-600 dark:text-zinc-400">
                 Supplies Total:
               </span>
-              <span>{formatCurrency(subtotalWithoutManagementFee)}</span>
+              <span>{formatCurrency(subtotal)}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-zinc-600 dark:text-zinc-400">
@@ -146,7 +128,7 @@ function InvoiceSummary({
             </div>
             <div className="flex justify-between border-t border-zinc-200 pt-3 dark:border-zinc-800">
               <span className="font-medium">Total Due:</span>
-              <span className="font-medium">{formatCurrency(totalDue)}</span>
+              <span className="font-medium">{formatCurrency(totalAmount)}</span>
             </div>
           </div>
         </div>
@@ -184,6 +166,53 @@ function InvoiceSummary({
   )
 }
 
+function DeleteInvoiceDialog({
+  isOpen,
+  onClose,
+  invoiceId,
+  propertyId,
+}: {
+  isOpen: boolean
+  onClose: () => void
+  invoiceId: string
+  propertyId: string
+}) {
+  const router = useRouter()
+  const utils = api.useUtils()
+  const { mutate: deleteInvoice, isPending } = api.invoice.delete.useMutation({
+    onSuccess: () => {
+      void utils.property.getOne.invalidate({ propertyId })
+      router.push(ROUTES.DASHBOARD.PROPERTY.replace(':propertyId', propertyId))
+      onClose()
+    },
+  })
+
+  return (
+    <Dialog open={isOpen} onClose={onClose}>
+      <DialogTitle>Delete Invoice</DialogTitle>
+      <DialogDescription>
+        Are you sure you want to delete this invoice? This action cannot be
+        undone.
+      </DialogDescription>
+
+      <DialogBody>
+        <DialogActions>
+          <Button type="button" outline onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            color="destructive-outline"
+            disabled={isPending}
+            onClick={() => deleteInvoice({ invoiceId, propertyId })}
+          >
+            {isPending ? 'Deleting...' : 'Delete Invoice'}
+          </Button>
+        </DialogActions>
+      </DialogBody>
+    </Dialog>
+  )
+}
+
 export default function InvoicePage() {
   const params = useParams<{
     propertyId: string // property id
@@ -199,26 +228,20 @@ export default function InvoicePage() {
     propertyId: params.propertyId,
   })
 
+  const [isDeleting, setIsDeleting] = useState(false)
+
   if (isLoading) return <Spinner size="lg" />
   if (!invoice || !property) return <div>Invoice not found</div>
 
-  const managementFee = invoice.items?.find(
-    (item) => item.customItemName === 'Property Management Fee'
-  )
-  const managementFeeAmount = managementFee
-    ? managementFee.price * managementFee.quantity
-    : 0
-  const subtotalWithoutManagementFee =
-    invoice.items?.reduce((acc, item) => {
-      if (item.customItemName !== 'Property Management Fee') {
-        return acc + item.price * item.quantity
-      }
-      return acc
-    }, 0) ?? 0
-  const taxAmount = subtotalWithoutManagementFee * 0.08375
-  const totalDue =
-    subtotalWithoutManagementFee + managementFeeAmount + taxAmount
-
+  // Use the financial details from the API response
+  const { subtotal, managementFeeAmount, taxAmount, totalAmount } =
+    invoice.financialDetails ?? {
+      subtotal: 0,
+      managementFeeAmount: 0,
+      taxAmount: 0,
+      totalAmount: 0,
+    }
+  console.log('invoice', invoice)
   return (
     <main>
       <header className="relative isolate">
@@ -255,7 +278,30 @@ export default function InvoicePage() {
               </h1>
             </div>
             <div className="flex items-center gap-x-4 sm:gap-x-6">
-              <Button color="primary">Export</Button>
+              <Button
+                color="primary"
+                onClick={() =>
+                  exportInvoiceToPdf({
+                    invoice,
+                    propertyName: property.name,
+                    propertyLocation: property.locationInfo?.address ?? null,
+                    ownerInfo: {
+                      name: property.owner?.name ?? null,
+                      email: property.owner?.email ?? null,
+                      phone: property.owner?.phone ?? null,
+                      address: property.owner?.address ?? null,
+                    },
+                  })
+                }
+              >
+                Export PDF
+              </Button>
+              <Button
+                color="destructive-outline"
+                onClick={() => setIsDeleting(true)}
+              >
+                <Trash2 className="size-4" />
+              </Button>
             </div>
           </div>
         </div>
@@ -264,10 +310,10 @@ export default function InvoicePage() {
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <div className="mx-auto grid max-w-2xl grid-cols-1 grid-rows-1 items-start gap-x-8 gap-y-8 lg:mx-0 lg:max-w-none lg:grid-cols-3">
           <InvoiceSummary
-            subtotalWithoutManagementFee={subtotalWithoutManagementFee}
+            subtotal={subtotal}
             managementFeeAmount={managementFeeAmount}
             taxAmount={taxAmount}
-            totalDue={totalDue}
+            totalAmount={totalAmount}
             invoice={invoice}
           />
 
@@ -278,6 +324,15 @@ export default function InvoicePage() {
           </Card>
         </div>
       </div>
+
+      {isDeleting && (
+        <DeleteInvoiceDialog
+          isOpen={isDeleting}
+          onClose={() => setIsDeleting(false)}
+          invoiceId={params.invoiceId}
+          propertyId={params.propertyId}
+        />
+      )}
     </main>
   )
 }

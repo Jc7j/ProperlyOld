@@ -37,6 +37,10 @@ export const editOwnerSchema = z.object({
   phone: z.string().optional(),
 })
 
+export const deletePropertySchema = z.object({
+  propertyId: z.string(),
+})
+
 export type ParsedProperty = Property & {
   locationInfo: z.infer<typeof locationInfoSchema> | null
   owner: z.infer<typeof ownerSchema> | null
@@ -77,6 +81,9 @@ export const propertyRouter = createTRPCRouter({
         },
         include: {
           invoices: {
+            where: {
+              deletedAt: null,
+            },
             orderBy: {
               invoiceDate: 'desc',
             },
@@ -86,6 +93,7 @@ export const propertyRouter = createTRPCRouter({
               financialDetails: true,
               updatedAt: true,
               updatedBy: true,
+              deletedAt: false,
             },
           },
         },
@@ -134,6 +142,7 @@ export const propertyRouter = createTRPCRouter({
     const properties = await ctx.db.property.findMany({
       where: {
         managementGroupId: orgId,
+        deletedAt: null,
       },
       orderBy: { name: 'asc' },
     })
@@ -272,6 +281,43 @@ export const propertyRouter = createTRPCRouter({
         },
         data: {
           name: input.name,
+          updatedBy: userId,
+          updatedAt: new Date(),
+        },
+      })
+    }),
+
+  delete: protectedProcedure
+    .input(deletePropertySchema)
+    .mutation(async ({ ctx, input }) => {
+      const { orgId, userId } = ctx.auth
+
+      if (!orgId) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'No organization selected',
+        })
+      }
+
+      const property = await ctx.db.property.findFirst({
+        where: {
+          id: input.propertyId,
+          managementGroupId: orgId,
+          deletedAt: null,
+        },
+      })
+
+      if (!property) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Property not found',
+        })
+      }
+
+      return ctx.db.property.update({
+        where: { id: input.propertyId },
+        data: {
+          deletedAt: new Date(),
           updatedBy: userId,
           updatedAt: new Date(),
         },

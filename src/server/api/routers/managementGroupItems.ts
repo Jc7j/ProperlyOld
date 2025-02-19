@@ -41,6 +41,10 @@ export const editItemSchema = z.object({
   link: z.string().url().optional().or(z.literal('')),
 })
 
+export const deleteItemSchema = z.object({
+  id: z.string(),
+})
+
 export const managementGroupItemsRouter = createTRPCRouter({
   create: protectedProcedure
     .input(createItemSchema)
@@ -95,6 +99,7 @@ export const managementGroupItemsRouter = createTRPCRouter({
     const items = await ctx.db.managementGroupItems.findMany({
       where: {
         managementGroupId: orgId,
+        deletedAt: null, // Only get non-deleted items
       },
       orderBy: {
         name: 'asc',
@@ -191,5 +196,42 @@ export const managementGroupItemsRouter = createTRPCRouter({
       }
 
       return updatedItem
+    }),
+
+  delete: protectedProcedure
+    .input(deleteItemSchema)
+    .mutation(async ({ ctx, input }) => {
+      const { orgId, userId } = ctx.auth
+
+      if (!orgId) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'No organization selected',
+        })
+      }
+
+      const item = await ctx.db.managementGroupItems.findFirst({
+        where: {
+          id: input.id,
+          managementGroupId: orgId,
+          deletedAt: null, // Ensure it's not already deleted
+        },
+      })
+
+      if (!item) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Item not found',
+        })
+      }
+
+      return ctx.db.managementGroupItems.update({
+        where: { id: input.id },
+        data: {
+          deletedAt: new Date(),
+          updatedBy: userId,
+          updatedAt: new Date(),
+        },
+      })
     }),
 })

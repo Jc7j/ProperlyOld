@@ -52,7 +52,6 @@ export const updateInvoiceItemSchema = z
     }
   )
 
-// Add this helper function at the top of the file after the constants
 async function recalculateInvoiceFinancials(
   tx: Prisma.TransactionClient,
   invoiceId: string,
@@ -109,7 +108,6 @@ async function recalculateInvoiceFinancials(
   return financialDetails
 }
 
-// Add inventory management helper
 async function handleInventoryChange(
   tx: Prisma.TransactionClient,
   managementGroupItemId: string | null | undefined,
@@ -135,14 +133,6 @@ async function handleInventoryChange(
 
   const newQuantityUsed = (item.quantityUsed ?? 0) + quantityChange
   const newQuantityOnHand = item.quantityTotal - newQuantityUsed
-
-  // Validate inventory levels
-  if (newQuantityOnHand < 0) {
-    throw new TRPCError({
-      code: 'BAD_REQUEST',
-      message: `Insufficient inventory. Only ${item.quantityOnHand} units available.`,
-    })
-  }
 
   await tx.managementGroupItems.update({
     where: { id: managementGroupItemId },

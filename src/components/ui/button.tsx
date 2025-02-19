@@ -108,6 +108,14 @@ const styles = {
       // Icon colors
       '[--btn-icon:var(--secondary-600)] data-active:[--btn-icon:var(--secondary-700)] data-hover:[--btn-icon:var(--secondary-700)] dark:[--btn-icon:var(--secondary-300)] dark:data-active:[--btn-icon:var(--secondary-200)] dark:data-hover:[--btn-icon:var(--secondary-200)]',
     ],
+    'destructive-outline': [
+      // Base
+      'border-red-200 text-red-700 data-active:bg-red-50 data-hover:bg-red-50',
+      // Dark mode
+      'dark:border-red-800 dark:text-red-400 dark:data-active:bg-red-950 dark:data-hover:bg-red-950',
+      // Icon
+      '[--btn-icon:var(--color-red-500)] data-active:[--btn-icon:var(--color-red-600)] data-hover:[--btn-icon:var(--color-red-600)] dark:[--btn-icon:var(--color-red-400)] dark:data-active:[--btn-icon:var(--color-red-300)] dark:data-hover:[--btn-icon:var(--color-red-300)]',
+    ],
     'secondary-solid': [
       // Light mode
       'text-white [--btn-bg:var(--secondary-600)] [--btn-border:var(--secondary-700)] [--btn-hover-overlay:var(--secondary-500)]',
@@ -220,9 +228,10 @@ const styles = {
 type ColorType = keyof typeof styles.colors
 
 type ButtonProps = (
-  | { color?: ColorType; outline?: never; plain?: never }
-  | { color?: never; outline: true; plain?: never }
-  | { color?: never; outline?: never; plain: true }
+  | { color?: ColorType; outline?: never; plain?: never; destructive?: never }
+  | { color?: never; outline: true; plain?: never; destructive?: never }
+  | { color?: never; outline?: never; plain: true; destructive?: never }
+  | { color?: never; outline?: true; plain?: never; destructive: true }
 ) & {
   className?: string
   children: React.ReactNode
@@ -237,20 +246,22 @@ type ButtonProps = (
   )
 
 export const Button = forwardRef<HTMLElement, ButtonProps>(function Button(
-  { color, outline, plain, className, children, ...props },
+  { color, outline, plain, destructive, className, children, ...props },
   ref
 ) {
   const classes = cn(
     className,
     styles.base,
-    outline
-      ? styles.outline
-      : plain
-        ? styles.plain
-        : cn(
-            styles.solid,
-            color ? styles.colors[color as ColorType] : styles.colors.primary
-          )
+    destructive
+      ? cn(outline && styles.colors['destructive-outline'])
+      : outline
+        ? styles.outline
+        : plain
+          ? styles.plain
+          : cn(
+              styles.solid,
+              color ? styles.colors[color as ColorType] : styles.colors.primary
+            )
   )
 
   if ('href' in props && props.href !== undefined) {

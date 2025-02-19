@@ -1,6 +1,6 @@
 'use client'
 
-import { Pencil, Plus } from 'lucide-react'
+import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { ChevronRight, Home } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -15,7 +15,6 @@ import {
   Card,
   ErrorToast,
   Heading,
-  Spinner,
   Table,
   TableBody,
   TableCell,
@@ -524,17 +523,6 @@ function CreateInvoiceButton({ propertyId }: { propertyId: string }) {
   )
 }
 
-function InvoicesHeader({ propertyId }: { propertyId: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-        Invoices
-      </h2>
-      <CreateInvoiceButton propertyId={propertyId} />
-    </div>
-  )
-}
-
 function InvoicesTable({
   property,
 }: {
@@ -680,47 +668,166 @@ function Breadcrumb({ propertyName }: { propertyName: string }) {
   )
 }
 
-export default function PropertyPage() {
-  const { propertyId } = useParams<{ propertyId: string }>()
-  const { data: property, isLoading } = api.property.getOne.useQuery({
-    propertyId,
-  })
-  const [isEditingName, setIsEditingName] = useState(false)
-
-  if (isLoading) return <Spinner size="lg" />
-  if (!property) return <div>Property not found</div>
+function DeletePropertyDialog({
+  isOpen,
+  onClose,
+  propertyId,
+}: {
+  isOpen: boolean
+  onClose: () => void
+  propertyId: string
+}) {
+  const router = useRouter()
+  const utils = api.useUtils()
+  const { mutate: deleteProperty, isPending } = api.property.delete.useMutation(
+    {
+      onSuccess: () => {
+        void utils.property.getMany.invalidate()
+        router.push(ROUTES.DASHBOARD.PROPERTIES)
+        onClose()
+      },
+    }
+  )
 
   return (
-    <div className="space-y-6">
-      <header className="relative isolate">
-        <div
-          aria-hidden="true"
-          className="absolute inset-0 -z-10 overflow-hidden"
-        >
-          <div className="absolute left-16 top-full -mt-16 transform-gpu opacity-50 blur-3xl xl:left-1/2 xl:-ml-80">
-            <div className="aspect-[1154/678] w-[72.125rem] bg-gradient-to-br from-[#FF80B5] to-[#9089FC]" />
-          </div>
-          <div className="absolute inset-x-0 bottom-0 h-px bg-zinc-900/5 dark:bg-white/5" />
-        </div>
+    <Dialog open={isOpen} onClose={onClose}>
+      <DialogTitle>Delete Property</DialogTitle>
+      <DialogDescription>
+        Are you sure you want to delete this property? This action cannot be
+        undone.
+      </DialogDescription>
 
-        <div className="mx-auto max-w-7xl px-4 pb-12 pt-20 sm:px-6 lg:px-8">
-          <Breadcrumb propertyName={property.name} />
+      <DialogBody>
+        <DialogActions>
+          <Button type="button" outline onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            color="destructive-outline"
+            disabled={isPending}
+            onClick={() => deleteProperty({ propertyId })}
+          >
+            {isPending ? 'Deleting...' : 'Delete Property'}
+          </Button>
+        </DialogActions>
+      </DialogBody>
+    </Dialog>
+  )
+}
+
+function PropertyHeader({ property }: { property: ParsedProperty }) {
+  const [isEditingName, setIsEditingName] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  return (
+    <header className="relative isolate">
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 -z-10 overflow-hidden"
+      >
+        <div className="absolute left-16 top-full -mt-16 transform-gpu opacity-50 blur-3xl xl:left-1/2 xl:-ml-80">
+          <div className="aspect-[1154/678] w-[72.125rem] bg-gradient-to-br from-[#FF80B5] to-[#9089FC]" />
+        </div>
+        <div className="absolute inset-x-0 bottom-0 h-px bg-zinc-900/5 dark:bg-white/5" />
+      </div>
+
+      <div className="mx-auto max-w-7xl px-4 pb-12 pt-20 sm:px-6 lg:px-8">
+        <Breadcrumb propertyName={property.name} />
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Heading level={1}>{property.name}</Heading>
             <Button plain onClick={() => setIsEditingName(true)}>
               <Pencil className="size-4" />
             </Button>
           </div>
+          <Button
+            color="destructive-outline"
+            onClick={() => setIsDeleting(true)}
+          >
+            <Trash2 className="size-4" />
+          </Button>
         </div>
-      </header>
+      </div>
 
+      {isEditingName && (
+        <EditNameDialog
+          isOpen={isEditingName}
+          onClose={() => setIsEditingName(false)}
+          property={property}
+        />
+      )}
+
+      {isDeleting && (
+        <DeletePropertyDialog
+          isOpen={isDeleting}
+          onClose={() => setIsDeleting(false)}
+          propertyId={property.id}
+        />
+      )}
+    </header>
+  )
+}
+
+function PropertyInfoSkeleton() {
+  return (
+    <div className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
+      <div className="grid animate-pulse gap-4">
+        <div className="h-6 w-32 rounded-lg bg-zinc-100 dark:bg-zinc-800" />
+        <div className="space-y-3">
+          <div className="h-10 rounded-lg bg-zinc-100 dark:bg-zinc-800" />
+          <div className="h-10 rounded-lg bg-zinc-100 dark:bg-zinc-800" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function InvoicesTableSkeleton() {
+  return (
+    <div className="rounded-xl border border-zinc-200 dark:border-zinc-800">
+      <div className="border-b border-zinc-200 p-4 dark:border-zinc-800">
+        <div className="h-6 w-24 rounded-lg bg-zinc-100 dark:bg-zinc-800" />
+      </div>
+      <div className="grid animate-pulse gap-4 p-4">
+        <div className="space-y-3">
+          <div className="h-12 rounded-lg bg-zinc-100 dark:bg-zinc-800" />
+          <div className="h-12 rounded-lg bg-zinc-100 dark:bg-zinc-800" />
+          <div className="h-12 rounded-lg bg-zinc-100 dark:bg-zinc-800" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PropertyContent({ propertyId }: { propertyId: string }) {
+  const { data: property, isLoading } = api.property.getOne.useQuery({
+    propertyId,
+  })
+
+  if (isLoading) {
+    return (
+      <>
+        <div className="grid gap-6 md:grid-cols-2">
+          <PropertyInfoSkeleton />
+          <PropertyInfoSkeleton />
+        </div>
+        <InvoicesTableSkeleton />
+      </>
+    )
+  }
+
+  if (!property) return <div>Property not found</div>
+
+  return (
+    <>
+      <PropertyHeader property={property} />
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="grid gap-6 md:grid-cols-2">
-          <Suspense fallback={<Spinner />}>
+          <Suspense fallback={<PropertyInfoSkeleton />}>
             <LocationInfo property={property} />
           </Suspense>
 
-          <Suspense fallback={<Spinner />}>
+          <Suspense fallback={<PropertyInfoSkeleton />}>
             <OwnerInfo property={property} />
           </Suspense>
         </div>
@@ -735,20 +842,56 @@ export default function PropertyPage() {
             </div>
           </div>
           <div className="p-4 sm:p-6">
-            <Suspense fallback={<Spinner />}>
+            <Suspense fallback={<InvoicesTableSkeleton />}>
               <InvoicesTable property={property} />
             </Suspense>
           </div>
         </Card>
       </div>
+    </>
+  )
+}
 
-      {isEditingName && (
-        <EditNameDialog
-          isOpen={isEditingName}
-          onClose={() => setIsEditingName(false)}
-          property={property}
-        />
-      )}
+export default function PropertyPage() {
+  const { propertyId } = useParams<{ propertyId: string }>()
+
+  return (
+    <div className="space-y-6">
+      <Suspense
+        fallback={
+          <>
+            <header className="relative isolate">
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 -z-10 overflow-hidden"
+              >
+                <div className="absolute left-16 top-full -mt-16 transform-gpu opacity-50 blur-3xl xl:left-1/2 xl:-ml-80">
+                  <div className="aspect-[1154/678] w-[72.125rem] bg-gradient-to-br from-[#FF80B5] to-[#9089FC]" />
+                </div>
+                <div className="absolute inset-x-0 bottom-0 h-px bg-zinc-900/5 dark:bg-white/5" />
+              </div>
+
+              <div className="mx-auto max-w-7xl px-4 pb-12 pt-20 sm:px-6 lg:px-8">
+                <Breadcrumb propertyName="Loading..." />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-48 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />
+                  </div>
+                </div>
+              </div>
+            </header>
+            <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+              <div className="grid gap-6 md:grid-cols-2">
+                <PropertyInfoSkeleton />
+                <PropertyInfoSkeleton />
+              </div>
+              <InvoicesTableSkeleton />
+            </div>
+          </>
+        }
+      >
+        <PropertyContent propertyId={propertyId} />
+      </Suspense>
     </div>
   )
 }

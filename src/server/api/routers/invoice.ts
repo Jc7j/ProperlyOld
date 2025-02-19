@@ -6,6 +6,9 @@ import { createTRPCRouter, protectedProcedure } from '../trpc'
 
 export const financialDetailsSchema = z.object({
   totalAmount: z.number(),
+  subtotal: z.number(),
+  taxAmount: z.number(),
+  managementFeeAmount: z.number(),
 })
 
 export interface InvoiceWithUser {
@@ -36,6 +39,11 @@ export interface InvoiceWithUser {
   }[]
 }
 
+export const deleteInvoiceSchema = z.object({
+  invoiceId: z.string(),
+  propertyId: z.string(),
+})
+
 export const invoiceRouter = createTRPCRouter({
   getOne: protectedProcedure
     .input(
@@ -59,6 +67,7 @@ export const invoiceRouter = createTRPCRouter({
           id: input.invoiceId,
           propertyId: input.propertyId,
           managementGroupId: orgId,
+          deletedAt: null,
         },
         include: {
           items: {
@@ -132,5 +141,43 @@ export const invoiceRouter = createTRPCRouter({
       })
 
       return newInvoice.id
+    }),
+
+  delete: protectedProcedure
+    .input(deleteInvoiceSchema)
+    .mutation(async ({ ctx, input }) => {
+      const { orgId, userId } = ctx.auth
+
+      if (!orgId) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'No organization selected',
+        })
+      }
+
+      const invoice = await ctx.db.invoice.findFirst({
+        where: {
+          id: input.invoiceId,
+          propertyId: input.propertyId,
+          managementGroupId: orgId,
+          deletedAt: null,
+        },
+      })
+
+      if (!invoice) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Invoice not found',
+        })
+      }
+
+      return ctx.db.invoice.update({
+        where: { id: input.invoiceId },
+        data: {
+          deletedAt: new Date(),
+          updatedBy: userId,
+          updatedAt: new Date(),
+        },
+      })
     }),
 })

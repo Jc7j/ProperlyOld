@@ -50,7 +50,7 @@ export default function EditItemDialog({
     defaultValues: {
       id: item.id,
       name: item.name,
-      defaultPrice: item.defaultPrice,
+      defaultPrice: item.defaultPrice / 100,
       description: item.description ?? '',
       link: item.link ?? '',
     },
@@ -102,11 +102,10 @@ export default function EditItemDialog({
                         step="0.01"
                         placeholder="0.00"
                         {...field}
-                        value={field.value === 0 ? '' : field.value}
+                        value={field.value === 0 ? '' : field.value.toFixed(2)}
                         onChange={(e) => {
                           const value = e.target.value
                           const numValue = value === '' ? 0 : parseFloat(value)
-                          // Prevent more than 2 decimal places
                           field.onChange(Math.round(numValue * 100) / 100)
                         }}
                         className="block min-w-0 grow py-1.5 pl-1 pr-3 text-base text-zinc-900 placeholder:text-zinc-400 focus:outline-none dark:text-zinc-50 dark:placeholder:text-zinc-500 sm:text-sm/6"

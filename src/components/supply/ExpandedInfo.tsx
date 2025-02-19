@@ -1,48 +1,18 @@
 'use client'
 
-import {
-  ChevronRight,
-  ChevronUp,
-  ExternalLink,
-  Pencil,
-  Plus,
-} from 'lucide-react'
+import { Pencil } from 'lucide-react'
 import Image from 'next/image'
-import Link from 'next/link'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useForm } from 'react-hook-form'
-import { type z } from 'zod'
+import { useEffect, useRef, useState } from 'react'
 import {
   Button,
   Dialog,
   DialogActions,
-  DialogBody,
   DialogDescription,
   DialogTitle,
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  Heading,
   Input,
-  Spinner,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
 } from '~/components/ui'
-import { cn } from '~/lib/utils/cn'
 import dayjs from '~/lib/utils/day'
-import { formatCurrency } from '~/lib/utils/format'
-import {
-  type ManagementGroupItemWithUser,
-  type createItemSchema,
-  type editItemSchema,
-} from '~/server/api/routers/managementGroupItems'
+import { type ManagementGroupItemWithUser } from '~/server/api/routers/managementGroupItems'
 import { api } from '~/trpc/react'
 
 export default function ExpandedInfo({

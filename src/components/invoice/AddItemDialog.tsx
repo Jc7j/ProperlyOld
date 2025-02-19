@@ -219,7 +219,12 @@ export function AddItemDialog({
                       Price (in dollars)
                     </FormLabel>
                     <FormControl>
-                      <div className="flex items-center rounded-md bg-white px-3 outline-1 -outline-offset-1 outline-zinc-200 focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-primary-600 dark:bg-zinc-950 dark:outline-zinc-800 dark:focus-within:outline-primary-400">
+                      <div
+                        className={cn(
+                          'flex items-center rounded-md bg-white px-3 outline-1 -outline-offset-1 outline-zinc-200 focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-primary-600 dark:bg-zinc-950 dark:outline-zinc-800 dark:focus-within:outline-primary-400',
+                          managementGroupItemId && 'opacity-50'
+                        )}
+                      >
                         <div className="shrink-0 select-none text-base text-zinc-500 dark:text-zinc-400 sm:text-sm/6">
                           $
                         </div>
@@ -228,13 +233,16 @@ export function AddItemDialog({
                           step="0.01"
                           placeholder="0.00"
                           {...field}
-                          value={field.value === 0 ? '' : field.value}
+                          value={
+                            field.value === 0 ? '' : field.value.toFixed(2)
+                          }
                           onChange={(e) => {
                             const value = e.target.value
                             const numValue =
                               value === '' ? 0 : parseFloat(value)
                             field.onChange(Math.round(numValue * 100) / 100)
                           }}
+                          disabled={!!managementGroupItemId}
                           className="block min-w-0 grow py-1.5 pl-1 pr-3 text-base text-zinc-900 placeholder:text-zinc-400 focus:outline-none dark:text-zinc-50 dark:placeholder:text-zinc-500 sm:text-sm/6"
                         />
                         <div className="shrink-0 select-none text-base text-zinc-500 dark:text-zinc-400 sm:text-sm/6">
@@ -248,7 +256,9 @@ export function AddItemDialog({
                       </FormMessage>
                     )}
                     <p className="text-xs text-zinc-500">
-                      Enter the price in dollars (e.g., 10.99)
+                      {managementGroupItemId
+                        ? 'Price is set by the supply item'
+                        : 'Enter the price in dollars (e.g., 10.99)'}
                     </p>
                   </FormItem>
                 )}

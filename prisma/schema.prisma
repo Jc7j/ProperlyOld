@@ -38,6 +38,7 @@ model Property {
   updatedAt      DateTime?       @updatedAt
   createdBy     String
   updatedBy     String
+  deletedAt      DateTime?
   // One-to-many relation: One Property can have many Invoices
   invoices      Invoice[]
 }
@@ -53,6 +54,7 @@ model Invoice {
   updatedAt      DateTime?       @updatedAt
   createdBy   String
   updatedBy   String
+  deletedAt      DateTime?
   items      InvoiceItem[]
 }
 
@@ -70,6 +72,7 @@ model ManagementGroupItems {
   updatedAt      DateTime?       @updatedAt
   createdBy   String
   updatedBy   String
+  deletedAt      DateTime?
   // One-to-many relation: One ManagementGroupItems can have many InvoiceItems
   // This allows Prisma to automatically include related items using include() in queries
   // Example: await prisma.invoiceItem.findUnique({ include: { managementGroupItem: true } })

@@ -1,5 +1,6 @@
 'use client'
 
+import { Building2, Clock, MapPin, User2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import {
   Table,
@@ -9,6 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from '~/components/ui'
+import { cn } from '~/lib/utils/cn'
 import dayjs from '~/lib/utils/day'
 import { type ParsedProperty } from '~/server/api/routers/property'
 
@@ -20,31 +22,68 @@ export default function Properties({ properties }: PropertiesProps) {
   const router = useRouter()
 
   return (
-    <Table>
+    <Table striped>
       <TableHead>
         <TableRow>
-          <TableHeader>Name</TableHeader>
-          <TableHeader align="right">Address</TableHeader>
-          <TableHeader align="right">Owner</TableHeader>
-          <TableHeader align="right">Last Updated</TableHeader>
+          <TableHeader>
+            <div className="flex items-center gap-2">
+              <Building2 className="size-4 text-zinc-400" />
+              Name
+            </div>
+          </TableHeader>
+          <TableHeader align="right">
+            <div className="flex items-center justify-end gap-2">
+              <MapPin className="size-4 text-zinc-400" />
+              Address
+            </div>
+          </TableHeader>
+          <TableHeader align="right">
+            <div className="flex items-center justify-end gap-2">
+              <User2 className="size-4 text-zinc-400" />
+              Owner
+            </div>
+          </TableHeader>
+          <TableHeader align="right">
+            <div className="flex items-center justify-end gap-2">
+              <Clock className="size-4 text-zinc-400" />
+              Last Updated
+            </div>
+          </TableHeader>
         </TableRow>
       </TableHead>
       <TableBody>
         {properties.map((property) => (
           <TableRow
             key={property.id}
-            className="hover:bg-muted/50 cursor-pointer"
+            className={cn(
+              'group cursor-pointer transition-colors duration-200',
+              'hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
+            )}
             onClick={() => router.push(`/dashboard/properties/${property.id}`)}
           >
-            <TableCell className="font-medium">{property.name}</TableCell>
-            <TableCell align="right">
+            <TableCell>{property.name}</TableCell>
+            <TableCell
+              align="right"
+              className="text-zinc-600 dark:text-zinc-400"
+            >
               {property.locationInfo?.address ?? 'N/A'}
             </TableCell>
-            <TableCell align="right">{property.owner?.name ?? 'N/A'}</TableCell>
-            <TableCell align="right">
-              {property.updatedAt
-                ? dayjs(property.updatedAt).fromNow()
-                : 'Never'}
+            <TableCell
+              align="right"
+              className="text-zinc-600 dark:text-zinc-400"
+            >
+              {property.owner?.name ?? 'N/A'}
+            </TableCell>
+            <TableCell
+              align="right"
+              className={cn(
+                'text-sm',
+                property.updatedAt
+                  ? 'text-zinc-600 dark:text-zinc-400'
+                  : 'text-red-600 dark:text-red-400'
+              )}
+            >
+              {property.updatedAt ? dayjs(property.updatedAt).fromNow() : 'N/A'}
             </TableCell>
           </TableRow>
         ))}
