@@ -1,9 +1,7 @@
 import { auth } from '@clerk/nextjs/server'
 import { type FileRouter, createUploadthing } from 'uploadthing/next'
-import { UTApi } from 'uploadthing/server'
 
 const f = createUploadthing()
-const utapi = new UTApi()
 
 // FileRouter for your app, can contain multiple FileRoutes
 export const ourFileRouter = {

@@ -168,7 +168,8 @@ export async function POST(req: Request) {
       })
 
       // Mark onboarding as complete
-      await clerkClient.users.updateUser(created_by, {
+      const client = await clerkClient()
+      await client.users.updateUser(created_by, {
         publicMetadata: {
           onboardingComplete: true,
         },
@@ -192,7 +193,8 @@ export async function POST(req: Request) {
       }
 
       // Get user from Clerk
-      const clerkUsers = await clerkClient.users.getUserList({
+      const client = await clerkClient()
+      const clerkUsers = await client.users.getUserList({
         emailAddress: [email_address],
       })
 

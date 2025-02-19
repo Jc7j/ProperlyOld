@@ -3,12 +3,7 @@
 import { CreateOrganization } from '@clerk/nextjs'
 import React from 'react'
 
-interface StepProps {
-  onNext: () => void
-  onBack?: () => void
-}
-
-export function CreateGroupStep({ onNext }: StepProps) {
+export function CreateGroupStep() {
   return (
     <div className="space-y-8">
       <div className="space-y-2 text-center">

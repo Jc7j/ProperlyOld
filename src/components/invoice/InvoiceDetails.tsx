@@ -25,9 +25,7 @@ interface InvoiceDetailsProps {
 
 export function InvoiceDetails({ invoice }: InvoiceDetailsProps) {
   const [isAddingItem, setIsAddingItem] = useState(false)
-  const [editingItem, setEditingItem] = useState<
-    InvoiceWithUser['items'][0] | null
-  >(null)
+  const [editingItem, setEditingItem] = useState<any>(null)
   const utils = api.useUtils()
 
   const managementFee = invoice.items?.find(
@@ -77,7 +75,7 @@ export function InvoiceDetails({ invoice }: InvoiceDetailsProps) {
         </TableHead>
         <TableBody>
           {/* Maintenance Items Section */}
-          {maintenanceItems?.length > 0 && (
+          {maintenanceItems?.length && maintenanceItems.length > 0 && (
             <>
               <TableRow>
                 <TableCell colSpan={4} className="bg-zinc-50 dark:bg-zinc-900">
@@ -160,7 +158,7 @@ export function InvoiceDetails({ invoice }: InvoiceDetailsProps) {
           )}
 
           {/* Supply Items Section */}
-          {supplyItems?.length > 0 && (
+          {supplyItems?.length && supplyItems.length > 0 && (
             <>
               <TableRow>
                 <TableCell colSpan={4} className="bg-zinc-50 dark:bg-zinc-900">

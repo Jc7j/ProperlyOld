@@ -79,20 +79,7 @@ export default function WelcomePage() {
                 }
               />
             )}
-            {currentStep === 'createGroup' && (
-              <CreateGroupStep
-                onNext={() =>
-                  router.push(
-                    `/welcome?step=${STEPS[STEPS.indexOf(currentStep) + 1]}`
-                  )
-                }
-                onBack={() =>
-                  router.push(
-                    `/welcome?step=${STEPS[STEPS.indexOf(currentStep) - 1]}`
-                  )
-                }
-              />
-            )}
+            {currentStep === 'createGroup' && <CreateGroupStep />}
             {currentStep === 'theme' && (
               <ThemeStep
                 onNext={() =>

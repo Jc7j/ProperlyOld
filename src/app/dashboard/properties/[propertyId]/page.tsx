@@ -192,7 +192,7 @@ function EditLocationDialog({
             <FormField
               control={form.control}
               name="address"
-              render={({ field: { onChange, ...field } }) => (
+              render={({ field: { ...field } }) => (
                 <FormItem>
                   <FormLabel>Address</FormLabel>
                   <FormControl>
