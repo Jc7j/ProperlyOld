@@ -29,7 +29,7 @@ import { api } from '~/trpc/react'
 interface EditItemDialogProps {
   isOpen: boolean
   onClose: () => void
-  item: InvoiceWithUser['items'][0]
+  item: NonNullable<InvoiceWithUser['items']>[number]
   invoiceId: string
   propertyId: string
 }

@@ -9,10 +9,6 @@ export const ROUTES = {
     PROPERTIES: '/dashboard/properties',
     PROPERTY: '/dashboard/properties/:propertyId',
     SUPPLIES: '/dashboard/supplies',
-    SETTINGS: {
-      MANAGEMENT_GROUP: '/dashboard/settings/management-group',
-      ACCOUNT: '/dashboard/settings/account',
-    },
     INVOICE: '/dashboard/properties/:propertyId/invoice/:invoiceId',
   },
 } as const

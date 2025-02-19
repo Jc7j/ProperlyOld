@@ -4,20 +4,19 @@ import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import dayjs from '~/lib/utils/day'
 import { type InvoiceWithUser } from '~/server/api/routers/invoice'
+import {
+  type PropertyLocationInfo,
+  type PropertyOwner,
+} from '~/server/api/types'
 
 interface ExportInvoiceProps {
   invoice: InvoiceWithUser
   propertyName: string
-  propertyLocation: string | null
-  ownerInfo: {
-    name: string | null
-    email: string | null
-    phone: string | null
-    address: string | null
-  }
+  propertyLocation: PropertyLocationInfo
+  ownerInfo: PropertyOwner
 }
 
-export function exportInvoiceToPdf({
+export async function exportInvoiceToPdf({
   invoice,
   propertyName,
   propertyLocation,
@@ -25,6 +24,7 @@ export function exportInvoiceToPdf({
 }: ExportInvoiceProps) {
   const doc = new jsPDF()
   const leftMargin = 20
+  let yPos = 20
 
   // Set default font
   doc.setFont('helvetica')
@@ -32,9 +32,8 @@ export function exportInvoiceToPdf({
   // Header - Owner Info
   doc.setFontSize(10)
   doc.text(ownerInfo.name ?? 'Owner Name Not Available', 20, 15)
-  doc.text(ownerInfo.address ?? 'Address Not Available', 20, 20)
-  doc.text(ownerInfo.email ?? 'Email Not Available', 20, 25)
-  doc.text(ownerInfo.phone ?? 'Phone Not Available', 20, 30)
+  doc.text(ownerInfo.email ?? 'Email Not Available', 20, 20)
+  doc.text(ownerInfo.phone ?? 'Phone Not Available', 20, 25)
 
   // Date
   doc.text(
@@ -58,7 +57,7 @@ export function exportInvoiceToPdf({
   doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
   doc.text(
-    propertyLocation ?? 'Address Not Available',
+    propertyLocation.address ?? 'Address Not Available',
     doc.internal.pageSize.width / 2,
     52,
     {
@@ -80,16 +79,16 @@ export function exportInvoiceToPdf({
 
   // --- Build table data with sections ---
   // Split items into categories based on customItemName
-  const managementFee = invoice.items.find(
+  const managementFee = invoice.items?.find(
     (item) => item.customItemName === 'Property Management Fee'
   )
 
-  const maintenanceItems = invoice.items.filter(
+  const maintenanceItems = invoice.items?.filter(
     (item) =>
       item.customItemName && item.customItemName !== 'Property Management Fee'
   )
 
-  const supplyItems = invoice.items.filter((item) => !item.customItemName)
+  const supplyItems = invoice.items?.filter((item) => !item.customItemName)
 
   const tableData: any[] = []
 
@@ -103,7 +102,7 @@ export function exportInvoiceToPdf({
   }
 
   // Maintenance Items Section
-  if (maintenanceItems.length > 0) {
+  if (maintenanceItems && maintenanceItems.length > 0) {
     tableData.push([
       {
         content: 'Maintenance Items',
@@ -124,7 +123,7 @@ export function exportInvoiceToPdf({
   }
 
   // Supply Items Section
-  if (supplyItems.length > 0) {
+  if (supplyItems && supplyItems.length > 0) {
     tableData.push([
       {
         content: 'Supply Items (Taxed at 8.375%)',
@@ -172,10 +171,12 @@ export function exportInvoiceToPdf({
   const mgmtFeeAmount = managementFee
     ? (managementFee.price * managementFee.quantity) / 100
     : 0
-  const taxableItemsTotal = supplyItems.reduce(
-    (total, item) => total + (item.price * item.quantity) / 100,
-    0
-  )
+  const taxableItemsTotal = supplyItems
+    ? supplyItems.reduce(
+        (total, item) => total + (item.price * item.quantity) / 100,
+        0
+      )
+    : 0
   const taxAmount = Number((taxableItemsTotal * 0.08375).toFixed(2))
 
   doc.setFontSize(10)
@@ -183,7 +184,7 @@ export function exportInvoiceToPdf({
     align: 'left',
   })
   const suppliesTotal =
-    (invoice.financialDetails?.subtotal ?? 0) / 100 - mgmtFeeAmount
+    (invoice.financialDetails?.subTotal ?? 0) / 100 - mgmtFeeAmount
   doc.text(
     `$${suppliesTotal.toFixed(2)}`,
     doc.internal.pageSize.width - 20,
@@ -216,5 +217,119 @@ export function exportInvoiceToPdf({
   )
   // -------------------------------------------------------------
 
-  doc.save(`invoice_${dayjs(invoice.invoiceDate).format('YYYY-MM')}.pdf`)
+  // Add images section if there are images
+  if (invoice.images && invoice.images.length > 0) {
+    // Start after the financial details with some padding
+    yPos = finalY + 40
+
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Attached Images', 20, yPos)
+
+    // Create a grid of images with smaller dimensions
+    const imagesPerRow = 2
+    const imageWidth = 60
+    const imageHeight = 45
+    const xPadding = 20
+    const yPadding = 15
+    const borderWidth = 0.2 // Subtle border width
+
+    for (let i = 0; i < invoice.images.length; i++) {
+      const image = invoice.images[i]
+
+      // Calculate position in grid
+      const row = Math.floor(i / imagesPerRow)
+      const col = i % imagesPerRow
+      const xPos = xPadding + col * (imageWidth + 20)
+      const currentYPos = yPos + 15 + row * (imageHeight + yPadding)
+
+      // Check if we need a new page
+      if (currentYPos + imageHeight + 10 > doc.internal.pageSize.height - 20) {
+        doc.addPage()
+        yPos = 20
+        const newCurrentYPos = yPos + 15 + (row % 3) * (imageHeight + yPadding)
+
+        try {
+          const response = await fetch(image?.url ?? '')
+          const blob = await response.blob()
+          const base64 = await new Promise<string>((resolve) => {
+            const reader = new FileReader()
+            reader.onloadend = () => resolve(reader.result as string)
+            reader.readAsDataURL(blob)
+          })
+
+          // Draw border
+          doc.setDrawColor(200, 200, 200) // Light gray border
+          doc.setLineWidth(borderWidth)
+          doc.rect(
+            xPos - 1,
+            newCurrentYPos - 1,
+            imageWidth + 2,
+            imageHeight + 2
+          )
+
+          // Add image
+          doc.addImage(
+            base64,
+            'JPEG',
+            xPos,
+            newCurrentYPos,
+            imageWidth,
+            imageHeight
+          )
+        } catch (error) {
+          console.error('Failed to add image to PDF:', error)
+        }
+      } else {
+        try {
+          const response = await fetch(image?.url ?? '')
+          const blob = await response.blob()
+          const base64 = await new Promise<string>((resolve) => {
+            const reader = new FileReader()
+            reader.onloadend = () => resolve(reader.result as string)
+            reader.readAsDataURL(blob)
+          })
+
+          // Draw border
+          doc.setDrawColor(200, 200, 200) // Light gray border
+          doc.setLineWidth(borderWidth)
+          doc.rect(xPos - 1, currentYPos - 1, imageWidth + 2, imageHeight + 2)
+
+          // Add image
+          doc.addImage(
+            base64,
+            'JPEG',
+            xPos,
+            currentYPos,
+            imageWidth,
+            imageHeight
+          )
+        } catch (error) {
+          console.error('Failed to add image to PDF:', error)
+        }
+      }
+
+      // Update yPos to account for all images
+      if (i === invoice.images.length - 1) {
+        yPos = currentYPos + imageHeight + 20
+      }
+    }
+  }
+
+  // Add page numbers if content spans multiple pages
+  const pageCount = doc.getNumberOfPages()
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i)
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'normal')
+    doc.text(
+      `Page ${i} of ${pageCount}`,
+      doc.internal.pageSize.width / 2,
+      doc.internal.pageSize.height - 10,
+      { align: 'center' }
+    )
+  }
+
+  // Save the PDF
+  doc.save(`Invoice-${propertyName}-${invoice.id}.pdf`)
 }

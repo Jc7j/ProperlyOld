@@ -17,6 +17,11 @@ const config = {
       {
         hostname: 'images.unsplash.com',
       },
+      {
+        protocol: 'https',
+        hostname: '<APP_ID>.ufs.sh',
+        pathname: '/f/*',
+      },
     ],
   },
 }

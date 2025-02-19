@@ -8,6 +8,7 @@ import React, { useState } from 'react'
 import 'react-datepicker/dist/react-datepicker.css'
 import { exportInvoiceToPdf } from '~/components/invoice/ExportInvoice'
 import { InvoiceDetails } from '~/components/invoice/InvoiceDetails'
+import { InvoiceImages } from '~/components/invoice/InvoiceImages'
 import { Button, Card, Spinner } from '~/components/ui'
 import {
   Dialog,
@@ -20,6 +21,7 @@ import { ROUTES } from '~/lib/constants/routes'
 import dayjs from '~/lib/utils/day'
 import { formatCurrency } from '~/lib/utils/format'
 import { type InvoiceWithUser } from '~/server/api/routers/invoice'
+import { type PropertyLocationInfo } from '~/server/api/types'
 import { api } from '~/trpc/react'
 
 function Breadcrumb({
@@ -88,13 +90,13 @@ function Breadcrumb({
 }
 
 function InvoiceSummary({
-  subtotal,
+  subTotal,
   managementFeeAmount,
   taxAmount,
   totalAmount,
   invoice,
 }: {
-  subtotal: number
+  subTotal: number
   managementFeeAmount: number
   taxAmount: number
   totalAmount: number
@@ -112,7 +114,7 @@ function InvoiceSummary({
               <span className="text-zinc-600 dark:text-zinc-400">
                 Supplies Total:
               </span>
-              <span>{formatCurrency(subtotal)}</span>
+              <span>{formatCurrency(subTotal)}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-zinc-600 dark:text-zinc-400">
@@ -142,7 +144,7 @@ function InvoiceSummary({
                 <div className="relative">
                   <Image
                     src={invoice.createdByImageUrl}
-                    alt={invoice.createdByName}
+                    alt={invoice.createdByName ?? ''}
                     width={32}
                     height={32}
                     className="rounded-full ring-2 ring-white dark:ring-zinc-900"
@@ -234,14 +236,14 @@ export default function InvoicePage() {
   if (!invoice || !property) return <div>Invoice not found</div>
 
   // Use the financial details from the API response
-  const { subtotal, managementFeeAmount, taxAmount, totalAmount } =
+  const { subTotal, managementFeeAmount, taxAmount, totalAmount } =
     invoice.financialDetails ?? {
-      subtotal: 0,
+      subTotal: 0,
       managementFeeAmount: 0,
       taxAmount: 0,
       totalAmount: 0,
     }
-  console.log('invoice', invoice)
+
   return (
     <main>
       <header className="relative isolate">
@@ -284,12 +286,12 @@ export default function InvoicePage() {
                   exportInvoiceToPdf({
                     invoice,
                     propertyName: property.name,
-                    propertyLocation: property.locationInfo?.address ?? null,
+                    propertyLocation:
+                      property.locationInfo as PropertyLocationInfo,
                     ownerInfo: {
-                      name: property.owner?.name ?? null,
-                      email: property.owner?.email ?? null,
-                      phone: property.owner?.phone ?? null,
-                      address: property.owner?.address ?? null,
+                      name: property.owner?.name ?? '',
+                      email: property.owner?.email ?? '',
+                      phone: property.owner?.phone ?? '',
                     },
                   })
                 }
@@ -310,18 +312,24 @@ export default function InvoicePage() {
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <div className="mx-auto grid max-w-2xl grid-cols-1 grid-rows-1 items-start gap-x-8 gap-y-8 lg:mx-0 lg:max-w-none lg:grid-cols-3">
           <InvoiceSummary
-            subtotal={subtotal}
-            managementFeeAmount={managementFeeAmount}
-            taxAmount={taxAmount}
-            totalAmount={totalAmount}
+            subTotal={subTotal ?? 0}
+            managementFeeAmount={managementFeeAmount ?? 0}
+            taxAmount={taxAmount ?? 0}
+            totalAmount={totalAmount ?? 0}
             invoice={invoice}
           />
 
-          <Card className="lg:col-span-2 lg:row-span-2 lg:row-end-2">
-            <div className="p-6">
-              <InvoiceDetails invoice={invoice} />
+          <div className="lg:col-span-2 lg:row-span-2 lg:row-end-2">
+            <div className="space-y-8">
+              <Card>
+                <div className="p-6">
+                  <InvoiceDetails invoice={invoice} />
+                </div>
+              </Card>
+
+              <InvoiceImages invoice={invoice} propertyId={params.propertyId} />
             </div>
-          </Card>
+          </div>
         </div>
       </div>
 

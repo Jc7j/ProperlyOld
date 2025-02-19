@@ -39,7 +39,8 @@ export interface PropertyOwner {
 }
 
 export interface InvoiceFinancialDetails {
-  totalAmount: number
-  subTotal: number
-  tax: number
+  totalAmount?: number
+  subTotal?: number
+  taxAmount?: number
+  managementFeeAmount?: number
 }

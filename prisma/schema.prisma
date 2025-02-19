@@ -56,6 +56,17 @@ model Invoice {
   updatedBy   String
   deletedAt      DateTime?
   items      InvoiceItem[]
+  images     InvoiceImage[]
+}
+
+model InvoiceImage {
+  id              String          @id @default(uuid())
+  invoiceId      String
+  url            String
+  createdAt      DateTime?       @default(now())
+  createdBy      String
+  // Many-to-one relation with Invoice
+  invoice     Invoice     @relation(fields: [invoiceId], references: [id])
 }
 
 model ManagementGroupItems {
