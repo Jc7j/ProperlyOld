@@ -18,14 +18,13 @@ export default clerkMiddleware(async (auth, req) => {
     return NextResponse.next()
   }
 
-  // Redirect to welcome if onboarding is not complete
-  if (userId && !sessionClaims?.metadata?.onboardingComplete) {
-    // Don't redirect if already on welcome page
-    if (!isOnboardingRoute(req) && isProtectedRoute(req)) {
-      const welcomeUrl = new URL('/welcome', req.url)
-      welcomeUrl.searchParams.set('step', 'intro')
-      return NextResponse.redirect(welcomeUrl)
-    }
+  // Redirect to dashboard if onboarding is complete and on welcome page
+  if (
+    userId &&
+    sessionClaims?.metadata?.onboardingComplete &&
+    isOnboardingRoute(req)
+  ) {
+    return NextResponse.redirect(new URL('/dashboard', req.url))
   }
 
   // Protect dashboard routes

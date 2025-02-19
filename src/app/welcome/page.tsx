@@ -18,6 +18,7 @@ export default function WelcomePage() {
   const { user } = useUser()
   const [currentStep, setCurrentStep] = useState<StepType>('intro')
   const userEmail = user?.primaryEmailAddress?.emailAddress
+
   useEffect(() => {
     const step = searchParams.get('step') as StepType
     if (step && STEPS.includes(step)) {
@@ -25,8 +26,12 @@ export default function WelcomePage() {
     }
   }, [searchParams])
 
+  const handleStepChange = (step: StepType) => {
+    router.push(`/welcome?step=${step}`)
+  }
+
   return (
-    <div>
+    <div className="min-h-screen bg-white dark:bg-zinc-950">
       {/* Header */}
       <header className="border-b border-zinc-200 bg-white/80 px-4 py-4 dark:border-zinc-800 dark:bg-zinc-950/80">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
@@ -71,37 +76,21 @@ export default function WelcomePage() {
 
           <div className="min-h-[400px]">
             {currentStep === 'intro' && (
-              <IntroStep
-                onNext={() =>
-                  router.push(
-                    `/welcome?step=${STEPS[STEPS.indexOf(currentStep) + 1]}`
-                  )
-                }
-              />
+              <IntroStep onNext={() => handleStepChange('createGroup')} />
             )}
-            {currentStep === 'createGroup' && <CreateGroupStep />}
+            {currentStep === 'createGroup' && (
+              <div className="h-full w-full">
+                <CreateGroupStep />
+              </div>
+            )}
             {currentStep === 'theme' && (
               <ThemeStep
-                onNext={() =>
-                  router.push(
-                    `/welcome?step=${STEPS[STEPS.indexOf(currentStep) + 1]}`
-                  )
-                }
-                onBack={() =>
-                  router.push(
-                    `/welcome?step=${STEPS[STEPS.indexOf(currentStep) - 1]}`
-                  )
-                }
+                onNext={() => handleStepChange('complete')}
+                onBack={() => handleStepChange('createGroup')}
               />
             )}
             {currentStep === 'complete' && (
-              <CompleteStep
-                onBack={() =>
-                  router.push(
-                    `/welcome?step=${STEPS[STEPS.indexOf(currentStep) - 1]}`
-                  )
-                }
-              />
+              <CompleteStep onBack={() => handleStepChange('theme')} />
             )}
           </div>
         </div>

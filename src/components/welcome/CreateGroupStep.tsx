@@ -21,11 +21,15 @@ export function CreateGroupStep() {
               rootBox: 'w-full',
               card: 'w-full shadow-none p-0',
               form: 'w-full',
+              formButtonPrimary: 'bg-primary hover:bg-primary/90',
+              formFieldInput: 'bg-white dark:bg-zinc-900',
+              organizationSwitcherTrigger: 'hidden',
             },
           }}
-          skipInvitationScreen={true}
+          skipInvitationScreen
           routing="path"
           path="/dashboard"
+          afterCreateOrganizationUrl="/dashboard"
         />
       </div>
     </div>
