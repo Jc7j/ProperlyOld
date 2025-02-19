@@ -96,7 +96,7 @@ export function AppSidebar({ children }: { children: ReactNode }) {
         navbar={
           <Navbar>
             <NavbarSpacer />
-            <NavbarSection>
+            <NavbarSection className="flex items-center gap-2">
               <ThemeToggle />
               <Button plain onClick={() => setShowOrgSettings(true)}>
                 <NavbarLabel>{organization?.name ?? 'Loading...'}</NavbarLabel>
@@ -108,7 +108,7 @@ export function AppSidebar({ children }: { children: ReactNode }) {
           <Sidebar>
             <SidebarHeader>
               <SidebarItem>
-                <SidebarLabel>
+                <SidebarLabel className="flex items-center gap-2">
                   <ThemeToggle />
                   <Button plain onClick={() => setShowOrgSettings(true)}>
                     {organization?.name ?? 'Loading...'}

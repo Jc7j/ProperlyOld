@@ -21,6 +21,7 @@ import {
   Input,
   Select,
 } from '~/components/ui'
+import { Combobox, type ComboboxOption } from '~/components/ui/combobox'
 import { cn } from '~/lib/utils/cn'
 import { formatCurrency } from '~/lib/utils/format'
 import { api } from '~/trpc/react'
@@ -155,25 +156,48 @@ export function AddItemDialog({
                       Select Supply Item
                     </FormLabel>
                     <FormControl>
-                      <Select
-                        value={field.value ?? ''}
+                      <Combobox
+                        value={
+                          items?.find((item) => item.id === field.value)
+                            ? {
+                                id: field.value!,
+                                label: items.find(
+                                  (item) => item.id === field.value
+                                )!.name,
+                                price: items.find(
+                                  (item) => item.id === field.value
+                                )!.defaultPrice,
+                              }
+                            : null
+                        }
+                        onChange={(option: ComboboxOption) =>
+                          field.onChange(option.id)
+                        }
+                        options={
+                          items?.map((item) => ({
+                            id: item.id,
+                            label: item.name,
+                            price: item.defaultPrice,
+                          })) ?? []
+                        }
                         disabled={!!customItemName}
-                        onChange={(e) => field.onChange(e.target.value)}
-                        className={cn('w-full', error && 'border-red-500')}
-                      >
-                        <option value="">Select an item</option>
-                        {items?.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.name} - {formatCurrency(item.defaultPrice)}
-                          </option>
-                        ))}
-                      </Select>
+                        error={error?.message}
+                        placeholder="Search supplies..."
+                        renderOption={(option) => (
+                          <div className="flex items-center justify-between w-full">
+                            <span>{option.label}</span>
+                            <span className="text-zinc-500 dark:text-zinc-400">
+                              {formatCurrency(option.price)}
+                            </span>
+                          </div>
+                        )}
+                        filterFunction={(option, query) =>
+                          option.label
+                            .toLowerCase()
+                            .includes(query.toLowerCase())
+                        }
+                      />
                     </FormControl>
-                    {error && (
-                      <FormMessage className="text-red-500">
-                        {error.message}
-                      </FormMessage>
-                    )}
                   </FormItem>
                 )}
               />
