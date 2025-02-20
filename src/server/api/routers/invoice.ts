@@ -101,6 +101,7 @@ export const invoiceRouter = createTRPCRouter({
         take: input.limit,
         orderBy: {
           invoiceDate: 'desc',
+          updatedAt: 'desc',
         },
         include: {
           property: {

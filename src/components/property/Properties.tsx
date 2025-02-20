@@ -79,7 +79,7 @@ export default function Properties({ properties }: PropertiesProps) {
     <button
       type="button"
       onClick={() => handleSort(field)}
-      className="flex items-center gap-2 hover:text-zinc-900 dark:hover:text-white"
+      className="flex items-center gap-2 hover:text-zinc-900 dark:hover:text-white text-right"
     >
       {children}
       {sortField === field && (
