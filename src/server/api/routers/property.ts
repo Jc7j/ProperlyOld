@@ -81,14 +81,15 @@ export const propertyRouter = createTRPCRouter({
           id: input.propertyId,
           managementGroupId: orgId,
         },
+        orderBy: {
+          name: 'asc',
+        },
         include: {
           invoices: {
             where: {
               deletedAt: null,
             },
-            orderBy: {
-              invoiceDate: 'desc',
-            },
+
             select: {
               id: true,
               invoiceDate: true,
@@ -163,7 +164,6 @@ export const propertyRouter = createTRPCRouter({
           },
         },
       },
-      orderBy: { updatedAt: 'desc' },
     })
 
     return properties.map((property) => ({

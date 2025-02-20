@@ -24,8 +24,8 @@ interface PropertiesProps {
 
 export default function Properties({ properties }: PropertiesProps) {
   const router = useRouter()
-  const [sortField, setSortField] = useState<SortField>('updated')
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+  const [sortField, setSortField] = useState<SortField>('name')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
 
   const handleSort = (field: SortField) => {
     if (field === sortField) {
