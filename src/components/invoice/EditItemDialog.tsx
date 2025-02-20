@@ -22,7 +22,6 @@ import {
   Select,
 } from '~/components/ui'
 import { Combobox, type ComboboxOption } from '~/components/ui/combobox'
-import { cn } from '~/lib/utils/cn'
 import { formatCurrency } from '~/lib/utils/format'
 import { type InvoiceWithUser } from '~/server/api/routers/invoice'
 import { api } from '~/trpc/react'
@@ -41,7 +40,7 @@ const editItemFormSchema = z
     managementGroupItemId: z.string().optional(),
     quantity: z.number().min(1, 'Quantity must be at least 1'),
     price: z.number().min(0, 'Price must be non-negative'),
-    date: z.date().optional(),
+    date: z.date().nullable().optional(),
   })
   .refine(
     (data) => {
@@ -79,7 +78,7 @@ export function EditItemDialog({
       managementGroupItemId: item.managementGroupItemsId ?? undefined,
       quantity: item.quantity,
       price: item.price / 100,
-      date: item.date ?? undefined,
+      date: item.date ?? null,
     },
   })
 
@@ -109,7 +108,7 @@ export function EditItemDialog({
     managementGroupItemId?: string
     quantity: number
     price: number
-    date?: Date
+    date?: Date | null
   }) {
     updateItem({
       id: item.id,
@@ -118,7 +117,7 @@ export function EditItemDialog({
       managementGroupItemId: data.managementGroupItemId,
       quantity: data.quantity,
       price: data.price,
-      date: data.date,
+      date: data.date ?? null,
     })
   }
 
@@ -290,6 +289,7 @@ export function EditItemDialog({
                         onChange={(date: Date | null) => field.onChange(date)}
                         dateFormat="MMMM d, yyyy"
                         placeholderText="Select a date"
+                        isClearable
                         className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-900"
                         wrapperClassName="w-full"
                         showMonthDropdown

@@ -14,7 +14,7 @@ import {
 
 export const financialDetailsSchema = z.object({
   totalAmount: z.number(),
-  subtotal: z.number(),
+  subTotal: z.number(),
   taxAmount: z.number(),
   managementFeeAmount: z.number(),
 })

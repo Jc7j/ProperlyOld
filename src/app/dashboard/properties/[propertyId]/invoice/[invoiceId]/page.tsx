@@ -287,7 +287,7 @@ export default function InvoicePage() {
                     invoice,
                     propertyName: property.name,
                     propertyLocation:
-                      property.locationInfo as PropertyLocationInfo,
+                      property.locationInfo as unknown as PropertyLocationInfo,
                     ownerInfo: {
                       name: property.owner?.name ?? '',
                       email: property.owner?.email ?? '',

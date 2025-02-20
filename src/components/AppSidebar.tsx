@@ -3,6 +3,8 @@
 import { useOrganization } from '@clerk/nextjs'
 import { OrganizationProfile, UserButton } from '@clerk/nextjs'
 import { Building2, Home, Package } from 'lucide-react'
+import { Moon, Sun } from 'lucide-react'
+import { useTheme } from 'next-themes'
 import { usePathname } from 'next/navigation'
 import React, { type ReactNode, useState } from 'react'
 import {
@@ -58,6 +60,7 @@ export function AppSidebar({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const { organization } = useOrganization()
   const [showOrgSettings, setShowOrgSettings] = useState(false)
+  const { theme, setTheme } = useTheme()
 
   const renderNavigationItems = (items: NavigationItem[]) => {
     return items.map((item) => {
@@ -91,16 +94,13 @@ export function AppSidebar({ children }: { children: ReactNode }) {
   }
 
   return (
-    <>
+    <div className="flex h-full flex-col">
       <SidebarLayout
         navbar={
           <Navbar>
             <NavbarSpacer />
             <NavbarSection className="flex items-center gap-2">
-              <ThemeToggle />
-              <Button plain onClick={() => setShowOrgSettings(true)}>
-                <NavbarLabel>{organization?.name ?? 'Loading...'}</NavbarLabel>
-              </Button>
+              <NavbarLabel>{organization?.name ?? 'Loading...'}</NavbarLabel>
             </NavbarSection>
           </Navbar>
         }
@@ -109,10 +109,7 @@ export function AppSidebar({ children }: { children: ReactNode }) {
             <SidebarHeader>
               <SidebarItem>
                 <SidebarLabel className="flex items-center gap-2">
-                  <ThemeToggle />
-                  <Button plain onClick={() => setShowOrgSettings(true)}>
-                    {organization?.name ?? 'Loading...'}
-                  </Button>
+                  {organization?.name ?? 'Loading...'}
                 </SidebarLabel>
               </SidebarItem>
             </SidebarHeader>
@@ -124,6 +121,33 @@ export function AppSidebar({ children }: { children: ReactNode }) {
             </SidebarBody>
 
             <SidebarFooter>
+              <Button
+                plain
+                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                aria-label="Toggle theme"
+                className={cn(
+                  'flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors duration-200',
+                  'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-white'
+                )}
+              >
+                {theme === 'dark' ? (
+                  <Moon className="size-4" />
+                ) : (
+                  <Sun className="size-4" />
+                )}
+                <span>{theme === 'dark' ? 'Dark' : 'Light'} Mode</span>
+              </Button>
+
+              <Button
+                plain
+                onClick={() => setShowOrgSettings(true)}
+                className={cn(
+                  'flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors duration-200',
+                  'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-white'
+                )}
+              >
+                Settings
+              </Button>
               <SidebarItem>
                 <UserButton
                   appearance={{
@@ -151,6 +175,6 @@ export function AppSidebar({ children }: { children: ReactNode }) {
       >
         <OrganizationProfile routing="hash" />
       </Dialog>
-    </>
+    </div>
   )
 }

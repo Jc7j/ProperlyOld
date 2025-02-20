@@ -139,14 +139,19 @@ function EditLocationDialog({
   const form = useForm<z.infer<typeof editLocationSchema>>({
     defaultValues: {
       propertyId: property.id,
-      address: property.locationInfo?.address ?? '',
-      city: property.locationInfo?.city ?? '',
-      state: property.locationInfo?.state ?? '',
-      postalCode: property.locationInfo?.postalCode ?? '',
+      address: property.locationInfo?.address ?? undefined,
+      city: property.locationInfo?.city ?? undefined,
+      state: property.locationInfo?.state ?? undefined,
+      postalCode: property.locationInfo?.postalCode ?? undefined,
     },
   })
 
-  function handlePlaceSelect(place: google.maps.places.PlaceResult) {
+  function handlePlaceSelect(
+    place: google.maps.places.PlaceResult,
+    e?: React.SyntheticEvent
+  ) {
+    e?.preventDefault()
+
     const addressComponents = place.address_components ?? []
     const streetNumber = addressComponents.find((c) =>
       c.types.includes('street_number')
@@ -176,7 +181,14 @@ function EditLocationDialog({
   }
 
   function onSubmit(data: z.infer<typeof editLocationSchema>) {
-    editLocation(data)
+    const cleanedData = {
+      ...data,
+      address: data.address ?? undefined,
+      city: data.city ?? undefined,
+      state: data.state ?? undefined,
+      postalCode: data.postalCode ?? undefined,
+    }
+    editLocation(cleanedData)
   }
 
   return (
@@ -192,7 +204,7 @@ function EditLocationDialog({
             <FormField
               control={form.control}
               name="address"
-              render={({ field: { ...field } }) => (
+              render={({ field }) => (
                 <FormItem>
                   <FormLabel>Address</FormLabel>
                   <FormControl>
@@ -214,7 +226,11 @@ function EditLocationDialog({
                 <FormItem>
                   <FormLabel>City</FormLabel>
                   <FormControl>
-                    <Input placeholder="Enter city" {...field} />
+                    <Input
+                      placeholder="Enter city"
+                      {...field}
+                      value={field.value ?? ''}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -228,7 +244,11 @@ function EditLocationDialog({
                 <FormItem>
                   <FormLabel>State</FormLabel>
                   <FormControl>
-                    <Input placeholder="Enter state" {...field} />
+                    <Input
+                      placeholder="Enter state"
+                      {...field}
+                      value={field.value ?? ''}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -242,7 +262,11 @@ function EditLocationDialog({
                 <FormItem>
                   <FormLabel>Postal Code</FormLabel>
                   <FormControl>
-                    <Input placeholder="Enter postal code" {...field} />
+                    <Input
+                      placeholder="Enter postal code"
+                      {...field}
+                      value={field.value ?? ''}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

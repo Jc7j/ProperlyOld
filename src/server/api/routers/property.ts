@@ -55,6 +55,8 @@ export type ParsedProperty = Property & {
     updatedByName: string
     updatedByImageUrl: string
   }>
+  totalInvoices: number
+  latestInvoiceDate: Date | null
 }
 
 export const propertyRouter = createTRPCRouter({
@@ -126,7 +128,7 @@ export const propertyRouter = createTRPCRouter({
             updatedByImageUrl: userInfo.imageUrl,
           }
         }),
-      } satisfies ParsedProperty
+      } as ParsedProperty
     }),
 
   getMany: protectedProcedure.query(async ({ ctx }) => {
@@ -144,7 +146,24 @@ export const propertyRouter = createTRPCRouter({
         managementGroupId: orgId,
         deletedAt: null,
       },
-      orderBy: { name: 'asc' },
+      include: {
+        _count: {
+          select: {
+            invoices: {
+              where: { deletedAt: null },
+            },
+          },
+        },
+        invoices: {
+          where: { deletedAt: null },
+          orderBy: { invoiceDate: 'desc' },
+          take: 1,
+          select: {
+            invoiceDate: true,
+          },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
     })
 
     return properties.map((property) => ({
@@ -153,7 +172,11 @@ export const propertyRouter = createTRPCRouter({
         typeof locationInfoSchema
       > | null,
       owner: property.owner as z.infer<typeof ownerSchema> | null,
-    })) as ParsedProperty[]
+      totalInvoices: property._count.invoices,
+      latestInvoiceDate: property.invoices[0]?.invoiceDate ?? null,
+      invoices: undefined,
+      _count: undefined,
+    }))
   }),
 
   create: protectedProcedure.mutation(async ({ ctx }) => {

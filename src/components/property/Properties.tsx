@@ -1,6 +1,6 @@
 'use client'
 
-import { Building2, Clock, MapPin, User2 } from 'lucide-react'
+import { Building2, Clock, FileText, MapPin, User2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import {
   Table,
@@ -45,6 +45,11 @@ export default function Properties({ properties }: PropertiesProps) {
           </TableHeader>
           <TableHeader align="right">
             <div className="flex items-center justify-end gap-2">
+              <FileText className="size-4 text-zinc-400" /># of Invoices
+            </div>
+          </TableHeader>
+          <TableHeader align="right">
+            <div className="flex items-center justify-end gap-2">
               <Clock className="size-4 text-zinc-400" />
               Last Updated
             </div>
@@ -73,6 +78,20 @@ export default function Properties({ properties }: PropertiesProps) {
               className="text-zinc-600 dark:text-zinc-400"
             >
               {property.owner?.name ?? 'N/A'}
+            </TableCell>
+            <TableCell
+              align="right"
+              className="text-zinc-600 dark:text-zinc-400"
+            >
+              <div className="flex flex-col items-end gap-1">
+                <span>{property.totalInvoices}</span>
+                {property.latestInvoiceDate && (
+                  <span className="text-xs">
+                    Latest:{' '}
+                    {dayjs(property.latestInvoiceDate).format('MMM D, YYYY')}
+                  </span>
+                )}
+              </div>
             </TableCell>
             <TableCell
               align="right"

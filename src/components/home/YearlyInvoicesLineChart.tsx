@@ -47,7 +47,7 @@ export default function YearlyInvoicesLineChart() {
     <Card>
       <div className="border-b border-zinc-200 p-4 dark:border-zinc-800">
         <h2 className="font-medium text-zinc-900 dark:text-zinc-50">
-          Revenue Past 12 Months
+          Invoice Totals Past 12 Months
         </h2>
       </div>
       <div className="p-4">

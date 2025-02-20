@@ -12,7 +12,7 @@ export const createInvoiceItemSchema = z
     invoiceId: z.string(),
     quantity: z.number().min(1, 'Quantity must be at least 1'),
     price: z.number().min(0, 'Price must be non-negative'),
-    date: z.date().optional(),
+    date: z.date().nullable(),
     // Make both fields optional initially
     customItemName: z.string().optional(),
     managementGroupItemId: z.string().optional(),
@@ -36,7 +36,7 @@ export const updateInvoiceItemSchema = z
     invoiceId: z.string(),
     quantity: z.number().min(1, 'Quantity must be at least 1'),
     price: z.number().min(0, 'Price must be non-negative'),
-    date: z.date().optional(),
+    date: z.date().nullable(),
     customItemName: z.string().optional(),
     managementGroupItemId: z.string().optional(),
   })
@@ -71,7 +71,7 @@ async function recalculateInvoiceFinancials(
     ? Number(managementFeeItem.price) * managementFeeItem.quantity
     : 0
 
-  const subtotal = allItems.reduce((acc: number, item: InvoiceItem) => {
+  const subTotal = allItems.reduce((acc: number, item: InvoiceItem) => {
     if (item.customItemName !== MANAGEMENT_FEE_NAME) {
       return acc + Number(item.price) * item.quantity
     }
@@ -86,10 +86,10 @@ async function recalculateInvoiceFinancials(
   }, 0)
 
   const taxAmount = Math.round(taxableAmount * TAX_RATE)
-  const totalAmount = subtotal + managementFeeAmount + taxAmount
+  const totalAmount = subTotal + managementFeeAmount + taxAmount
 
   const financialDetails = {
-    subtotal,
+    subTotal,
     managementFeeAmount,
     taxableAmount,
     taxAmount,

@@ -40,7 +40,7 @@ const addItemFormSchema = z
     managementGroupItemId: z.string().optional(),
     quantity: z.number().min(1, 'Quantity must be at least 1'),
     price: z.number().min(0, 'Price must be non-negative'),
-    date: z.date().optional(),
+    date: z.date().nullable().optional(),
   })
   .refine(
     (data) => {
@@ -106,7 +106,7 @@ export function AddItemDialog({
       managementGroupItemId: data.managementGroupItemId,
       quantity: data.quantity,
       price: data.price,
-      date: data.date,
+      date: data.date ?? null,
     })
   }
 
@@ -300,6 +300,7 @@ export function AddItemDialog({
                         onChange={(date: Date | null) => field.onChange(date)}
                         dateFormat="MMMM d, yyyy"
                         placeholderText="Select a date"
+                        isClearable
                         className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-900"
                         wrapperClassName="w-full"
                         showMonthDropdown
