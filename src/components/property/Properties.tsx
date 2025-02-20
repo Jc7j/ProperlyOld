@@ -2,6 +2,7 @@
 
 import { Building2, Clock, FileText, MapPin, User2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 import {
   Table,
   TableBody,
@@ -14,50 +15,116 @@ import { cn } from '~/lib/utils/cn'
 import dayjs from '~/lib/utils/day'
 import { type ParsedProperty } from '~/server/api/routers/property'
 
+type SortField = 'name' | 'address' | 'owner' | 'invoices' | 'updated'
+type SortDirection = 'asc' | 'desc'
+
 interface PropertiesProps {
   properties: ParsedProperty[]
 }
 
 export default function Properties({ properties }: PropertiesProps) {
   const router = useRouter()
+  const [sortField, setSortField] = useState<SortField>('updated')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+
+  const handleSort = (field: SortField) => {
+    if (field === sortField) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortDirection('asc')
+    }
+  }
+
+  const sortedProperties = [...properties].sort((a, b) => {
+    const direction = sortDirection === 'asc' ? 1 : -1
+
+    switch (sortField) {
+      case 'name':
+        return (
+          (a.name.toLowerCase() > b.name.toLowerCase() ? 1 : -1) * direction
+        )
+      case 'address':
+        return (
+          ((a.locationInfo?.address ?? '').toLowerCase() >
+          (b.locationInfo?.address ?? '').toLowerCase()
+            ? 1
+            : -1) * direction
+        )
+      case 'owner':
+        return (
+          ((a.owner?.name ?? '').toLowerCase() >
+          (b.owner?.name ?? '').toLowerCase()
+            ? 1
+            : -1) * direction
+        )
+      case 'invoices':
+        return (a.totalInvoices - b.totalInvoices) * direction
+      case 'updated':
+        return (
+          (dayjs(a.updatedAt).unix() - dayjs(b.updatedAt).unix()) * direction
+        )
+      default:
+        return 0
+    }
+  })
+
+  const SortButton = ({
+    field,
+    children,
+  }: {
+    field: SortField
+    children: React.ReactNode
+  }) => (
+    <button
+      type="button"
+      onClick={() => handleSort(field)}
+      className="flex items-center gap-2 hover:text-zinc-900 dark:hover:text-white"
+    >
+      {children}
+      {sortField === field && (
+        <span className="text-xs">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+      )}
+    </button>
+  )
 
   return (
     <Table striped>
       <TableHead>
         <TableRow>
           <TableHeader>
-            <div className="flex items-center gap-2">
+            <SortButton field="name">
               <Building2 className="size-4 text-zinc-400" />
               Name
-            </div>
+            </SortButton>
           </TableHeader>
           <TableHeader align="right">
-            <div className="flex items-center justify-end gap-2">
+            <SortButton field="address">
               <MapPin className="size-4 text-zinc-400" />
               Address
-            </div>
+            </SortButton>
           </TableHeader>
           <TableHeader align="right">
-            <div className="flex items-center justify-end gap-2">
+            <SortButton field="owner">
               <User2 className="size-4 text-zinc-400" />
               Owner
-            </div>
+            </SortButton>
           </TableHeader>
           <TableHeader align="right">
-            <div className="flex items-center justify-end gap-2">
+            <SortButton field="invoices">
               <FileText className="size-4 text-zinc-400" /># of Invoices
-            </div>
+            </SortButton>
           </TableHeader>
           <TableHeader align="right">
-            <div className="flex items-center justify-end gap-2">
+            <SortButton field="updated">
               <Clock className="size-4 text-zinc-400" />
               Last Updated
-            </div>
+            </SortButton>
           </TableHeader>
         </TableRow>
       </TableHead>
       <TableBody>
-        {properties.map((property) => (
+        {sortedProperties.map((property) => (
           <TableRow
             key={property.id}
             className={cn(
