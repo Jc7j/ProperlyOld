@@ -432,4 +432,52 @@ export const invoiceRouter = createTRPCRouter({
         },
       })
     }),
+
+  getRecent: protectedProcedure
+    .input(
+      z.object({
+        limit: z.number().min(1).max(100).default(10),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const { orgId } = ctx.auth
+
+      if (!orgId) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'No organization selected',
+        })
+      }
+
+      const invoices = await ctx.db.invoice.findMany({
+        where: {
+          managementGroupId: orgId,
+          deletedAt: null,
+        },
+        take: input.limit,
+        orderBy: {
+          updatedAt: 'desc',
+        },
+        include: {
+          property: {
+            select: {
+              name: true,
+              locationInfo: true,
+            },
+          },
+        },
+      })
+
+      return invoices.map((invoice) => ({
+        ...invoice,
+        financialDetails: invoice.financialDetails as InvoiceFinancialDetails,
+        property: invoice.property
+          ? {
+              name: invoice.property.name,
+              locationInfo: invoice.property
+                .locationInfo as unknown as PropertyLocationInfo,
+            }
+          : null,
+      }))
+    }),
 })

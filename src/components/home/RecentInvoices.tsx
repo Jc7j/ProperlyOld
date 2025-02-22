@@ -9,7 +9,7 @@ import { formatCurrency } from '~/lib/utils/format'
 import { api } from '~/trpc/react'
 
 export default function RecentInvoices() {
-  const { data: invoices, isLoading } = api.invoice.getMany.useQuery({
+  const { data: invoices, isLoading } = api.invoice.getRecent.useQuery({
     limit: 10,
   })
 
