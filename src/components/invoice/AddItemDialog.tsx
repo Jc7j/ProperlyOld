@@ -19,7 +19,6 @@ import {
   FormLabel,
   FormMessage,
   Input,
-  Select,
 } from '~/components/ui'
 import { Combobox, type ComboboxOption } from '~/components/ui/combobox'
 import { cn } from '~/lib/utils/cn'
@@ -38,7 +37,10 @@ const addItemFormSchema = z
   .object({
     customItemName: z.string().optional(),
     managementGroupItemId: z.string().optional(),
-    quantity: z.number().min(1, 'Quantity must be at least 1'),
+    quantity: z.string().refine((val) => {
+      const num = Number(val)
+      return !isNaN(num) && num >= 1
+    }, 'Quantity must be a number of at least 1'),
     price: z.number().min(0, 'Price must be non-negative'),
     date: z.date().nullable().optional(),
   })
@@ -73,7 +75,7 @@ export function AddItemDialog({
   const form = useForm<z.infer<typeof addItemFormSchema>>({
     resolver: zodResolver(addItemFormSchema),
     defaultValues: {
-      quantity: 1,
+      quantity: '1',
       price: 0,
     },
   })
@@ -104,7 +106,7 @@ export function AddItemDialog({
       invoiceId,
       customItemName: data.customItemName,
       managementGroupItemId: data.managementGroupItemId,
-      quantity: data.quantity,
+      quantity: parseInt(data.quantity),
       price: data.price,
       date: data.date ?? null,
     })
@@ -212,15 +214,9 @@ export function AddItemDialog({
                     </FormLabel>
                     <FormControl>
                       <Input
-                        type="number"
-                        min="1"
+                        type="text"
                         placeholder="1"
                         {...field}
-                        value={field.value}
-                        onChange={(e) => {
-                          const value = e.target.value
-                          field.onChange(value === '' ? 1 : parseInt(value))
-                        }}
                         disabled={!price}
                         className={error ? 'border-red-500' : ''}
                       />
