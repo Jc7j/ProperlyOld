@@ -38,21 +38,37 @@ export default function CreateItemDialog({
     })
 
   const form = useForm<
-    Omit<z.infer<typeof createItemSchema>, 'defaultPrice'> & {
-      defaultPrice: number
+    Omit<
+      z.infer<typeof createItemSchema>,
+      'defaultPrice' | 'quantityOnHand'
+    > & {
+      defaultPrice: string
+      quantityOnHand: string
     }
   >({
     defaultValues: {
       name: '',
-      defaultPrice: 0,
+      defaultPrice: '0.00',
       description: '',
       link: '',
       quantityOnHand: '',
     },
   })
 
-  function onSubmit(data: z.infer<typeof createItemSchema>) {
-    createItem(data)
+  function onSubmit(
+    data: Omit<
+      z.infer<typeof createItemSchema>,
+      'defaultPrice' | 'quantityOnHand'
+    > & {
+      defaultPrice: string
+      quantityOnHand: string
+    }
+  ) {
+    createItem({
+      ...data,
+      defaultPrice: parseFloat(data.defaultPrice || '0'),
+      quantityOnHand: data.quantityOnHand ? data.quantityOnHand : undefined,
+    })
   }
 
   return (
@@ -95,16 +111,9 @@ export default function CreateItemDialog({
                         $
                       </div>
                       <input
-                        type="number"
-                        step="0.01"
+                        type="text"
                         placeholder="0.00"
                         {...field}
-                        value={field.value === 0 ? '' : field.value}
-                        onChange={(e) => {
-                          const value = e.target.value
-                          const numValue = value === '' ? 0 : parseFloat(value)
-                          field.onChange(Math.round(numValue * 100) / 100)
-                        }}
                         className="block min-w-0 grow py-1.5 pl-1 pr-3 text-base text-zinc-900 placeholder:text-zinc-400 focus:outline-none dark:text-zinc-50 dark:placeholder:text-zinc-500 sm:text-sm/6"
                       />
                       <div className="shrink-0 select-none text-base text-zinc-500 dark:text-zinc-400 sm:text-sm/6">
@@ -162,8 +171,7 @@ export default function CreateItemDialog({
                   <FormLabel>Initial Quantity (Optional)</FormLabel>
                   <FormControl>
                     <Input
-                      type="number"
-                      min="0"
+                      type="text"
                       placeholder="0"
                       {...field}
                       className="w-full"

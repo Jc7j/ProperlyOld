@@ -21,7 +21,9 @@ export default function ExpandedInfo({
   item: ManagementGroupItemWithUser
 }) {
   const [isEditing, setIsEditing] = useState(false)
-  const [newQuantity, setNewQuantity] = useState(item.quantityOnHand)
+  const [newQuantity, setNewQuantity] = useState<string>(
+    item.quantityOnHand.toString()
+  )
   const [showConfirmation, setShowConfirmation] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -42,11 +44,12 @@ export default function ExpandedInfo({
 
   function handleEdit() {
     setIsEditing(true)
-    setNewQuantity(item.quantityOnHand)
+    setNewQuantity(item.quantityOnHand.toString())
   }
 
   function handleSave() {
-    if (newQuantity === item.quantityOnHand) {
+    const parsedQuantity = parseInt(newQuantity)
+    if (isNaN(parsedQuantity) || parsedQuantity === item.quantityOnHand) {
       setIsEditing(false)
       return
     }
@@ -56,7 +59,7 @@ export default function ExpandedInfo({
   function handleConfirm() {
     updateQuantity({
       id: item.id,
-      quantityOnHand: newQuantity,
+      quantityOnHand: parseInt(newQuantity),
     })
     setShowConfirmation(false)
   }
@@ -124,9 +127,9 @@ export default function ExpandedInfo({
             <div className="flex w-full items-center gap-2 sm:w-auto">
               <Input
                 ref={inputRef}
-                type="number"
+                type="text"
                 value={newQuantity}
-                onChange={(e) => setNewQuantity(parseInt(e.target.value))}
+                onChange={(e) => setNewQuantity(e.target.value)}
                 onKeyDown={handleKeyDown}
                 onBlur={handleSave}
                 className="w-full sm:w-20 text-center"
@@ -152,7 +155,7 @@ export default function ExpandedInfo({
         <DialogTitle>Update Quantity</DialogTitle>
         <DialogDescription>
           Are you sure you want to update the quantity from{' '}
-          {item.quantityOnHand} to {newQuantity}?
+          {item.quantityOnHand} to {parseInt(newQuantity)}?
         </DialogDescription>
         <DialogActions>
           <Button

@@ -41,7 +41,10 @@ const editItemFormSchema = z
       const num = Number(val)
       return !isNaN(num) && num >= 1
     }, 'Quantity must be a number of at least 1'),
-    price: z.number().min(0, 'Price must be non-negative'),
+    price: z.string().refine((val) => {
+      const num = Number(val)
+      return !isNaN(num) && num >= 0
+    }, 'Price must be a valid non-negative number'),
     date: z.date().nullable().optional(),
   })
   .refine(
@@ -79,7 +82,7 @@ export function EditItemDialog({
       customItemName: item.customItemName ?? undefined,
       managementGroupItemId: item.managementGroupItemsId ?? undefined,
       quantity: item.quantity.toString(),
-      price: item.price / 100,
+      price: (item.price / 100).toFixed(2),
       date: item.date ?? null,
     },
   })
@@ -100,7 +103,7 @@ export function EditItemDialog({
       form.setValue('customItemName', undefined)
       const selectedItem = items?.find((i) => i.id === managementGroupItemId)
       if (selectedItem) {
-        form.setValue('price', selectedItem.defaultPrice / 100)
+        form.setValue('price', (selectedItem.defaultPrice / 100).toFixed(2))
       }
     }
   }, [managementGroupItemId, items, form])
@@ -112,7 +115,7 @@ export function EditItemDialog({
       customItemName: data.customItemName,
       managementGroupItemId: data.managementGroupItemId,
       quantity: parseInt(data.quantity),
-      price: data.price,
+      price: parseFloat(data.price),
       date: data.date ?? null,
     })
   }
@@ -232,19 +235,9 @@ export function EditItemDialog({
                           $
                         </div>
                         <input
-                          type="number"
-                          step="0.01"
+                          type="text"
                           placeholder="0.00"
                           {...field}
-                          value={
-                            field.value === 0 ? '' : field.value.toFixed(2)
-                          }
-                          onChange={(e) => {
-                            const value = e.target.value
-                            const numValue =
-                              value === '' ? 0 : parseFloat(value)
-                            field.onChange(Math.round(numValue * 100) / 100)
-                          }}
                           disabled={!!managementGroupItemId}
                           className="block min-w-0 grow py-1.5 pl-1 pr-3 text-base text-zinc-900 placeholder:text-zinc-400 focus:outline-none dark:text-zinc-50 dark:placeholder:text-zinc-500 sm:text-sm/6"
                         />
