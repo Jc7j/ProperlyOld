@@ -28,20 +28,9 @@ export function InvoiceDetails({ invoice }: InvoiceDetailsProps) {
   const [editingItem, setEditingItem] = useState<any>(null)
   const utils = api.useUtils()
 
-  const managementFee = invoice.items?.find(
-    (item) => item.customItemName === 'Property Management Fee'
-  )
-  const maintenanceItems = invoice.items?.filter(
-    (item) =>
-      item.customItemName && item.customItemName !== 'Property Management Fee'
-  )
   const supplyItems = invoice.items?.filter(
     (item) => item.managementGroupItem !== null
   )
-
-  const managementFeeAmount = managementFee
-    ? managementFee.price * managementFee.quantity
-    : 0
 
   const { mutate: deleteItem } = api.invoiceItem.delete.useMutation({
     onSuccess: () => {
@@ -75,7 +64,7 @@ export function InvoiceDetails({ invoice }: InvoiceDetailsProps) {
         </TableHead>
         <TableBody>
           {/* Maintenance Items Section */}
-          {maintenanceItems?.length && maintenanceItems.length > 0 && (
+          {invoice.items && invoice.items.length > 0 && (
             <>
               <TableRow>
                 <TableCell colSpan={4} className="bg-zinc-50 dark:bg-zinc-900">
@@ -84,39 +73,7 @@ export function InvoiceDetails({ invoice }: InvoiceDetailsProps) {
                   </span>
                 </TableCell>
               </TableRow>
-              {/* Management Fee Section */}
-              {managementFee && (
-                <TableRow>
-                  <TableCell>{managementFee.customItemName}</TableCell>
-                  <TableCell className="text-center">
-                    {managementFee.quantity}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {formatCurrency(managementFeeAmount)}
-                  </TableCell>
-                  <TableCell className="flex justify-center space-x-2">
-                    <Button plain onClick={() => setEditingItem(managementFee)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      plain
-                      onClick={() => {
-                        if (
-                          confirm('Are you sure you want to delete this item?')
-                        ) {
-                          deleteItem({
-                            id: managementFee.id,
-                            invoiceId: invoice.id,
-                          })
-                        }
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4 text-red-500 hover:text-red-600" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              )}
-              {maintenanceItems.map((item) => (
+              {invoice.items.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell>
                     <div>
@@ -158,7 +115,7 @@ export function InvoiceDetails({ invoice }: InvoiceDetailsProps) {
           )}
 
           {/* Supply Items Section */}
-          {supplyItems?.length && supplyItems.length > 0 && (
+          {supplyItems && supplyItems.length > 0 && (
             <>
               <TableRow>
                 <TableCell colSpan={4} className="bg-zinc-50 dark:bg-zinc-900">

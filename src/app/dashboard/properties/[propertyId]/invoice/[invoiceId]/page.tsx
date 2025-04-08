@@ -103,8 +103,7 @@ function InvoiceSummary({
   // Calculate maintenance total separately
   const maintenanceItems =
     invoice.items?.filter(
-      (item) =>
-        item.customItemName && item.customItemName !== 'Property Management Fee'
+      (item) => item.customItemName && item.customItemName !== 'Supply Drop Fee'
     ) ?? []
 
   const maintenanceTotal = maintenanceItems.reduce(
@@ -259,7 +258,6 @@ export default function InvoicePage() {
   if (isLoading) return <Spinner size="lg" />
   if (!invoice || !property) return <div>Invoice not found</div>
 
-  // Use the financial details from the API response
   const { managementFeeAmount, taxAmount, totalAmount } =
     invoice.financialDetails ?? {
       managementFeeAmount: 0,

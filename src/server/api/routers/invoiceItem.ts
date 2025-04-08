@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { createTRPCRouter, protectedProcedure } from '../trpc'
 
 const TAX_RATE = 0.08375 // 8.375%
-const MANAGEMENT_FEE_NAME = 'Property Management Fee'
+const MANAGEMENT_FEE_NAME = 'Supply Drop Fee'
 
 export const createInvoiceItemSchema = z
   .object({

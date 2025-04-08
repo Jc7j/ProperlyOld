@@ -182,6 +182,11 @@ export async function exportInvoiceToPdf({
     : 0
   const taxAmount = Number((taxableItemsTotal * 0.08375).toFixed(2))
 
+  // Calculate Supply Drop Fee amount
+  const supplyDropFeeAmount = managementFee
+    ? (managementFee.price * managementFee.quantity) / 100
+    : 0
+
   let currentY = finalY + 10
 
   // Supplies total
@@ -203,6 +208,18 @@ export async function exportInvoiceToPdf({
   })
   doc.text(
     `$${maintenanceItemsTotal.toFixed(2)}`,
+    doc.internal.pageSize.width - 20,
+    currentY,
+    { align: 'right' }
+  )
+
+  // Supply Drop Fee
+  currentY += 10
+  doc.text(`Supply Drop Fee:`, doc.internal.pageSize.width - 80, currentY, {
+    align: 'left',
+  })
+  doc.text(
+    `$${supplyDropFeeAmount.toFixed(2)}`,
     doc.internal.pageSize.width - 20,
     currentY,
     { align: 'right' }
