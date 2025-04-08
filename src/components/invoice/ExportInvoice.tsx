@@ -12,7 +12,7 @@ import {
 interface ExportInvoiceProps {
   invoice: InvoiceWithUser
   propertyName: string
-  propertyLocation: PropertyLocationInfo
+  propertyLocation: PropertyLocationInfo | null
   ownerInfo: PropertyOwner
 }
 
@@ -57,7 +57,7 @@ export async function exportInvoiceToPdf({
   doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
   doc.text(
-    propertyLocation.address ?? 'Address Not Available',
+    propertyLocation?.address ?? 'Address Not Available',
     doc.internal.pageSize.width / 2,
     52,
     {
@@ -80,12 +80,11 @@ export async function exportInvoiceToPdf({
   // --- Build table data with sections ---
   // Split items into categories based on customItemName
   const managementFee = invoice.items?.find(
-    (item) => item.customItemName === 'Property Management Fee'
+    (item) => item.customItemName === 'Supply Drop Fee'
   )
 
   const maintenanceItems = invoice.items?.filter(
-    (item) =>
-      item.customItemName && item.customItemName !== 'Property Management Fee'
+    (item) => item.customItemName && item.customItemName !== 'Supply Drop Fee'
   )
 
   const supplyItems = invoice.items?.filter((item) => !item.customItemName)
@@ -95,7 +94,7 @@ export async function exportInvoiceToPdf({
   // Management Fee Section
   if (managementFee) {
     tableData.push([
-      'Property Management Fee',
+      'Supply Drop Fee',
       managementFee.quantity.toString(),
       `$${((managementFee.price * managementFee.quantity) / 100).toFixed(2)}`,
     ])

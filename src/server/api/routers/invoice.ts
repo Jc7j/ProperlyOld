@@ -114,6 +114,15 @@ export const invoiceRouter = createTRPCRouter({
               createdAt: true,
             },
           },
+          items: {
+            include: {
+              managementGroupItem: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
         },
       })
 
@@ -127,6 +136,10 @@ export const invoiceRouter = createTRPCRouter({
           owner: invoice.property?.owner as unknown as PropertyOwner,
         },
         images: invoice.images as unknown as InvoiceImage[],
+        items: invoice.items.map((item) => ({
+          ...item,
+          price: Number(item.price),
+        })),
       })) as InvoiceWithUser[]
     }),
 
