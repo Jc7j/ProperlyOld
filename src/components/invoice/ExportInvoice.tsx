@@ -167,10 +167,14 @@ export async function exportInvoiceToPdf({
   const finalY = (doc as any).lastAutoTable.finalY || 120
 
   // --- Financial Details Calculation ---
-  // Calculate management fee amount and tax for supply items
-  const mgmtFeeAmount = managementFee
-    ? (managementFee.price * managementFee.quantity) / 100
+
+  const maintenanceItemsTotal = maintenanceItems
+    ? maintenanceItems.reduce(
+        (total, item) => total + (item.price * item.quantity) / 100,
+        0
+      )
     : 0
+
   const taxableItemsTotal = supplyItems
     ? supplyItems.reduce(
         (total, item) => total + (item.price * item.quantity) / 100,
@@ -179,40 +183,56 @@ export async function exportInvoiceToPdf({
     : 0
   const taxAmount = Number((taxableItemsTotal * 0.08375).toFixed(2))
 
+  let currentY = finalY + 10
+
+  // Supplies total
   doc.setFontSize(10)
-  doc.text(`Supplies Total:`, doc.internal.pageSize.width - 80, finalY + 10, {
+  doc.text(`Supplies Total:`, doc.internal.pageSize.width - 80, currentY, {
     align: 'left',
   })
-  const suppliesTotal =
-    (invoice.financialDetails?.subTotal ?? 0) / 100 - mgmtFeeAmount
   doc.text(
-    `$${suppliesTotal.toFixed(2)}`,
+    `$${taxableItemsTotal.toFixed(2)}`,
     doc.internal.pageSize.width - 20,
-    finalY + 10,
+    currentY,
     { align: 'right' }
   )
 
-  doc.text(`Taxes (8.375%):`, doc.internal.pageSize.width - 80, finalY + 20, {
+  // Maintenance total
+  currentY += 10
+  doc.text(`Maintenance Total:`, doc.internal.pageSize.width - 80, currentY, {
+    align: 'left',
+  })
+  doc.text(
+    `$${maintenanceItemsTotal.toFixed(2)}`,
+    doc.internal.pageSize.width - 20,
+    currentY,
+    { align: 'right' }
+  )
+
+  // Tax
+  currentY += 10
+  doc.text(`Taxes (8.375%):`, doc.internal.pageSize.width - 80, currentY, {
     align: 'left',
   })
   doc.text(
     `$${taxAmount.toFixed(2)}`,
     doc.internal.pageSize.width - 20,
-    finalY + 20,
+    currentY,
     { align: 'right' }
   )
 
-  doc.line(20, finalY + 25, doc.internal.pageSize.width - 20, finalY + 25)
+  // Line and total
+  doc.line(20, currentY + 5, doc.internal.pageSize.width - 20, currentY + 5)
 
   doc.setFontSize(12)
   doc.setFont('helvetica', 'bold')
-  doc.text(`Total Due:`, doc.internal.pageSize.width - 80, finalY + 32, {
+  doc.text(`Total Due:`, doc.internal.pageSize.width - 80, currentY + 12, {
     align: 'left',
   })
   doc.text(
     `$${((invoice.financialDetails?.totalAmount ?? 0) / 100).toFixed(2)}`,
     doc.internal.pageSize.width - 20,
-    finalY + 32,
+    currentY + 12,
     { align: 'right' }
   )
   // -------------------------------------------------------------
@@ -220,7 +240,7 @@ export async function exportInvoiceToPdf({
   // Add images section if there are images
   if (invoice.images && invoice.images.length > 0) {
     // Start after the financial details with some padding
-    yPos = finalY + 40
+    yPos = currentY + 20
 
     doc.setFontSize(12)
     doc.setFont('helvetica', 'bold')

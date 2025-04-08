@@ -90,18 +90,36 @@ function Breadcrumb({
 }
 
 function InvoiceSummary({
-  subTotal,
   managementFeeAmount,
   taxAmount,
   totalAmount,
   invoice,
 }: {
-  subTotal: number
   managementFeeAmount: number
   taxAmount: number
   totalAmount: number
   invoice: InvoiceWithUser
 }) {
+  // Calculate maintenance total separately
+  const maintenanceItems =
+    invoice.items?.filter(
+      (item) =>
+        item.customItemName && item.customItemName !== 'Property Management Fee'
+    ) ?? []
+
+  const maintenanceTotal = maintenanceItems.reduce(
+    (total, item) => total + (item.price * item.quantity) / 100,
+    0
+  )
+
+  // Calculate supply items total
+  const supplyItems =
+    invoice.items?.filter((item) => !item.customItemName) ?? []
+  const suppliesTotal = supplyItems.reduce(
+    (total, item) => total + (item.price * item.quantity) / 100,
+    0
+  )
+
   return (
     <Card className="lg:col-start-3 lg:row-end-1">
       <dl className="flex flex-wrap">
@@ -114,7 +132,13 @@ function InvoiceSummary({
               <span className="text-zinc-600 dark:text-zinc-400">
                 Supplies Total:
               </span>
-              <span>{formatCurrency(subTotal)}</span>
+              <span>{formatCurrency(suppliesTotal * 100)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-zinc-600 dark:text-zinc-400">
+                Maintenance Total:
+              </span>
+              <span>{formatCurrency(maintenanceTotal * 100)}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-zinc-600 dark:text-zinc-400">
@@ -236,9 +260,8 @@ export default function InvoicePage() {
   if (!invoice || !property) return <div>Invoice not found</div>
 
   // Use the financial details from the API response
-  const { subTotal, managementFeeAmount, taxAmount, totalAmount } =
+  const { managementFeeAmount, taxAmount, totalAmount } =
     invoice.financialDetails ?? {
-      subTotal: 0,
       managementFeeAmount: 0,
       taxAmount: 0,
       totalAmount: 0,
@@ -312,7 +335,6 @@ export default function InvoicePage() {
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <div className="mx-auto grid max-w-2xl grid-cols-1 grid-rows-1 items-start gap-x-8 gap-y-8 lg:mx-0 lg:max-w-none lg:grid-cols-3">
           <InvoiceSummary
-            subTotal={subTotal ?? 0}
             managementFeeAmount={managementFeeAmount ?? 0}
             taxAmount={taxAmount ?? 0}
             totalAmount={totalAmount ?? 0}

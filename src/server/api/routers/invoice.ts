@@ -99,10 +99,6 @@ export const invoiceRouter = createTRPCRouter({
       const invoices = await ctx.db.invoice.findMany({
         where,
         take: input.limit,
-        orderBy: {
-          invoiceDate: 'desc',
-          updatedAt: 'desc',
-        },
         include: {
           property: {
             select: {
