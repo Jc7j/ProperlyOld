@@ -1,10 +1,10 @@
 'use client'
 
-import { ChevronRight, Home, Trash2 } from 'lucide-react'
+import { ChevronRight, Home, Pencil, Trash2 } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import 'react-datepicker/dist/react-datepicker.css'
 import { exportInvoiceToPdf } from '~/components/invoice/ExportInvoice'
 import { InvoiceDetails } from '~/components/invoice/InvoiceDetails'
@@ -100,6 +100,11 @@ function InvoiceSummary({
   totalAmount: number
   invoice: InvoiceWithUser
 }) {
+  const [isEditingFee, setIsEditingFee] = useState(false)
+  const [feeAmount, setFeeAmount] = useState('0')
+  const [isSaving, setIsSaving] = useState(false)
+  const utils = api.useUtils()
+
   // Calculate maintenance total separately
   const maintenanceItems =
     invoice.items?.filter(
@@ -118,6 +123,96 @@ function InvoiceSummary({
     (total, item) => total + (item.price * item.quantity) / 100,
     0
   )
+
+  // Find existing supply drop fee
+  const existingFee = invoice.items?.find(
+    (item) => item.customItemName === 'Supply Drop Fee'
+  )
+
+  // Set up initial state for the fee
+  useEffect(() => {
+    if (existingFee) {
+      setFeeAmount((existingFee.price / 100).toFixed(2))
+    }
+  }, [existingFee])
+
+  const { mutate: addItem } = api.invoiceItem.create.useMutation({
+    onSuccess: () => {
+      void utils.invoice.getOne.invalidate({
+        propertyId: invoice.propertyId!,
+        invoiceId: invoice.id,
+      })
+      setIsEditingFee(false)
+      setIsSaving(false)
+    },
+  })
+
+  const { mutate: updateItem } = api.invoiceItem.update.useMutation({
+    onSuccess: () => {
+      void utils.invoice.getOne.invalidate({
+        propertyId: invoice.propertyId!,
+        invoiceId: invoice.id,
+      })
+      setIsEditingFee(false)
+      setIsSaving(false)
+    },
+  })
+
+  const { mutate: deleteItem } = api.invoiceItem.delete.useMutation({
+    onSuccess: () => {
+      void utils.invoice.getOne.invalidate({
+        propertyId: invoice.propertyId!,
+        invoiceId: invoice.id,
+      })
+      setFeeAmount('0')
+      setIsEditingFee(false)
+      setIsSaving(false)
+    },
+  })
+
+  const handleSaveFee = () => {
+    setIsSaving(true)
+    const numericFee = parseFloat(feeAmount)
+
+    if (isNaN(numericFee)) {
+      alert('Please enter a valid fee amount')
+      setIsSaving(false)
+      return
+    }
+
+    if (existingFee) {
+      // Update existing fee
+      updateItem({
+        id: existingFee.id,
+        invoiceId: invoice.id,
+        customItemName: 'Supply Drop Fee',
+        price: numericFee,
+        quantity: 1,
+        date: null,
+      })
+    } else {
+      // Create new fee
+      addItem({
+        invoiceId: invoice.id,
+        customItemName: 'Supply Drop Fee',
+        price: numericFee,
+        quantity: 1,
+        date: null,
+      })
+    }
+  }
+
+  const handleRemoveFee = () => {
+    if (!existingFee) return
+
+    if (confirm('Are you sure you want to remove the Supply Drop Fee?')) {
+      setIsSaving(true)
+      deleteItem({
+        id: existingFee.id,
+        invoiceId: invoice.id,
+      })
+    }
+  }
 
   return (
     <Card className="lg:col-start-3 lg:row-end-1">
@@ -139,11 +234,108 @@ function InvoiceSummary({
               </span>
               <span>{formatCurrency(maintenanceTotal * 100)}</span>
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-zinc-600 dark:text-zinc-400">
-                Management Fee:
+            <div className="flex justify-between text-sm items-center">
+              <span className="text-zinc-600 dark:text-zinc-400 flex items-center gap-1">
+                Supply Drop Fee
+                {!isEditingFee && (
+                  <button
+                    onClick={() => setIsEditingFee(true)}
+                    className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary-100 text-xs text-primary-600 hover:bg-primary-200 dark:bg-primary-900/30 dark:text-primary-400 dark:hover:bg-primary-800/40"
+                  >
+                    <Pencil className="h-2.5 w-2.5" />
+                  </button>
+                )}
               </span>
-              <span>{formatCurrency(managementFeeAmount)}</span>
+              {isEditingFee ? (
+                <div className="flex items-center gap-2 py-2 px-3 -my-2 -mr-3 bg-primary-50/70 dark:bg-primary-950/20 rounded-lg border border-primary-100 dark:border-primary-900/30 shadow-sm">
+                  <div className="relative rounded-md overflow-hidden">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-2 text-primary-600 dark:text-primary-400">
+                      $
+                    </span>
+                    <input
+                      type="number"
+                      value={feeAmount}
+                      onChange={(e) => setFeeAmount(e.target.value)}
+                      className="block w-24 rounded-md border-0 py-1.5 pl-6 pr-1 text-sm text-zinc-900 ring-1 ring-inset ring-primary-200 placeholder:text-zinc-400 focus:ring-2 focus:ring-inset focus:ring-primary-500 dark:bg-zinc-900 dark:text-zinc-100 dark:ring-primary-800 dark:focus:ring-primary-500"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={handleSaveFee}
+                      disabled={isSaving}
+                      className="flex h-7 w-7 items-center justify-center rounded-md bg-primary-100 text-primary-600 hover:bg-primary-200 disabled:opacity-50 dark:bg-primary-900/50 dark:text-primary-400 dark:hover:bg-primary-800/70"
+                      title="Save"
+                    >
+                      {isSaving ? (
+                        <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                      ) : (
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                          className="h-4 w-4"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      )}
+                    </button>
+                    {existingFee && (
+                      <button
+                        onClick={handleRemoveFee}
+                        disabled={isSaving}
+                        className="flex h-7 w-7 items-center justify-center rounded-md bg-red-50 text-red-500 hover:bg-red-100 disabled:opacity-50 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40"
+                        title="Remove fee"
+                      >
+                        {isSaving ? (
+                          <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                        ) : (
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                            className="h-4 w-4"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        )}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setIsEditingFee(false)}
+                      disabled={isSaving}
+                      className="flex h-7 w-7 items-center justify-center rounded-md bg-zinc-100 text-zinc-500 hover:bg-zinc-200 disabled:opacity-50 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
+                      title="Cancel"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        className="h-4 w-4"
+                      >
+                        <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <span
+                  className={`${managementFeeAmount > 0 ? 'font-medium text-primary-600 dark:text-primary-400' : ''}`}
+                >
+                  {formatCurrency(managementFeeAmount)}
+                </span>
+              )}
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-zinc-600 dark:text-zinc-400">
@@ -295,7 +487,7 @@ export default function InvoicePage() {
                     {property.name}
                   </span>
                   <span className="rounded-md bg-zinc-100 px-2 py-1 text-sm font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-                    {dayjs(invoice.invoiceDate).format('MMMM YYYY')}
+                    {dayjs(invoice.invoiceDate).format('MMM YYYY')}
                   </span>
                 </div>
               </h1>
@@ -317,7 +509,7 @@ export default function InvoicePage() {
                   })
                 }
               >
-                Export PDF
+                Export
               </Button>
               <Button
                 color="destructive-outline"
