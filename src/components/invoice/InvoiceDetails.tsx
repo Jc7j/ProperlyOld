@@ -32,11 +32,7 @@ export function InvoiceDetails({ invoice }: InvoiceDetailsProps) {
     (item) => item.managementGroupItem !== null
   )
 
-  console.log('supplyItems', supplyItems)
-
   const maintenanceItems = invoice.items?.filter((item) => item.customItemName)
-
-  console.log('maintenanceItems', maintenanceItems)
 
   const { mutate: deleteItem } = api.invoiceItem.delete.useMutation({
     onSuccess: () => {
