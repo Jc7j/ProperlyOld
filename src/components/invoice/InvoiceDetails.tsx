@@ -32,7 +32,11 @@ export function InvoiceDetails({ invoice }: InvoiceDetailsProps) {
     (item) => item.managementGroupItem !== null
   )
 
+  console.log('supplyItems', supplyItems)
+
   const maintenanceItems = invoice.items?.filter((item) => item.customItemName)
+
+  console.log('maintenanceItems', maintenanceItems)
 
   const { mutate: deleteItem } = api.invoiceItem.delete.useMutation({
     onSuccess: () => {
@@ -90,6 +94,12 @@ export function InvoiceDetails({ invoice }: InvoiceDetailsProps) {
                   <TableCell className="text-center">{item.quantity}</TableCell>
                   <TableCell className="text-center">
                     {formatCurrency(item.price * item.quantity)}
+                    <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                      {item.quantity} ×{' '}
+                      {formatCurrency(item.price, 'USD', {
+                        hideZeroDecimals: true,
+                      })}
+                    </div>
                   </TableCell>
                   <TableCell className="flex justify-center space-x-2">
                     <Button plain onClick={() => setEditingItem(item)}>
@@ -132,6 +142,12 @@ export function InvoiceDetails({ invoice }: InvoiceDetailsProps) {
                   <TableCell className="text-center">{item.quantity}</TableCell>
                   <TableCell className="text-center">
                     {formatCurrency(item.price * item.quantity)}
+                    <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                      {item.quantity} ×{' '}
+                      {formatCurrency(item.price, 'USD', {
+                        hideZeroDecimals: true,
+                      })}
+                    </div>
                   </TableCell>
                   <TableCell className="flex justify-center space-x-2">
                     <Button plain onClick={() => setEditingItem(item)}>

@@ -4,6 +4,7 @@ interface FormatCurrencyOptions {
   maximumFractionDigits?: number
   centsToDollars?: boolean
   noCurrencySymbol?: boolean
+  hideZeroDecimals?: boolean
 }
 
 /**
@@ -54,20 +55,25 @@ export function formatCurrency(
     maximumFractionDigits = 2,
     centsToDollars = true,
     noCurrencySymbol = false,
+    hideZeroDecimals = false,
   } = options
 
   const value = centsToDollars ? amount / 100 : amount
+
+  // If hideZeroDecimals is true and the decimal part is zero, set minimumFractionDigits to 0
+  const effectiveMinFractionDigits =
+    hideZeroDecimals && value % 1 === 0 ? 0 : minimumFractionDigits
 
   try {
     return new Intl.NumberFormat(locale, {
       style: 'currency',
       currency: currency.toUpperCase(),
-      minimumFractionDigits,
+      minimumFractionDigits: effectiveMinFractionDigits,
       maximumFractionDigits,
     }).format(value)
   } catch (error) {
     console.error(`Error formatting currency: ${currency}`, error)
-    return `${noCurrencySymbol ? '' : `$${currency.toUpperCase()} `}${value.toFixed(minimumFractionDigits)}`
+    return `${noCurrencySymbol ? '' : `$${currency.toUpperCase()} `}${value.toFixed(effectiveMinFractionDigits)}`
   }
 }
 
