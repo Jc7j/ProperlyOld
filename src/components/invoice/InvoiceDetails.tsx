@@ -32,6 +32,8 @@ export function InvoiceDetails({ invoice }: InvoiceDetailsProps) {
     (item) => item.managementGroupItem !== null
   )
 
+  const maintenanceItems = invoice.items?.filter((item) => item.customItemName)
+
   const { mutate: deleteItem } = api.invoiceItem.delete.useMutation({
     onSuccess: () => {
       void utils.invoice.getOne.invalidate({
@@ -64,7 +66,7 @@ export function InvoiceDetails({ invoice }: InvoiceDetailsProps) {
         </TableHead>
         <TableBody>
           {/* Maintenance Items Section */}
-          {invoice.items && invoice.items.length > 0 && (
+          {maintenanceItems && maintenanceItems.length > 0 && (
             <>
               <TableRow>
                 <TableCell colSpan={4} className="bg-zinc-50 dark:bg-zinc-900">
@@ -73,7 +75,7 @@ export function InvoiceDetails({ invoice }: InvoiceDetailsProps) {
                   </span>
                 </TableCell>
               </TableRow>
-              {invoice.items.map((item) => (
+              {maintenanceItems.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell>
                     <div>
