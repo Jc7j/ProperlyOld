@@ -2,7 +2,7 @@
 
 import { useOrganization } from '@clerk/nextjs'
 import { OrganizationProfile, UserButton } from '@clerk/nextjs'
-import { Building2, Home, Package } from 'lucide-react'
+import { Building2, File, Home, Package } from 'lucide-react'
 import { Moon, Sun } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { usePathname } from 'next/navigation'
@@ -22,7 +22,6 @@ import {
   SidebarLabel,
   SidebarLayout,
   SidebarSection,
-  ThemeToggle,
 } from '~/components/ui'
 import { ROUTES } from '~/lib/constants/routes'
 import { cn } from '~/lib/utils/cn'
@@ -52,6 +51,12 @@ const mainItems: NavigationItem[] = [
     title: 'Supplies',
     url: ROUTES.DASHBOARD.SUPPLIES,
     icon: Package,
+    exact: true,
+  },
+  {
+    title: 'Owner Statements',
+    url: ROUTES.DASHBOARD.OWNER_STATEMENTS,
+    icon: File,
     exact: true,
   },
 ]

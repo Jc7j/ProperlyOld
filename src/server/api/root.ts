@@ -3,6 +3,7 @@ import { createCallerFactory, createTRPCRouter } from '~/server/api/trpc'
 import { invoiceRouter } from './routers/invoice'
 import { invoiceItemRouter } from './routers/invoiceItem'
 import { managementGroupItemsRouter } from './routers/managementGroupItems'
+import { ownerStatementRouter } from './routers/ownerStatement'
 import { propertyRouter } from './routers/property'
 
 /**
@@ -15,6 +16,7 @@ export const appRouter = createTRPCRouter({
   invoice: invoiceRouter,
   managementGroupItems: managementGroupItemsRouter,
   invoiceItem: invoiceItemRouter,
+  ownerStatement: ownerStatementRouter,
 })
 
 // export type definition of API

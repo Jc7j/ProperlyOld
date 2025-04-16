@@ -10,6 +10,7 @@ export const ROUTES = {
     PROPERTY: '/dashboard/properties/:propertyId',
     SUPPLIES: '/dashboard/supplies',
     INVOICE: '/dashboard/properties/:propertyId/invoice/:invoiceId',
+    OWNER_STATEMENTS: '/dashboard/owner-statements',
   },
 } as const
 

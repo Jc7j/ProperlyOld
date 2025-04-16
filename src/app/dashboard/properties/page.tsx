@@ -16,7 +16,7 @@ import {
 } from '~/components/ui'
 import { ROUTES } from '~/lib/constants/routes'
 import { cn } from '~/lib/utils/cn'
-import { ParsedProperty } from '~/server/api/routers/property'
+import { type ParsedProperty } from '~/server/api/routers/property'
 import { api } from '~/trpc/react'
 
 const ITEMS_PER_PAGE = 15

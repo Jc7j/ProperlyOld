@@ -17,6 +17,7 @@ model ManagementGroup {
   ownerId       String          @unique
   createdAt     DateTime?       @default(now())
   updatedAt     DateTime?       @updatedAt
+  ownerStatements OwnerStatement[]
 }
 
 model User {
@@ -41,6 +42,8 @@ model Property {
   deletedAt      DateTime?
   // One-to-many relation: One Property can have many Invoices
   invoices      Invoice[]
+  // One-to-many relation: One Property can have many OwnerStatements
+  ownerStatements OwnerStatement[]
 }
 
 model Invoice {
@@ -104,4 +107,68 @@ model InvoiceItem {
   date            DateTime?       @default(now())
   createdAt      DateTime       @default(now())
   createdBy      String
+}
+
+model OwnerStatement {
+  id                String                    @id @default(uuid())
+  managementGroupId String
+  propertyId        String
+  statementMonth    DateTime                 // The month this statement is for
+  notes             String?
+  createdAt         DateTime?                @default(now())
+  updatedAt         DateTime?                @updatedAt
+  createdBy         String
+  updatedBy         String
+  deletedAt         DateTime?
+
+  // Relations
+  property          Property                 @relation(fields: [propertyId], references: [id])
+  managementGroup   ManagementGroup          @relation(fields: [managementGroupId], references: [id])
+  incomes           OwnerStatementIncome[]
+  expenses          OwnerStatementExpense[]
+  adjustments       OwnerStatementAdjustment[]
+
+  // Summary fields (optional, for quick access)
+  totalIncome       Decimal?                 // Sum of grossIncome from incomes
+  totalExpenses     Decimal?                 // Sum of amount from expenses
+  totalAdjustments  Decimal?                 // Sum of amount from adjustments
+  grandTotal        Decimal?                 // Final disbursement amount
+}
+
+model OwnerStatementIncome {
+  id                String    @id @default(uuid())
+  ownerStatementId  String
+  checkIn           DateTime
+  checkOut          DateTime
+  days              Int
+  platform          String
+  guest             String
+  grossRevenue      Decimal
+  hostFee           Decimal
+  platformFee       Decimal
+  grossIncome       Decimal
+
+  ownerStatement    OwnerStatement @relation(fields: [ownerStatementId], references: [id])
+}
+
+model OwnerStatementExpense {
+  id                String    @id @default(uuid())
+  ownerStatementId  String
+  date              DateTime
+  description       String
+  vendor            String
+  amount            Decimal
+
+  ownerStatement    OwnerStatement @relation(fields: [ownerStatementId], references: [id])
+}
+
+model OwnerStatementAdjustment {
+  id                String    @id @default(uuid())
+  ownerStatementId  String
+  checkIn           DateTime?
+  checkOut          DateTime?
+  description       String
+  amount            Decimal
+
+  ownerStatement    OwnerStatement @relation(fields: [ownerStatementId], references: [id])
 }
