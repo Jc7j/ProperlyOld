@@ -1,8 +1,28 @@
 import { AlertTriangle, CheckCircle, Dot, FilePlus } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
-import { Button, Card } from '~/components/ui'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Button,
+  Card,
+  Dialog,
+  DialogActions,
+  DialogBody,
+  DialogTitle,
+  Input,
+  Label,
+} from '~/components/ui'
+import { api } from '~/trpc/react'
 
 import OwnerStatementReviewTable from './OwnerStatementReviewTable'
+
+// Define type for the expected map from the backend
+// This map now only contains date and amount from Gemini
+type ExtractedExpensesMapType = Record<
+  string,
+  Array<{
+    date: string
+    amount: number
+  }>
+>
 
 export default function OwnerStatementReviewStepper({
   drafts,
@@ -18,6 +38,17 @@ export default function OwnerStatementReviewStepper({
   const [step, setStep] = useState(0)
   // Track which drafts have been created (reviewed)
   const [created, setCreated] = useState<boolean[]>([])
+
+  // State for invoice parsing
+  const [isParsingInvoice, setIsParsingInvoice] = useState(false)
+  const [invoiceError, setInvoiceError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null) // Ref for hidden file input
+
+  // State for the Invoice Dialog
+  const [isInvoiceDialogOpen, setIsInvoiceDialogOpen] = useState(false)
+  const [dialogVendor, setDialogVendor] = useState('')
+  const [dialogDescription, setDialogDescription] = useState('')
+  const [selectedPdfFile, setSelectedPdfFile] = useState<File | null>(null)
 
   useEffect(() => {
     const sorted = [...drafts].sort((a, b) =>
@@ -60,6 +91,61 @@ export default function OwnerStatementReviewStepper({
     ? Math.round((reviewedCount / totalCount) * 100)
     : 0
 
+  // *** Update FUNCTION to apply extracted expenses map ***
+  const applyExtractedExpenses = (
+    expensesMap: ExtractedExpensesMapType,
+    vendor: string,
+    description: string
+  ) => {
+    let updatedCount = 0
+    setOrderedDrafts((currentDrafts) => {
+      const newDrafts = [...currentDrafts]
+
+      Object.entries(expensesMap).forEach(
+        ([propertyNameFromMap, expensesToAdd]) => {
+          const draftIndex = newDrafts.findIndex(
+            (draft) =>
+              draft.propertyName.trim().toLowerCase() ===
+              propertyNameFromMap.trim().toLowerCase()
+          )
+
+          if (draftIndex !== -1 && expensesToAdd.length > 0) {
+            updatedCount++
+            const targetDraft = { ...newDrafts[draftIndex] }
+            targetDraft.expenses = targetDraft.expenses
+              ? [...targetDraft.expenses]
+              : []
+
+            expensesToAdd.forEach((expense) => {
+              targetDraft.expenses.push({
+                date: expense.date,
+                description: description,
+                vendor: vendor,
+                amount: expense.amount,
+              })
+            })
+
+            newDrafts[draftIndex] = targetDraft
+          }
+        }
+      )
+
+      return updatedCount > 0 ? newDrafts : currentDrafts
+    })
+
+    if (updatedCount > 0) {
+      setInvoiceError(null)
+      console.log(
+        `Successfully added expenses to ${updatedCount} property statement(s).`
+      )
+    } else {
+      // This message might occur if Gemini returned properties not in the current draft list
+      setInvoiceError(
+        'Invoice processed, but no matching property statements currently being reviewed were found for the extracted expenses.'
+      )
+    }
+  }
+
   // Right Panel: Review Table
   const handleDraftChange = (
     idx: number,
@@ -89,6 +175,118 @@ export default function OwnerStatementReviewStepper({
     })
   }
 
+  // tRPC Mutation Hook (Update onSuccess)
+  const parseInvoiceMutation =
+    api.ownerStatement.parseInvoiceExpenseWithGemini.useMutation({
+      onSuccess: (extractedExpensesMap) => {
+        // Expecting a map now
+        console.log('Extracted Expenses Map:', extractedExpensesMap)
+        if (
+          extractedExpensesMap &&
+          Object.keys(extractedExpensesMap).length > 0
+        ) {
+          applyExtractedExpenses(
+            extractedExpensesMap,
+            dialogVendor,
+            dialogDescription
+          )
+        } else {
+          // This case should now be handled by the backend throwing NOT_FOUND
+          // But keep a fallback message just in case.
+          setInvoiceError(
+            'AI could not extract any property expenses from the invoice.'
+          )
+        }
+        setIsParsingInvoice(false)
+        setIsInvoiceDialogOpen(false)
+      },
+      onError: (error) => {
+        // onError remains the same
+        console.error('Invoice parsing error:', error)
+        setInvoiceError(`Invoice import failed: ${error.message}`)
+        setIsParsingInvoice(false)
+        setIsInvoiceDialogOpen(false)
+      },
+    })
+
+  // Function to handle submission from the Dialog
+  const handleProcessInvoice = () => {
+    if (!selectedPdfFile || !dialogVendor || !dialogDescription) {
+      setInvoiceError('Missing vendor, description, or file.')
+      return
+    }
+
+    const draftNames = orderedDrafts.map((d) => d.propertyName)
+    if (draftNames.length === 0) {
+      setInvoiceError('No drafts available to match expenses against.')
+      return
+    }
+
+    setIsParsingInvoice(true)
+    setInvoiceError(null)
+    const capturedVendor = dialogVendor
+    const capturedDescription = dialogDescription
+
+    const reader = new FileReader()
+    reader.readAsDataURL(selectedPdfFile)
+    reader.onload = () => {
+      const base64String = (reader.result as string)?.split(',')[1]
+      if (base64String) {
+        parseInvoiceMutation.mutate(
+          {
+            pdfBase64: base64String,
+            draftPropertyNames: draftNames,
+            vendor: capturedVendor,
+            description: capturedDescription,
+          },
+          {
+            onSuccess: (extractedExpensesMap) => {
+              console.log('Extracted Expenses Map:', extractedExpensesMap)
+              if (
+                extractedExpensesMap &&
+                Object.keys(extractedExpensesMap).length > 0
+              ) {
+                applyExtractedExpenses(
+                  extractedExpensesMap,
+                  capturedVendor,
+                  capturedDescription
+                )
+              } else {
+                setInvoiceError(
+                  'AI could not extract any property expenses from the invoice.'
+                )
+              }
+              setIsParsingInvoice(false)
+              setIsInvoiceDialogOpen(false)
+            },
+            onError: (error) => {
+              console.error('Invoice parsing error:', error)
+              setInvoiceError(`Invoice import failed: ${error.message}`)
+              setIsParsingInvoice(false)
+            },
+          }
+        )
+      } else {
+        setInvoiceError('Could not read the file content.')
+        setIsParsingInvoice(false)
+      }
+    }
+    reader.onerror = (error) => {
+      console.error('File reading error:', error)
+      setInvoiceError('Error reading file.')
+      setIsParsingInvoice(false)
+    }
+  }
+
+  // Function to handle closing the dialog and resetting its state
+  const closeInvoiceDialog = () => {
+    setIsInvoiceDialogOpen(false)
+    setDialogVendor('')
+    setDialogDescription('')
+    setSelectedPdfFile(null)
+    setInvoiceError(null)
+  }
+
   return (
     <div className="fixed inset-0 z-50 bg-white dark:bg-zinc-900 flex flex-col min-h-screen px-4">
       {/* Top Bar */}
@@ -104,17 +302,27 @@ export default function OwnerStatementReviewStepper({
       <div className="flex-1 flex flex-col md:flex-row items-stretch justify-center overflow-y-auto py-8 gap-8">
         {/* Left Sidebar */}
         <div className="w-full md:w-1/4 max-w-xs mx-auto md:mx-0 mb-8 md:mb-0 flex flex-col gap-6">
-          {/* Add Invoice Button */}
+          {/* Add Invoice Button (Update disabled logic) */}
           <Button
             outline
-            onClick={() =>
-              console.log('Import Invoice PDF clicked for step:', step)
-            } // Placeholder
-            className="w-full mb-6"
+            onClick={() => setIsInvoiceDialogOpen(true)}
+            className="w-full"
           >
-            <FilePlus className="w-4 h-4 mr-2" />
-            Import a vendor invoice
+            {isParsingInvoice ? (
+              'Processing Invoice...'
+            ) : (
+              <>
+                <FilePlus className="w-4 h-4 mr-2" />
+                Import a vendor invoice
+              </>
+            )}
           </Button>
+          {/* Display Error Message */}
+          {invoiceError && (
+            <Card className="p-3 mb-4 border-red-300 bg-red-100 text-red-800 text-xs">
+              {invoiceError}
+            </Card>
+          )}
           {/* Progress Card */}
           <Card className="p-4">
             <div className="font-semibold mb-2 text-sm">Review Progress</div>
@@ -190,6 +398,106 @@ export default function OwnerStatementReviewStepper({
           </div>
         </div>
       </div>
+
+      {/* Invoice Import Dialog */}
+      <Dialog open={isInvoiceDialogOpen} onClose={closeInvoiceDialog} size="lg">
+        <DialogTitle>Import Vendor Invoice Expenses</DialogTitle>
+        <DialogBody className="space-y-4">
+          {invoiceError && (
+            <p className="text-sm text-red-600 dark:text-red-400">
+              Error: {invoiceError}
+            </p>
+          )}
+          <div>
+            <Label htmlFor="dialogVendor">Vendor Name</Label>
+            <Input
+              id="dialogVendor"
+              value={dialogVendor}
+              onChange={(e) => setDialogVendor(e.target.value)}
+              placeholder="Enter vendor name..."
+              disabled={isParsingInvoice}
+            />
+          </div>
+          <div>
+            <Label htmlFor="dialogDesc">Expense Description</Label>
+            <Input
+              id="dialogDesc"
+              value={dialogDescription}
+              onChange={(e) => setDialogDescription(e.target.value)}
+              placeholder="Enter description (e.g., Pool Service May)"
+              disabled={isParsingInvoice}
+            />
+          </div>
+          <div>
+            <Label htmlFor="pdfFile">Invoice PDF</Label>
+            <div
+              className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-zinc-300 dark:border-zinc-700 border-dashed rounded-md cursor-pointer hover:border-primary/50 dark:hover:border-primary/50"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <div className="space-y-1 text-center">
+                <div className="flex text-sm text-zinc-600 dark:text-zinc-400">
+                  <span className="relative rounded-md font-medium text-primary focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary hover:text-primary/80">
+                    Upload a file
+                  </span>
+                  <input
+                    id="pdfFile"
+                    ref={fileInputRef}
+                    name="pdfFile"
+                    type="file"
+                    className="sr-only"
+                    accept=".pdf"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file && file.type === 'application/pdf') {
+                        setSelectedPdfFile(file)
+                        setInvoiceError(null)
+                      } else {
+                        setSelectedPdfFile(null)
+                        if (file)
+                          setInvoiceError(
+                            'Invalid file type. Please select a PDF.'
+                          )
+                      }
+                      e.target.value = ''
+                    }}
+                    disabled={isParsingInvoice}
+                  />
+                </div>
+                {selectedPdfFile ? (
+                  <p className="text-xs text-zinc-500 dark:text-zinc-500">
+                    Selected: {selectedPdfFile.name}
+                  </p>
+                ) : (
+                  <p className="text-xs text-zinc-500 dark:text-zinc-500">
+                    PDF only, up to X MB
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </DialogBody>
+        <DialogActions>
+          <Button
+            outline
+            onClick={closeInvoiceDialog}
+            disabled={isParsingInvoice}
+          >
+            Cancel
+          </Button>
+          <Button
+            color="primary-solid"
+            onClick={handleProcessInvoice}
+            disabled={
+              !dialogVendor ||
+              !dialogDescription ||
+              !selectedPdfFile ||
+              isParsingInvoice
+            }
+          >
+            {isParsingInvoice ? 'Processing...' : 'Process Invoice'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   )
 }

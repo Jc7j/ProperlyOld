@@ -129,6 +129,16 @@ export default function OwnerStatementsPage() {
         platformFee,
         grossIncome: Math.round((totalPayout - hostFee) * 100) / 100,
       })
+
+      const resolutionSum = Number(row['Airbnb Closed Resolutions Sum']) ?? 0
+      if (resolutionSum !== 0) {
+        grouped[property.id].adjustments.push({
+          description: 'Airbnb Resolution',
+          amount: resolutionSum,
+          checkIn: row['Check-in Date'] || null,
+          checkOut: row['Check-out Date'] || null,
+        })
+      }
     }
     setReviewDrafts(Object.values(grouped))
     setUnmatchedListings(unmatched)
