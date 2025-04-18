@@ -60,7 +60,11 @@ export default function OwnerStatementsPage() {
       const json = XLSX.utils.sheet_to_json(worksheet, { defval: '' })
       setParsedData(json)
     } catch (err) {
-      setError('Failed to parse Excel file. Please check your file format.')
+      setError(
+        `Failed to parse Excel file. Please check your file format. ${
+          err instanceof Error ? err.message : 'Unknown error'
+        }`
+      )
       setParsedData(null)
     } finally {
       setIsParsing(false)
@@ -100,31 +104,35 @@ export default function OwnerStatementsPage() {
           notes: '',
         }
       }
+      const rentalRevenue = Number(row['Rental Revenue']) ?? 0
+      const airbnbTax = Number(row['Airbnb Transient Occupancy Tax']) ?? 0
+      let grossRevenue = rentalRevenue
+      if (airbnbTax > 0) {
+        grossRevenue = rentalRevenue - airbnbTax
+      }
+      const hostFee = Math.round(grossRevenue * 0.15 * 100) / 100
+      const totalPayout = Number(row['Total Payout']) ?? 0
+      const channel = (row.Channel || '').toLowerCase()
+      const platformFee =
+        channel === 'vrbo'
+          ? (Number(row['Payment Fees']) ?? 0)
+          : (Number(row['Host Channel Fee']) ?? 0)
+
       grouped[property.id].incomes.push({
         guest: row.Guest,
         checkIn: row['Check-in Date'],
         checkOut: row['Check-out Date'],
-        days: Number(row.Nights) || 0,
+        days: Number(row.Nights) ?? 0,
         platform: row.Channel,
-        grossRevenue: Number(row['Rental Revenue']) || 0,
-        hostFee: Number(row['Host Channel Fee']) || 0,
-        platformFee: 0, // Not present in this sheet
-        grossIncome: Number(row['Total Payout']) || 0,
+        grossRevenue,
+        hostFee,
+        platformFee,
+        grossIncome: Math.round((totalPayout - hostFee) * 100) / 100,
       })
     }
     setReviewDrafts(Object.values(grouped))
     setUnmatchedListings(unmatched)
     setIsModalOpen(false)
-  }
-
-  // Handle draft change (for notes, etc)
-  const handleDraftChange = (idx: number, field: string, value: any) => {
-    setReviewDrafts((drafts) => {
-      if (!drafts) return drafts
-      const newDrafts = [...drafts]
-      newDrafts[idx] = { ...newDrafts[idx], [field]: value }
-      return newDrafts
-    })
   }
 
   return (
@@ -269,7 +277,6 @@ export default function OwnerStatementsPage() {
             setSelectedFile(null)
             setSelectedMonth(null)
           }}
-          onDraftChange={handleDraftChange}
         />
       )}
     </div>
