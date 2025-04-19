@@ -6,6 +6,32 @@ import { tryCatch } from '~/lib/utils/try-catch'
 
 import { createTRPCRouter, protectedProcedure } from '../trpc'
 
+const incomeSchema = z.object({
+  checkIn: z.string(),
+  checkOut: z.string(),
+  days: z.number(),
+  platform: z.string(),
+  guest: z.string(),
+  grossRevenue: z.number(),
+  hostFee: z.number(),
+  platformFee: z.number(),
+  grossIncome: z.number(),
+})
+
+const expenseSchema = z.object({
+  date: z.string(),
+  description: z.string(),
+  vendor: z.string(),
+  amount: z.number(),
+})
+
+const adjustmentSchema = z.object({
+  checkIn: z.string().optional(),
+  checkOut: z.string().optional(),
+  description: z.string(),
+  amount: z.number(),
+})
+
 export const ownerStatementRouter = createTRPCRouter({
   getMany: protectedProcedure
     .input(
@@ -48,6 +74,45 @@ export const ownerStatementRouter = createTRPCRouter({
         },
         orderBy: [{ statementMonth: 'desc' }],
       })
+    }),
+
+  getOne: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const { orgId } = ctx.auth
+      if (!orgId) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'No organization selected',
+        })
+      }
+
+      const statement = await ctx.db.ownerStatement.findUnique({
+        where: { id: input.id },
+        include: {
+          property: true, // Include property details
+          incomes: true, // Include all incomes
+          expenses: true, // Include all expenses
+          adjustments: true, // Include all adjustments
+        },
+      })
+
+      if (!statement) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: `Owner Statement with ID ${input.id} not found.`,
+        })
+      }
+
+      // Authorization check
+      if (statement.managementGroupId !== orgId) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'You do not have permission to view this statement.',
+        })
+      }
+
+      return statement
     }),
 
   create: protectedProcedure
@@ -93,16 +158,30 @@ export const ownerStatementRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const { orgId, userId } = ctx.auth
+
       if (!orgId || !userId) {
         throw new TRPCError({
           code: 'UNAUTHORIZED',
           message: 'No organization/user',
         })
       }
+
       return ctx.db.$transaction(async (tx) => {
+        const managementGroup = await tx.managementGroup.findUnique({
+          where: { id: orgId },
+          select: { id: true }, // Only select id, we just need to know it exists
+        })
+
+        if (!managementGroup) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: `Invalid Management Group ID: ${orgId}. Cannot create statement.`,
+          })
+        }
+
         const ownerStatement = await tx.ownerStatement.create({
           data: {
-            managementGroupId: orgId,
+            managementGroupId: orgId, // Use the verified orgId
             propertyId: input.propertyId,
             statementMonth: input.statementMonth,
             notes: input.notes,
@@ -146,6 +225,89 @@ export const ownerStatementRouter = createTRPCRouter({
           },
         })
         return ownerStatement
+      })
+    }),
+
+  update: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        notes: z.string().optional(),
+        incomes: z.array(incomeSchema),
+        expenses: z.array(expenseSchema).optional(),
+        adjustments: z.array(adjustmentSchema).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { orgId, userId } = ctx.auth
+      if (!orgId || !userId) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'No organization/user',
+        })
+      }
+
+      const { id, notes, incomes, expenses, adjustments } = input
+
+      return ctx.db.$transaction(async (tx) => {
+        const existingStatement = await tx.ownerStatement.findUnique({
+          where: { id: id },
+          select: { managementGroupId: true },
+        })
+
+        if (!existingStatement) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: `Owner Statement with ID ${id} not found.`,
+          })
+        }
+
+        if (existingStatement.managementGroupId !== orgId) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'You do not have permission to update this statement.',
+          })
+        }
+
+        // 2. Delete existing nested items
+        await tx.ownerStatementIncome.deleteMany({
+          where: { ownerStatementId: id },
+        })
+        await tx.ownerStatementExpense.deleteMany({
+          where: { ownerStatementId: id },
+        })
+        await tx.ownerStatementAdjustment.deleteMany({
+          where: { ownerStatementId: id },
+        })
+
+        // 3. Update the main OwnerStatement record
+        const updatedStatement = await tx.ownerStatement.update({
+          where: { id: id },
+          data: {
+            notes: notes, // Update notes
+            updatedBy: userId, // Update timestamp/user
+            // Potentially update totals here if needed/calculated, or rely on frontend calculation
+            // Re-create nested items:
+            incomes: {
+              create: incomes.map((i) => ({ ...i })),
+            },
+            expenses: {
+              create: (expenses ?? []).map((e) => ({ ...e })),
+            },
+            adjustments: {
+              create: (adjustments ?? []).map((a) => ({ ...a })),
+            },
+          },
+          include: {
+            // Include relations needed by the frontend after update
+            incomes: true,
+            expenses: true,
+            adjustments: true,
+            property: true,
+          },
+        })
+
+        return updatedStatement
       })
     }),
 

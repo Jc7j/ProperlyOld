@@ -24,7 +24,7 @@ export default function OwnerStatementReviewTable({
 }) {
   const {
     propertyName,
-    statementMonth,
+    statementMonth: rawStatementMonth,
     incomes = [],
     expenses = [],
     adjustments = [],
@@ -32,7 +32,6 @@ export default function OwnerStatementReviewTable({
     grandTotal,
   } = statementDraft
 
-  // Calculate totals
   const totalIncome = incomes.reduce(
     (sum: number, i: any) => sum + (i.grossIncome || 0),
     0
@@ -103,7 +102,6 @@ export default function OwnerStatementReviewTable({
     onChange(field, -1, '__add', template)
   }
 
-  // Render cell: read-only or input if editing
   const renderCell = (
     section: 'incomes' | 'expenses' | 'adjustments',
     rowIdx: number,
@@ -113,6 +111,7 @@ export default function OwnerStatementReviewTable({
     alignRight = false
   ) => {
     const isEditing =
+      !readOnly &&
       editing &&
       editing.section === section &&
       editing.rowIdx === rowIdx &&
@@ -123,16 +122,18 @@ export default function OwnerStatementReviewTable({
           autoFocus
           type={type === 'number' ? 'number' : 'text'}
           value={value ?? ''}
+          className={`w-full px-2 py-1 text-sm border border-primary/50 rounded focus:outline-none focus:ring-1 focus:ring-primary ${alignRight ? 'text-right' : ''}`}
           onChange={(e) => {
-            const v =
-              type === 'number' ? Number(e.target.value) : e.target.value
+            let v: string | number | null = e.target.value
+            if (type === 'number') {
+              v = v === '' ? null : Number(v)
+            }
             onChange(section, rowIdx, field, v)
           }}
           onBlur={() => setEditing(null)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === 'Escape') setEditing(null)
           }}
-          className={alignRight ? 'text-right' : ''}
         />
       )
     }
@@ -141,23 +142,29 @@ export default function OwnerStatementReviewTable({
         return typeof value === 'number' ? (
           value.toLocaleString('en-US', { maximumFractionDigits: 2 })
         ) : (
-          <span className="text-zinc-400">—</span>
+          <span className="text-zinc-400 dark:text-zinc-600">—</span>
         )
       } else if (['checkIn', 'checkOut', 'date'].includes(field) && value) {
         const formatted = dayjs(value).isValid()
           ? dayjs(value).format('YYYY-MM-DD')
           : value
-        return formatted || <span className="text-zinc-400">—</span>
+        return (
+          formatted || (
+            <span className="text-zinc-400 dark:text-zinc-600">—</span>
+          )
+        )
       } else {
-        return value || <span className="text-zinc-400">—</span>
+        return (
+          value || <span className="text-zinc-400 dark:text-zinc-600">—</span>
+        )
       }
     }
 
     return (
       <div
-        className={`min-h-[36px] ${alignRight ? 'text-right' : ''} cursor-pointer px-1 py-1 rounded hover:bg-zinc-50 ${readOnly ? '' : 'border-b border-transparent hover:border-zinc-200'}`}
-        tabIndex={0}
-        onClick={() => handleEditStart(section, rowIdx, field)}
+        className={`min-h-[44px] px-3 py-2.5 text-sm ${alignRight ? 'text-right' : 'text-left'} ${!readOnly ? 'cursor-pointer rounded hover:bg-primary/5 dark:hover:bg-primary/10 focus-within:bg-primary/10 dark:focus-within:bg-primary/20 focus:outline-none focus-within:ring-1 focus-within:ring-primary/50' : 'text-zinc-700 dark:text-zinc-300'}`}
+        tabIndex={readOnly ? -1 : 0}
+        onClick={() => !readOnly && handleEditStart(section, rowIdx, field)}
         onKeyDown={(e) => {
           if (e.key === 'Enter') handleEditStart(section, rowIdx, field)
         }}
@@ -190,17 +197,19 @@ export default function OwnerStatementReviewTable({
       <div className="flex justify-between items-center mb-4">
         <div className="text-lg font-bold">Owner Statement</div>
         <div className="text-right">
-          <div className="font-semibold">{propertyName}</div>
-          <div className="text-sm text-zinc-500">
-            {dayjs(statementMonth).format('MMMM - YYYY')}
+          <div className="font-semibold text-base">{propertyName}</div>
+          <div className="text-sm text-zinc-500 dark:text-zinc-400">
+            {dayjs(rawStatementMonth).isValid()
+              ? dayjs(rawStatementMonth).format('MMMM YYYY')
+              : 'Invalid Date'}
           </div>
         </div>
       </div>
-      <div className="max-h-[60vh] overflow-y-auto">
+      <div className="overflow-x-auto relative">
         {/* Income Table */}
-        <div className="mb-8">
-          <div className="text-lg font-semibold mb-2">Income:</div>
-          <Table striped>
+        <div className="mb-10">
+          <div className="text-lg font-semibold mb-3">Income:</div>
+          <Table striped className="min-w-[800px]">
             <TableHead>
               <TableRow>
                 <TableHeader>Check In</TableHeader>
@@ -273,7 +282,7 @@ export default function OwnerStatementReviewTable({
                       true
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="w-[50px]">
                     <Button
                       outline
                       onClick={() => handleDelete('incomes', i)}
@@ -323,15 +332,15 @@ export default function OwnerStatementReviewTable({
                     currency: 'USD',
                   })}
                 </TableCell>
-                <TableCell />
+                <TableCell className="w-[50px]"></TableCell>
               </TableRow>
             </TableBody>
           </Table>
         </div>
         {/* Expenses Table */}
-        <div className="mb-8">
-          <div className="text-lg font-semibold mb-2">Expenses:</div>
-          <Table striped>
+        <div className="mb-10">
+          <div className="text-lg font-semibold mb-3">Expenses:</div>
+          <Table striped className="min-w-[600px]">
             <TableHead>
               <TableRow>
                 <TableHeader>Date</TableHeader>
@@ -363,7 +372,7 @@ export default function OwnerStatementReviewTable({
                       true
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="w-[50px]">
                     <Button
                       outline
                       onClick={() => handleDelete('expenses', i)}
@@ -388,15 +397,15 @@ export default function OwnerStatementReviewTable({
                     currency: 'USD',
                   })}
                 </TableCell>
-                <TableCell />
+                <TableCell className="w-[50px]"></TableCell>
               </TableRow>
             </TableBody>
           </Table>
         </div>
         {/* Adjustments Table */}
-        <div className="mb-8">
-          <div className="text-lg font-semibold mb-2">Adjustments:</div>
-          <Table striped>
+        <div className="mb-10">
+          <div className="text-lg font-semibold mb-3">Adjustments:</div>
+          <Table striped className="min-w-[700px]">
             <TableHead>
               <TableRow>
                 <TableHeader>Check In</TableHeader>
@@ -445,7 +454,7 @@ export default function OwnerStatementReviewTable({
                       true
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="w-[50px]">
                     <Button
                       outline
                       onClick={() => handleDelete('adjustments', i)}
@@ -470,16 +479,21 @@ export default function OwnerStatementReviewTable({
                     currency: 'USD',
                   })}
                 </TableCell>
-                <TableCell />
+                <TableCell className="w-[50px]"></TableCell>
               </TableRow>
             </TableBody>
           </Table>
         </div>
       </div>
       {/* Notes and Grand Total */}
-      <div className="flex justify-between items-start mt-8 pt-6 border-t">
-        <div className="w-2/3">
-          <label className="block text-sm font-medium mb-1">Notes</label>
+      <div className="flex flex-col lg:flex-row justify-between items-start mt-10 pt-6 border-t border-zinc-200 dark:border-zinc-700">
+        <div className="w-full lg:w-3/5 mb-6 lg:mb-0 lg:pr-8">
+          <label
+            htmlFor="notesInput"
+            className="block text-base font-semibold mb-2"
+          >
+            Notes
+          </label>
           {editing && editing.section === 'notes' ? (
             <Input
               autoFocus
@@ -492,26 +506,36 @@ export default function OwnerStatementReviewTable({
             />
           ) : (
             <div
-              className="min-h-[36px] cursor-pointer px-1 py-1 rounded hover:bg-zinc-50 border-b border-transparent hover:border-zinc-200"
-              tabIndex={0}
-              onClick={() => handleEditStart('notes', 0, 'notes')}
+              id="notesDisplay"
+              className={`min-h-[44px] px-3 py-2.5 text-sm rounded border border-transparent ${!readOnly ? 'cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800/50 hover:border-zinc-300 dark:hover:border-zinc-700 focus:outline-none focus:ring-1 focus:ring-primary/50' : 'text-zinc-600 dark:text-zinc-400'}`}
+              tabIndex={readOnly ? -1 : 0}
+              onClick={() => !readOnly && handleEditStart('notes', 0, 'notes')}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') handleEditStart('notes', 0, 'notes')
+                if (!readOnly && e.key === 'Enter')
+                  handleEditStart('notes', 0, 'notes')
               }}
+              role={!readOnly ? 'button' : undefined}
             >
-              {notes || <span className="text-zinc-400">Add notes...</span>}
+              {notes || (
+                <span className="text-zinc-400 dark:text-zinc-500 italic">
+                  {readOnly ? 'No notes provided.' : 'Click to add notes...'}
+                </span>
+              )}
             </div>
           )}
         </div>
-        <div className="text-right w-1/3">
-          <div className="text-lg font-semibold mb-1">
+        <div className="text-right w-full lg:w-2/5 lg:pl-8">
+          <div className="text-base font-semibold mb-1">
             Grand Total/Disbursement
           </div>
-          <div className="text-2xl font-bold text-green-700">
-            {grandTotalDisbursement.toLocaleString('en-US', {
+          <div
+            className={`text-3xl font-bold ${grandTotalDisbursement >= 0 ? 'text-green-700 dark:text-green-500' : 'text-red-600 dark:text-red-500'}`}
+          >
+            {Math.abs(grandTotalDisbursement).toLocaleString('en-US', {
               style: 'currency',
               currency: 'USD',
             })}
+            {grandTotalDisbursement < 0 && ' (Owed)'}
           </div>
         </div>
       </div>

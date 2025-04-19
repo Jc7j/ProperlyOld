@@ -34,10 +34,8 @@ export default function OwnerStatementReviewStepper({
   unmatchedListings: string[]
   onDone: () => void
 }) {
-  // Sort drafts A-Z by propertyName on mount
   const [orderedDrafts, setOrderedDrafts] = useState<any[]>([])
   const [step, setStep] = useState(0)
-  // Track which drafts have been created (reviewed)
   const [created, setCreated] = useState<boolean[]>([])
 
   // State for invoice parsing
@@ -58,7 +56,9 @@ export default function OwnerStatementReviewStepper({
     setOrderedDrafts(sorted)
     setCreated(new Array(sorted.length).fill(false))
     setStep(0)
-  }, [drafts])
+
+    // All existence check logic has been removed.
+  }, [drafts]) // Only depends on drafts now
 
   const current = orderedDrafts[step] || {}
 
@@ -216,24 +216,39 @@ export default function OwnerStatementReviewStepper({
 
   // Function to handle creating the statement via API
   const handleCreateStatement = () => {
+    // Revert back to non-async
     if (!current?.propertyId) {
       ErrorToast('Cannot create statement: Missing property data.')
       return
     }
 
-    // --- Data Preparation ---
-    // Convert YYYY-MM string to Date object (first day of month)
-    // Assuming current.statementMonth is 'YYYY-MM' format
-    const [year, month] = (current.statementMonth || '').split('-')
+    // --- Data Preparation: statementMonth ---
     let statementMonthDate: Date | null = null
-    if (year && month) {
-      statementMonthDate = new Date(parseInt(year), parseInt(month) - 1, 1)
+    if (current.statementMonth instanceof Date) {
+      statementMonthDate = current.statementMonth
+    } else if (typeof current.statementMonth === 'string') {
+      const parts = current.statementMonth.split('-')
+      if (parts.length === 2) {
+        const year = parseInt(parts[0], 10)
+        const month = parseInt(parts[1], 10)
+        if (!isNaN(year) && !isNaN(month) && month >= 1 && month <= 12) {
+          statementMonthDate = new Date(year, month - 1, 1)
+        }
+      }
     }
 
-    if (!statementMonthDate) {
-      ErrorToast('Invalid statement month format.')
+    // Validate the resulting date
+    if (!statementMonthDate || isNaN(statementMonthDate?.getTime())) {
+      console.error('Invalid statement month:', current.statementMonth)
+      ErrorToast('Invalid or missing statement month data.')
       return
     }
+
+    // --- REMOVED Check for Existing Statement ---
+    // setIsCheckingExistence(true);
+    // const monthString = dayjs(statementMonthDate).format('YYYY-MM');
+    // try { ... } catch { ... } finally { ... }
+    // --- End REMOVED Check ---
 
     // Ensure incomes, expenses, adjustments are arrays (even if empty)
     const incomes = Array.isArray(current.incomes) ? current.incomes : []
@@ -312,126 +327,150 @@ export default function OwnerStatementReviewStepper({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-white dark:bg-zinc-900 flex flex-col min-h-screen px-4">
+    <div className="fixed inset-0 z-50 bg-white dark:bg-zinc-950 flex flex-col min-h-screen">
       {/* Top Bar */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
-        <div className="text-lg font-bold">
+      <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm">
+        <div className="text-lg font-semibold">
           Review Owner Statements ({step + 1} of {orderedDrafts.length})
         </div>
         <Button outline onClick={onDone}>
           Exit Review
         </Button>
       </div>
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col md:flex-row items-stretch justify-center overflow-y-auto py-8 gap-8">
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         {/* Left Sidebar */}
-        <div className="w-full md:w-1/4 max-w-xs mx-auto md:mx-0 mb-8 md:mb-0 flex flex-col gap-6">
-          {/* Add Invoice Button (Update disabled logic) */}
+        <aside className="w-full md:w-80 lg:w-96 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 p-6 overflow-y-auto flex flex-col gap-6">
+          {/* Add Invoice Button */}
           <Button
             outline
             onClick={() => setIsInvoiceDialogOpen(true)}
             className="w-full"
+            disabled={isParsingInvoice}
           >
             {isParsingInvoice ? (
               'Processing Invoice...'
             ) : (
               <>
                 <FilePlus className="w-4 h-4 mr-2" />
-                Import a vendor invoice
+                Import Vendor Invoice
               </>
             )}
           </Button>
           {/* Display Error Message */}
           {invoiceError && (
-            <Card className="p-3 mb-4 border-red-300 bg-red-100 text-red-800 text-xs">
+            <Card className="p-4 border-red-300 bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 text-sm">
+              <div className="font-medium mb-1">Import Error</div>
               {invoiceError}
             </Card>
           )}
           {/* Progress Card */}
-          <Card className="p-4">
-            <div className="font-semibold mb-2 text-sm">Review Progress</div>
-            <div className="mb-3 flex items-center gap-2">
-              <div className="flex-1 h-2 bg-zinc-200 rounded-full overflow-hidden">
+          <Card className="p-5 bg-white dark:bg-zinc-800/60 shadow-sm">
+            <div className="font-semibold mb-3 text-base">Review Progress</div>
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex-1 h-2 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
                 <div
-                  className="h-2 bg-green-500 rounded-full transition-all"
+                  className="h-2 bg-green-500 rounded-full transition-all duration-300 ease-out"
                   style={{ width: `${progressPercent}%` }}
                 />
               </div>
-              <span className="text-xs text-zinc-500 min-w-[48px] text-right">
+              <span className="text-sm text-zinc-600 dark:text-zinc-400 min-w-[50px] text-right">
                 {reviewedCount}/{totalCount}
               </span>
             </div>
-            <ul className="space-y-1 max-h-64 overflow-y-auto">
+            {/* Progress List - Enhanced Styling */}
+            <ul className="space-y-1.5 max-h-72 overflow-y-auto -mr-2 pr-2">
               {progressList.map((item, idx) => (
                 <li
                   key={item.propertyName}
-                  className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer transition-colors
-                    ${item.isCurrent ? 'bg-primary/10 font-bold text-primary' : ''}
-                    ${item.reviewed ? 'opacity-70' : ''}
+                  className={`flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer transition-colors duration-150 ease-in-out
+                    ${item.isCurrent ? 'bg-primary/10 text-primary font-semibold' : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200/50 dark:hover:bg-zinc-700/50'}
+                    ${item.reviewed ? 'opacity-60 hover:opacity-100' : ''}
                   `}
                   onClick={() => setStep(idx)}
+                  aria-current={item.isCurrent ? 'step' : undefined}
                 >
                   {item.reviewed ? (
-                    <CheckCircle className="w-4 h-4 text-green-600 shrink-0" />
+                    <CheckCircle className="w-5 h-5 text-green-600 shrink-0" />
                   ) : item.isCurrent ? (
-                    <Dot className="w-5 h-5 text-blue-500 shrink-0" />
+                    <Dot className="w-6 h-6 text-primary shrink-0 -ml-1" />
                   ) : (
-                    <Dot className="w-5 h-5 text-zinc-400 shrink-0" />
+                    // Default icon if not created and not current
+                    <span className="w-5 h-5 flex items-center justify-center shrink-0">
+                      <Dot className="w-5 h-5 text-zinc-400 dark:text-zinc-600" />
+                    </span>
                   )}
-                  <span className="truncate flex-1">{item.propertyName}</span>
+                  <span className="truncate flex-1 text-sm">
+                    {item.propertyName}
+                  </span>
                 </li>
               ))}
             </ul>
           </Card>
           {/* Unmatched Listings Card */}
-          <Card className="p-4 bg-yellow-50 border border-yellow-200">
-            <div className="flex items-center gap-2 mb-2 text-yellow-800 font-semibold text-xs">
-              <AlertTriangle className="w-4 h-4" />
+          <Card className="p-5 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800/50 shadow-sm">
+            <div className="flex items-center gap-2 mb-3 text-yellow-800 dark:text-yellow-200 font-semibold text-base">
+              <AlertTriangle className="w-5 h-5" />
               Unmatched Listings
             </div>
             {unmatchedListings.length === 0 ? (
-              <div className="text-xs text-zinc-500">None</div>
+              <div className="text-sm text-zinc-600 dark:text-zinc-400 italic">
+                None found.
+              </div>
             ) : (
-              <ul className="text-xs text-yellow-800 space-y-1 max-h-32 overflow-y-auto">
+              <ul className="text-sm text-yellow-800 dark:text-yellow-300 space-y-1.5 max-h-40 overflow-y-auto pl-1 -mr-2 pr-2">
                 {unmatchedListings.map((l, i) => (
-                  <li key={i}>{l}</li>
+                  <li key={i} className="truncate">
+                    {l}
+                  </li>
                 ))}
               </ul>
             )}
           </Card>
-        </div>
-        {/* Right Panel: Review Table */}
-        <div className="flex-1 flex flex-col items-center">
-          <OwnerStatementReviewTable
-            statementDraft={current}
-            onChange={(section, rowIdx, key, value) =>
-              handleDraftChange(step, section, rowIdx, key, value)
-            }
-          />
-          <div className="flex justify-end gap-2 mt-8 w-full max-w-3xl">
-            <Button
-              outline
-              disabled={step === 0}
-              onClick={() => setStep((s) => s - 1)}
-            >
-              Previous
-            </Button>
-            <Button
-              color="secondary"
-              onClick={handleCreateStatement}
-              disabled={created[step] ?? createMutation.isPending}
-            >
-              {createMutation.isPending
-                ? 'Creating...'
-                : created[step]
-                  ? 'Created'
-                  : 'Create Statement'}
-            </Button>
-            <Button color="primary-solid" onClick={handleNext}>
-              {step === orderedDrafts.length - 1 ? 'Finish' : 'Next'}
-            </Button>
+        </aside>
+        {/* Right Panel: Review Table Area */}
+        <main className="flex-1 flex flex-col overflow-y-auto p-6 md:p-8">
+          <div className="w-full max-w-6xl mx-auto">
+            <OwnerStatementReviewTable
+              statementDraft={current}
+              onChange={(section, rowIdx, key, value) =>
+                handleDraftChange(step, section, rowIdx, key, value)
+              }
+            />
+            {/* Action Buttons - Centered on mobile, right-aligned on md+ */}
+            <div className="flex flex-col sm:flex-row justify-center sm:justify-end gap-3 mt-8 w-full">
+              <Button
+                outline
+                disabled={step === 0}
+                onClick={() => setStep((s) => s - 1)}
+                className="w-full sm:w-auto"
+              >
+                Previous
+              </Button>
+              <Button
+                color="secondary"
+                onClick={handleCreateStatement}
+                disabled={created[step] ?? createMutation.isPending}
+                className="w-full sm:w-auto"
+              >
+                {createMutation.isPending
+                  ? 'Creating...'
+                  : created[step]
+                    ? 'Statement Created'
+                    : 'Create Statement'}
+              </Button>
+              <Button
+                color="primary-solid"
+                onClick={handleNext}
+                className="w-full sm:w-auto"
+              >
+                {step === orderedDrafts.length - 1
+                  ? 'Finish Review'
+                  : 'Next Statement'}
+              </Button>
+            </div>
           </div>
-        </div>
+        </main>
       </div>
 
       {/* Invoice Import Dialog */}
