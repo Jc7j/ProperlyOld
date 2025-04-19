@@ -109,7 +109,7 @@ export default function OwnerStatementReviewTable({
     rowIdx: number,
     field: string,
     value: any,
-    type: 'text' | 'number' | 'date' = 'text',
+    type: 'text' | 'number' = 'text',
     alignRight = false
   ) => {
     const isEditing =
@@ -121,7 +121,7 @@ export default function OwnerStatementReviewTable({
       return (
         <Input
           autoFocus
-          type={type}
+          type={type === 'number' ? 'number' : 'text'}
           value={value ?? ''}
           onChange={(e) => {
             const v =
@@ -136,6 +136,23 @@ export default function OwnerStatementReviewTable({
         />
       )
     }
+    const displayValue = () => {
+      if (type === 'number') {
+        return typeof value === 'number' ? (
+          value.toLocaleString('en-US', { maximumFractionDigits: 2 })
+        ) : (
+          <span className="text-zinc-400">—</span>
+        )
+      } else if (['checkIn', 'checkOut', 'date'].includes(field) && value) {
+        const formatted = dayjs(value).isValid()
+          ? dayjs(value).format('YYYY-MM-DD')
+          : value
+        return formatted || <span className="text-zinc-400">—</span>
+      } else {
+        return value || <span className="text-zinc-400">—</span>
+      }
+    }
+
     return (
       <div
         className={`min-h-[36px] ${alignRight ? 'text-right' : ''} cursor-pointer px-1 py-1 rounded hover:bg-zinc-50 ${readOnly ? '' : 'border-b border-transparent hover:border-zinc-200'}`}
@@ -145,9 +162,7 @@ export default function OwnerStatementReviewTable({
           if (e.key === 'Enter') handleEditStart(section, rowIdx, field)
         }}
       >
-        {type === 'number' && typeof value === 'number'
-          ? value.toLocaleString('en-US', { maximumFractionDigits: 2 })
-          : value || <span className="text-zinc-400">—</span>}
+        {displayValue()}
       </div>
     )
   }
@@ -204,10 +219,10 @@ export default function OwnerStatementReviewTable({
               {incomes.map((inc: any, i: number) => (
                 <TableRow key={i}>
                   <TableCell>
-                    {renderCell('incomes', i, 'checkIn', inc.checkIn, 'date')}
+                    {renderCell('incomes', i, 'checkIn', inc.checkIn, 'text')}
                   </TableCell>
                   <TableCell>
-                    {renderCell('incomes', i, 'checkOut', inc.checkOut, 'date')}
+                    {renderCell('incomes', i, 'checkOut', inc.checkOut, 'text')}
                   </TableCell>
                   <TableCell>
                     {renderCell('incomes', i, 'days', inc.days, 'number')}
@@ -330,7 +345,7 @@ export default function OwnerStatementReviewTable({
               {expenses.map((exp: any, i: number) => (
                 <TableRow key={i}>
                   <TableCell>
-                    {renderCell('expenses', i, 'date', exp.date, 'date')}
+                    {renderCell('expenses', i, 'date', exp.date, 'text')}
                   </TableCell>
                   <TableCell>
                     {renderCell('expenses', i, 'description', exp.description)}
@@ -400,7 +415,7 @@ export default function OwnerStatementReviewTable({
                       i,
                       'checkIn',
                       adj.checkIn,
-                      'date'
+                      'text'
                     )}
                   </TableCell>
                   <TableCell>
@@ -409,7 +424,7 @@ export default function OwnerStatementReviewTable({
                       i,
                       'checkOut',
                       adj.checkOut,
-                      'date'
+                      'text'
                     )}
                   </TableCell>
                   <TableCell>

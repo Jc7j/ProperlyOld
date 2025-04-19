@@ -10,6 +10,7 @@ import {
   Input,
   Label,
 } from '~/components/ui'
+import { ErrorToast, SuccessToast } from '~/components/ui/sonner'
 import { api } from '~/trpc/react'
 
 import OwnerStatementReviewTable from './OwnerStatementReviewTable'
@@ -74,12 +75,6 @@ export default function OwnerStatementReviewStepper({
 
   // Handle marking as created (simulate backend creation)
   const handleNext = () => {
-    // Mark as created
-    setCreated((arr) => {
-      const next = [...arr]
-      next[step] = true
-      return next
-    })
     if (step === orderedDrafts.length - 1) onDone()
     else setStep((s) => s + 1)
   }
@@ -103,11 +98,12 @@ export default function OwnerStatementReviewStepper({
 
       Object.entries(expensesMap).forEach(
         ([propertyNameFromMap, expensesToAdd]) => {
-          const draftIndex = newDrafts.findIndex(
-            (draft) =>
-              draft.propertyName.trim().toLowerCase() ===
-              propertyNameFromMap.trim().toLowerCase()
-          )
+          const draftIndex = newDrafts.findIndex((draft) => {
+            const draftNameNorm = draft.propertyName.trim().toLowerCase()
+            const mapKeyNorm = propertyNameFromMap.trim().toLowerCase()
+            const isMatch = draftNameNorm === mapKeyNorm
+            return isMatch
+          })
 
           if (draftIndex !== -1 && expensesToAdd.length > 0) {
             updatedCount++
@@ -135,11 +131,7 @@ export default function OwnerStatementReviewStepper({
 
     if (updatedCount > 0) {
       setInvoiceError(null)
-      console.log(
-        `Successfully added expenses to ${updatedCount} property statement(s).`
-      )
     } else {
-      // This message might occur if Gemini returned properties not in the current draft list
       setInvoiceError(
         'Invoice processed, but no matching property statements currently being reviewed were found for the extracted expenses.'
       )
@@ -175,39 +167,99 @@ export default function OwnerStatementReviewStepper({
     })
   }
 
-  // tRPC Mutation Hook (Update onSuccess)
+  // tRPC Mutation Hook (Define callbacks here)
   const parseInvoiceMutation =
     api.ownerStatement.parseInvoiceExpenseWithGemini.useMutation({
-      onSuccess: (extractedExpensesMap) => {
-        // Expecting a map now
-        console.log('Extracted Expenses Map:', extractedExpensesMap)
+      onSuccess: (extractedExpensesMap, variables) => {
         if (
           extractedExpensesMap &&
           Object.keys(extractedExpensesMap).length > 0
         ) {
           applyExtractedExpenses(
             extractedExpensesMap,
-            dialogVendor,
-            dialogDescription
+            variables.vendor,
+            variables.description
           )
-        } else {
-          // This case should now be handled by the backend throwing NOT_FOUND
-          // But keep a fallback message just in case.
-          setInvoiceError(
-            'AI could not extract any property expenses from the invoice.'
-          )
+          SuccessToast('Invoice expenses imported successfully.')
         }
         setIsParsingInvoice(false)
         setIsInvoiceDialogOpen(false)
       },
       onError: (error) => {
-        // onError remains the same
         console.error('Invoice parsing error:', error)
-        setInvoiceError(`Invoice import failed: ${error.message}`)
+        setInvoiceError(
+          error.message || `Invoice import failed: An unknown error occurred.`
+        )
         setIsParsingInvoice(false)
-        setIsInvoiceDialogOpen(false)
       },
     })
+
+  // *** Add Create Mutation Hook ***
+  const createMutation = api.ownerStatement.create.useMutation({
+    onSuccess: (_data) => {
+      SuccessToast(`Statement for ${current.propertyName} created!`)
+      // Mark as created on success
+      setCreated((arr) => {
+        const next = [...arr]
+        next[step] = true
+        return next
+      })
+    },
+    onError: (error) => {
+      console.error('Statement creation error:', error)
+      ErrorToast(
+        `Failed to create statement: ${error.message ?? 'Unknown error'}`
+      )
+      // Potentially add specific error state if needed
+    },
+  })
+
+  // Function to handle creating the statement via API
+  const handleCreateStatement = () => {
+    if (!current?.propertyId) {
+      ErrorToast('Cannot create statement: Missing property data.')
+      return
+    }
+
+    // --- Data Preparation ---
+    // Convert YYYY-MM string to Date object (first day of month)
+    // Assuming current.statementMonth is 'YYYY-MM' format
+    const [year, month] = (current.statementMonth || '').split('-')
+    let statementMonthDate: Date | null = null
+    if (year && month) {
+      statementMonthDate = new Date(parseInt(year), parseInt(month) - 1, 1)
+    }
+
+    if (!statementMonthDate) {
+      ErrorToast('Invalid statement month format.')
+      return
+    }
+
+    // Ensure incomes, expenses, adjustments are arrays (even if empty)
+    const incomes = Array.isArray(current.incomes) ? current.incomes : []
+    const expenses = Array.isArray(current.expenses) ? current.expenses : []
+    const adjustments = Array.isArray(current.adjustments)
+      ? current.adjustments
+      : []
+
+    // --- Input Validation (Basic) ---
+    if (incomes.length === 0) {
+      ErrorToast(
+        'Cannot create statement: At least one income item is required.'
+      )
+      return
+    }
+    // Add more validation if needed for specific fields within incomes/expenses/adjustments
+
+    createMutation.mutate({
+      propertyId: current.propertyId,
+      statementMonth: statementMonthDate,
+      notes: current.notes ?? '',
+      incomes: incomes, // Pass prepared incomes
+      expenses: expenses, // Pass prepared expenses
+      adjustments: adjustments, // Pass prepared adjustments
+    })
+  }
 
   // Function to handle submission from the Dialog
   const handleProcessInvoice = () => {
@@ -232,40 +284,12 @@ export default function OwnerStatementReviewStepper({
     reader.onload = () => {
       const base64String = (reader.result as string)?.split(',')[1]
       if (base64String) {
-        parseInvoiceMutation.mutate(
-          {
-            pdfBase64: base64String,
-            draftPropertyNames: draftNames,
-            vendor: capturedVendor,
-            description: capturedDescription,
-          },
-          {
-            onSuccess: (extractedExpensesMap) => {
-              console.log('Extracted Expenses Map:', extractedExpensesMap)
-              if (
-                extractedExpensesMap &&
-                Object.keys(extractedExpensesMap).length > 0
-              ) {
-                applyExtractedExpenses(
-                  extractedExpensesMap,
-                  capturedVendor,
-                  capturedDescription
-                )
-              } else {
-                setInvoiceError(
-                  'AI could not extract any property expenses from the invoice.'
-                )
-              }
-              setIsParsingInvoice(false)
-              setIsInvoiceDialogOpen(false)
-            },
-            onError: (error) => {
-              console.error('Invoice parsing error:', error)
-              setInvoiceError(`Invoice import failed: ${error.message}`)
-              setIsParsingInvoice(false)
-            },
-          }
-        )
+        parseInvoiceMutation.mutate({
+          pdfBase64: base64String,
+          draftPropertyNames: draftNames,
+          vendor: capturedVendor,
+          description: capturedDescription,
+        })
       } else {
         setInvoiceError('Could not read the file content.')
         setIsParsingInvoice(false)
@@ -391,6 +415,17 @@ export default function OwnerStatementReviewStepper({
               onClick={() => setStep((s) => s - 1)}
             >
               Previous
+            </Button>
+            <Button
+              color="secondary"
+              onClick={handleCreateStatement}
+              disabled={created[step] ?? createMutation.isPending}
+            >
+              {createMutation.isPending
+                ? 'Creating...'
+                : created[step]
+                  ? 'Created'
+                  : 'Create Statement'}
             </Button>
             <Button color="primary-solid" onClick={handleNext}>
               {step === orderedDrafts.length - 1 ? 'Finish' : 'Next'}

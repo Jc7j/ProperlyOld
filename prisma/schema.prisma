@@ -138,8 +138,8 @@ model OwnerStatement {
 model OwnerStatementIncome {
   id                String    @id @default(uuid())
   ownerStatementId  String
-  checkIn           DateTime
-  checkOut          DateTime
+  checkIn           String
+  checkOut          String
   days              Int
   platform          String
   guest             String
@@ -154,7 +154,7 @@ model OwnerStatementIncome {
 model OwnerStatementExpense {
   id                String    @id @default(uuid())
   ownerStatementId  String
-  date              DateTime
+  date              String
   description       String
   vendor            String
   amount            Decimal
@@ -165,8 +165,8 @@ model OwnerStatementExpense {
 model OwnerStatementAdjustment {
   id                String    @id @default(uuid())
   ownerStatementId  String
-  checkIn           DateTime?
-  checkOut          DateTime?
+  checkIn           String?
+  checkOut          String?
   description       String
   amount            Decimal
 

@@ -6,20 +6,6 @@ import { tryCatch } from '~/lib/utils/try-catch'
 
 import { createTRPCRouter, protectedProcedure } from '../trpc'
 
-// Define the expected structure Gemini should return per item
-const ExtractedExpenseItemSchema = z.object({
-  date: z.string(), // Keep as string for now
-  amount: z.number(),
-})
-type ExtractedExpenseItemType = z.infer<typeof ExtractedExpenseItemSchema>
-
-// Define the expected map structure { propertyName: [ExtractedItem, ...] }
-const ExtractedExpensesMapSchema = z.record(
-  z.string(),
-  z.array(ExtractedExpenseItemSchema)
-)
-type ExtractedExpensesMapType = z.infer<typeof ExtractedExpensesMapSchema>
-
 export const ownerStatementRouter = createTRPCRouter({
   getMany: protectedProcedure
     .input(
@@ -124,8 +110,8 @@ export const ownerStatementRouter = createTRPCRouter({
             updatedBy: userId,
             incomes: {
               create: input.incomes.map((i) => ({
-                checkIn: new Date(i.checkIn),
-                checkOut: new Date(i.checkOut),
+                checkIn: i.checkIn,
+                checkOut: i.checkOut,
                 days: i.days,
                 platform: i.platform,
                 guest: i.guest,
@@ -137,7 +123,7 @@ export const ownerStatementRouter = createTRPCRouter({
             },
             expenses: {
               create: (input.expenses ?? []).map((e) => ({
-                date: new Date(e.date),
+                date: e.date,
                 description: e.description,
                 vendor: e.vendor,
                 amount: e.amount,
@@ -145,8 +131,8 @@ export const ownerStatementRouter = createTRPCRouter({
             },
             adjustments: {
               create: (input.adjustments ?? []).map((a) => ({
-                checkIn: a.checkIn ? new Date(a.checkIn) : undefined,
-                checkOut: a.checkOut ? new Date(a.checkOut) : undefined,
+                checkIn: a.checkIn,
+                checkOut: a.checkOut,
                 description: a.description,
                 amount: a.amount,
               })),
@@ -180,7 +166,7 @@ export const ownerStatementRouter = createTRPCRouter({
         })
       }
 
-      const { pdfBase64, draftPropertyNames, vendor, description } = input
+      const { pdfBase64, draftPropertyNames } = input
 
       // Construct the prompt for Gemini
       const prompt = `
@@ -225,15 +211,6 @@ Respond ONLY with the JSON object. Do not include explanations, apologies, or ma
 
       if (generationResult.error) {
         console.error(
-          'Gemini content generation error object:',
-          generationResult.error
-        )
-      } else {
-        console.log('Gemini generation successful (raw response pending).')
-      }
-
-      if (generationResult.error) {
-        console.error(
           'Gemini content generation failed:',
           generationResult.error
         )
@@ -250,23 +227,10 @@ Respond ONLY with the JSON object. Do not include explanations, apologies, or ma
       const jsonMatch = jsonText.match(/\{.*\}/s)
       const extractedJson = jsonMatch ? jsonMatch[0] : '{}'
 
-      console.log('Raw text response from Gemini:', jsonText)
-      console.log('Extracted text for parsing:', extractedJson)
-
-      const parsedExpensesMap = parseJsonField<ExtractedExpensesMapType>(
-        extractedJson,
-        {
-          logErrors: true,
-          // validate: (value): value is ExtractedExpensesMapType =>
-          //   ExtractedExpensesMapSchema.safeParse(value).success,
-          defaultValue: {}, // Default to empty object
-        }
-      )
-
-      console.log(
-        'Parsed expenses map after parseJsonField:',
-        parsedExpensesMap
-      )
+      const parsedExpensesMap = parseJsonField(extractedJson, {
+        logErrors: true,
+        defaultValue: {},
+      })
 
       if (parsedExpensesMap === null) {
         console.error(
@@ -279,7 +243,6 @@ Respond ONLY with the JSON object. Do not include explanations, apologies, or ma
       }
 
       if (Object.keys(parsedExpensesMap).length === 0) {
-        console.log('No property expenses could be extracted from the invoice.')
         throw new TRPCError({
           code: 'NOT_FOUND',
           message:
