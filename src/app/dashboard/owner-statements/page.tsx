@@ -1,6 +1,6 @@
 'use client'
 
-import { Link } from 'lucide-react'
+import Link from 'next/link'
 import { useState } from 'react'
 import ReactDatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
@@ -240,8 +240,8 @@ export default function OwnerStatementsPage() {
                   <TableCell>{os.notes || ''}</TableCell>
                   <TableCell>
                     <Link
-                      color="primary-solid"
                       href={`/dashboard/owner-statements/${os.id}`}
+                      className="text-primary hover:underline"
                     >
                       View
                     </Link>

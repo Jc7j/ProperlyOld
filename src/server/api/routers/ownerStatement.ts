@@ -154,6 +154,10 @@ export const ownerStatementRouter = createTRPCRouter({
             })
           )
           .optional(),
+        totalIncome: z.number(),
+        totalExpenses: z.number(),
+        totalAdjustments: z.number(),
+        grandTotal: z.number(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -179,6 +183,56 @@ export const ownerStatementRouter = createTRPCRouter({
           })
         }
 
+        // Validate summary calculations
+        const expectedTotalIncome = input.incomes.reduce(
+          (sum, i) => sum + (i.grossIncome || 0),
+          0
+        )
+
+        const expectedTotalExpenses = (input.expenses ?? []).reduce(
+          (sum, e) => sum + (e.amount || 0),
+          0
+        )
+
+        const expectedTotalAdjustments = (input.adjustments ?? []).reduce(
+          (sum, a) => sum + (a.amount || 0),
+          0
+        )
+
+        const expectedGrandTotal =
+          expectedTotalIncome - expectedTotalExpenses + expectedTotalAdjustments
+
+        // Verify totals match calculations (within small rounding tolerance)
+        const isClose = (a: number, b: number) => Math.abs(a - b) < 0.01
+
+        if (!isClose(input.totalIncome, expectedTotalIncome)) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: `Total income (${input.totalIncome}) doesn't match calculated total (${expectedTotalIncome})`,
+          })
+        }
+
+        if (!isClose(input.totalExpenses, expectedTotalExpenses)) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: `Total expenses (${input.totalExpenses}) doesn't match calculated total (${expectedTotalExpenses})`,
+          })
+        }
+
+        if (!isClose(input.totalAdjustments, expectedTotalAdjustments)) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: `Total adjustments (${input.totalAdjustments}) doesn't match calculated total (${expectedTotalAdjustments})`,
+          })
+        }
+
+        if (!isClose(input.grandTotal, expectedGrandTotal)) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: `Grand total (${input.grandTotal}) doesn't match calculated total (${expectedGrandTotal})`,
+          })
+        }
+
         const ownerStatement = await tx.ownerStatement.create({
           data: {
             managementGroupId: orgId, // Use the verified orgId
@@ -187,6 +241,11 @@ export const ownerStatementRouter = createTRPCRouter({
             notes: input.notes,
             createdBy: userId,
             updatedBy: userId,
+            // Include summary fields
+            totalIncome: input.totalIncome,
+            totalExpenses: input.totalExpenses,
+            totalAdjustments: input.totalAdjustments,
+            grandTotal: input.grandTotal,
             incomes: {
               create: input.incomes.map((i) => ({
                 checkIn: i.checkIn,
@@ -236,6 +295,10 @@ export const ownerStatementRouter = createTRPCRouter({
         incomes: z.array(incomeSchema),
         expenses: z.array(expenseSchema).optional(),
         adjustments: z.array(adjustmentSchema).optional(),
+        totalIncome: z.number(),
+        totalExpenses: z.number(),
+        totalAdjustments: z.number(),
+        grandTotal: z.number(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -247,7 +310,17 @@ export const ownerStatementRouter = createTRPCRouter({
         })
       }
 
-      const { id, notes, incomes, expenses, adjustments } = input
+      const {
+        id,
+        notes,
+        incomes,
+        expenses,
+        adjustments,
+        totalIncome,
+        totalExpenses,
+        totalAdjustments,
+        grandTotal,
+      } = input
 
       return ctx.db.$transaction(async (tx) => {
         const existingStatement = await tx.ownerStatement.findUnique({
@@ -269,6 +342,56 @@ export const ownerStatementRouter = createTRPCRouter({
           })
         }
 
+        // Validate summary calculations
+        const expectedTotalIncome = incomes.reduce(
+          (sum, i) => sum + (i.grossIncome || 0),
+          0
+        )
+
+        const expectedTotalExpenses = (expenses ?? []).reduce(
+          (sum, e) => sum + (e.amount || 0),
+          0
+        )
+
+        const expectedTotalAdjustments = (adjustments ?? []).reduce(
+          (sum, a) => sum + (a.amount || 0),
+          0
+        )
+
+        const expectedGrandTotal =
+          expectedTotalIncome - expectedTotalExpenses + expectedTotalAdjustments
+
+        // Verify totals match calculations (within small rounding tolerance)
+        const isClose = (a: number, b: number) => Math.abs(a - b) < 0.01
+
+        if (!isClose(totalIncome, expectedTotalIncome)) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: `Total income (${totalIncome}) doesn't match calculated total (${expectedTotalIncome})`,
+          })
+        }
+
+        if (!isClose(totalExpenses, expectedTotalExpenses)) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: `Total expenses (${totalExpenses}) doesn't match calculated total (${expectedTotalExpenses})`,
+          })
+        }
+
+        if (!isClose(totalAdjustments, expectedTotalAdjustments)) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: `Total adjustments (${totalAdjustments}) doesn't match calculated total (${expectedTotalAdjustments})`,
+          })
+        }
+
+        if (!isClose(grandTotal, expectedGrandTotal)) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: `Grand total (${grandTotal}) doesn't match calculated total (${expectedGrandTotal})`,
+          })
+        }
+
         // 2. Delete existing nested items
         await tx.ownerStatementIncome.deleteMany({
           where: { ownerStatementId: id },
@@ -286,7 +409,11 @@ export const ownerStatementRouter = createTRPCRouter({
           data: {
             notes: notes, // Update notes
             updatedBy: userId, // Update timestamp/user
-            // Potentially update totals here if needed/calculated, or rely on frontend calculation
+            // Update summary totals
+            totalIncome: totalIncome,
+            totalExpenses: totalExpenses,
+            totalAdjustments: totalAdjustments,
+            grandTotal: grandTotal,
             // Re-create nested items:
             incomes: {
               create: incomes.map((i) => ({ ...i })),
@@ -383,10 +510,11 @@ Respond ONLY with the JSON object. Do not include explanations, apologies, or ma
         })
       }
 
-      const response = await generationResult.data.response
+      const response = generationResult.data.response
       const jsonText = response?.text() ?? '{}'
 
-      const jsonMatch = jsonText.match(/\{.*\}/s)
+      const jsonRegex = /\{.*\}/s
+      const jsonMatch = jsonRegex.exec(jsonText)
       const extractedJson = jsonMatch ? jsonMatch[0] : '{}'
 
       const parsedExpensesMap = parseJsonField(extractedJson, {

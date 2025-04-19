@@ -174,7 +174,6 @@ export default function OwnerStatementReviewTable({
     )
   }
 
-  // Render add row
   const renderAddRow = (
     section: 'incomes' | 'expenses' | 'adjustments',
     template: any

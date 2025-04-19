@@ -244,12 +244,6 @@ export default function OwnerStatementReviewStepper({
       return
     }
 
-    // --- REMOVED Check for Existing Statement ---
-    // setIsCheckingExistence(true);
-    // const monthString = dayjs(statementMonthDate).format('YYYY-MM');
-    // try { ... } catch { ... } finally { ... }
-    // --- End REMOVED Check ---
-
     // Ensure incomes, expenses, adjustments are arrays (even if empty)
     const incomes = Array.isArray(current.incomes) ? current.incomes : []
     const expenses = Array.isArray(current.expenses) ? current.expenses : []
@@ -264,15 +258,40 @@ export default function OwnerStatementReviewStepper({
       )
       return
     }
-    // Add more validation if needed for specific fields within incomes/expenses/adjustments
+
+    // Calculate summary totals precisely
+    const totalIncome = incomes.reduce((sum: number, i: any) => {
+      const income = Number(i.grossIncome) || 0
+      // Use toFixed and parseFloat to handle floating point precision issues
+      return parseFloat((sum + income).toFixed(2))
+    }, 0)
+
+    const totalExpenses = expenses.reduce((sum: number, e: any) => {
+      const expense = Number(e.amount) || 0
+      return parseFloat((sum + expense).toFixed(2))
+    }, 0)
+
+    const totalAdjustments = adjustments.reduce((sum: number, a: any) => {
+      const adjustment = Number(a.amount) || 0
+      return parseFloat((sum + adjustment).toFixed(2))
+    }, 0)
+
+    // Calculate grand total with proper precision handling
+    const grandTotal = parseFloat(
+      (totalIncome - totalExpenses + totalAdjustments).toFixed(2)
+    )
 
     createMutation.mutate({
       propertyId: current.propertyId,
       statementMonth: statementMonthDate,
       notes: current.notes ?? '',
-      incomes: incomes, // Pass prepared incomes
-      expenses: expenses, // Pass prepared expenses
-      adjustments: adjustments, // Pass prepared adjustments
+      incomes: incomes,
+      expenses: expenses,
+      adjustments: adjustments,
+      totalIncome,
+      totalExpenses,
+      totalAdjustments,
+      grandTotal,
     })
   }
 
