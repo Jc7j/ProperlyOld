@@ -1,9 +1,17 @@
 'use client'
 
-import { ArrowLeft, Save } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { Button, Card, Heading } from '~/components/ui'
+import {
+  Button,
+  Card,
+  Dialog,
+  DialogActions,
+  DialogBody,
+  DialogTitle,
+  Heading,
+} from '~/components/ui'
 import { ErrorToast, SuccessToast } from '~/components/ui/sonner'
 import dayjs from '~/lib/utils/day'
 import { api } from '~/trpc/react'
@@ -16,6 +24,7 @@ export default function OwnerStatementDetailPage() {
   const statementId = params.statementId as string
   const [statementData, setStatementData] = useState<any>(null)
   const [originalData, setOriginalData] = useState<any>(null)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [changedSections, setChangedSections] = useState<{
     incomes: boolean
     expenses: boolean
@@ -64,6 +73,21 @@ export default function OwnerStatementDetailPage() {
       ErrorToast(
         `Failed to update statement: ${error.message || 'Unknown error'}`
       )
+    },
+  })
+
+  // Delete mutation
+  const deleteMutation = api.ownerStatement.delete.useMutation({
+    onSuccess: () => {
+      SuccessToast('Statement deleted successfully')
+      // Redirect to the list page
+      router.push('/dashboard/owner-statements')
+    },
+    onError: (error) => {
+      ErrorToast(
+        `Failed to delete statement: ${error.message || 'Unknown error'}`
+      )
+      setIsDeleteDialogOpen(false)
     },
   })
 
@@ -302,6 +326,15 @@ export default function OwnerStatementDetailPage() {
     })
   }
 
+  // Handle delete
+  function handleDeleteClick() {
+    setIsDeleteDialogOpen(true)
+  }
+
+  function handleConfirmDelete() {
+    deleteMutation.mutate({ id: statementId })
+  }
+
   // Navigate back to owner statements list
   const handleBackClick = () => {
     router.push('/dashboard/owner-statements')
@@ -309,14 +342,20 @@ export default function OwnerStatementDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="flex items-center mb-6">
-          <Button outline onClick={handleBackClick}>
-            <ArrowLeft className="w-4 h-4 mr-2" /> Back
+      <div className="mx-auto max-w-7xl px-3 py-4 sm:px-4 lg:px-6">
+        <div className="flex items-center mb-4">
+          <Button
+            outline
+            onClick={handleBackClick}
+            className="text-xs py-1 h-7"
+          >
+            <ArrowLeft className="w-3 h-3 mr-1" /> Back
           </Button>
         </div>
-        <Card className="p-6">
-          <div className="text-center py-8">Loading statement data...</div>
+        <Card className="p-4">
+          <div className="text-center py-6 text-sm">
+            Loading statement data...
+          </div>
         </Card>
       </div>
     )
@@ -324,14 +363,18 @@ export default function OwnerStatementDetailPage() {
 
   if (!statement || !statementData) {
     return (
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="flex items-center mb-6">
-          <Button outline onClick={handleBackClick}>
-            <ArrowLeft className="w-4 h-4 mr-2" /> Back
+      <div className="mx-auto max-w-7xl px-3 py-4 sm:px-4 lg:px-6">
+        <div className="flex items-center mb-4">
+          <Button
+            outline
+            onClick={handleBackClick}
+            className="text-xs py-1 h-7"
+          >
+            <ArrowLeft className="w-3 h-3 mr-1" /> Back
           </Button>
         </div>
-        <Card className="p-6">
-          <div className="text-center py-8 text-red-500">
+        <Card className="p-4">
+          <div className="text-center py-6 text-sm text-red-500">
             Statement not found or could not be loaded.
           </div>
         </Card>
@@ -345,30 +388,38 @@ export default function OwnerStatementDetailPage() {
   )
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
+    <div className="mx-auto max-w-7xl px-3 py-4 sm:px-4 lg:px-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3">
         <div className="flex items-center">
-          <Button outline onClick={handleBackClick} className="mr-4">
-            <ArrowLeft className="w-4 h-4 mr-2" /> Back
+          <Button
+            outline
+            onClick={handleBackClick}
+            className="mr-3 text-xs py-1 h-7"
+          >
+            <ArrowLeft className="w-3 h-3 mr-1" /> Back
           </Button>
-          <Heading level={1}>
+          <Heading level={2} className="text-base font-semibold">
             {statement.property?.name || 'Owner Statement'} -{' '}
             {dayjs(statement.statementMonth).format('MMMM YYYY')}
           </Heading>
         </div>
         <div className="flex gap-2">
           <Button
+            destructive
+            outline
+            onClick={handleDeleteClick}
+            disabled={deleteMutation.isPending}
+            className="text-xs py-1 h-7"
+          >
+            Delete
+          </Button>
+          <Button
             color="primary-solid"
             onClick={handleSaveSection}
             disabled={!hasAnyChanges || updateMutation.isPending}
+            className="text-xs py-1 h-7"
           >
-            {updateMutation.isPending ? (
-              'Saving...'
-            ) : (
-              <>
-                <Save className="w-4 h-4 mr-2" /> Save Changes
-              </>
-            )}
+            {updateMutation.isPending ? 'Saving...' : <>Save Changes</>}
           </Button>
         </div>
       </div>
@@ -382,11 +433,47 @@ export default function OwnerStatementDetailPage() {
 
       {/* Status Message */}
       {hasAnyChanges && (
-        <div className="mt-4 p-3 bg-yellow-50 border border-yellow-300 text-yellow-800 rounded-md">
+        <div className="mt-3 p-2 bg-yellow-50 border border-yellow-300 text-yellow-800 rounded-md text-xs">
           You have unsaved changes. Click the save button to update the
           statement.
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={isDeleteDialogOpen}
+        onClose={() => setIsDeleteDialogOpen(false)}
+        size="sm"
+      >
+        <DialogTitle>Confirm Delete</DialogTitle>
+        <DialogBody>
+          <p className="text-sm">
+            Are you sure you want to delete this owner statement for{' '}
+            {statement.property?.name}?
+          </p>
+          <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
+            This action cannot be undone.
+          </p>
+        </DialogBody>
+        <DialogActions>
+          <Button
+            outline
+            onClick={() => setIsDeleteDialogOpen(false)}
+            disabled={deleteMutation.isPending}
+            className="text-xs py-1 h-7"
+          >
+            Cancel
+          </Button>
+          <Button
+            destructive
+            onClick={handleConfirmDelete}
+            disabled={deleteMutation.isPending}
+            className="text-xs py-1 h-7"
+          >
+            {deleteMutation.isPending ? 'Deleting...' : 'Delete Statement'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   )
 }

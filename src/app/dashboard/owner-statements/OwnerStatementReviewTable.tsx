@@ -122,7 +122,7 @@ export default function OwnerStatementReviewTable({
           autoFocus
           type={type === 'number' ? 'number' : 'text'}
           value={value ?? ''}
-          className={`w-full px-2 py-1 text-sm border border-primary/50 rounded focus:outline-none focus:ring-1 focus:ring-primary ${alignRight ? 'text-right' : ''}`}
+          className={`w-full px-2 py-1 text-xs border border-primary/40 rounded focus:outline-none focus:ring-1 focus:ring-primary/70 ${alignRight ? 'text-right' : ''}`}
           onChange={(e) => {
             let v: string | number | null = e.target.value
             if (type === 'number') {
@@ -162,7 +162,7 @@ export default function OwnerStatementReviewTable({
 
     return (
       <div
-        className={`min-h-[44px] px-3 py-2.5 text-sm ${alignRight ? 'text-right' : 'text-left'} ${!readOnly ? 'cursor-pointer rounded hover:bg-primary/5 dark:hover:bg-primary/10 focus-within:bg-primary/10 dark:focus-within:bg-primary/20 focus:outline-none focus-within:ring-1 focus-within:ring-primary/50' : 'text-zinc-700 dark:text-zinc-300'}`}
+        className={`min-h-[36px] px-2 py-1.5 text-xs ${alignRight ? 'text-right' : 'text-left'} ${!readOnly ? 'cursor-pointer rounded hover:bg-primary/5 dark:hover:bg-primary/10 focus-within:bg-primary/10 dark:focus-within:bg-primary/20 focus:outline-none focus-within:ring-1 focus-within:ring-primary/40' : 'text-zinc-700 dark:text-zinc-300'}`}
         tabIndex={readOnly ? -1 : 0}
         onClick={() => !readOnly && handleEditStart(section, rowIdx, field)}
         onKeyDown={(e) => {
@@ -183,21 +183,21 @@ export default function OwnerStatementReviewTable({
         <Button
           outline
           onClick={() => handleAdd(section, template)}
-          className="mx-auto"
+          className="mx-auto text-xs py-1 h-7"
         >
-          <Plus className="w-4 h-4 mr-1" /> Add Row
+          <Plus className="w-3 h-3 mr-1" /> Add Row
         </Button>
       </TableCell>
     </TableRow>
   )
 
   return (
-    <Card className=" mx-auto p-6">
-      <div className="flex justify-between items-center mb-4">
-        <div className="text-lg font-bold">Owner Statement</div>
+    <Card className="mx-auto p-4">
+      <div className="flex justify-between items-center mb-3">
+        <div className="text-base font-bold">Owner Statement</div>
         <div className="text-right">
-          <div className="font-semibold text-base">{propertyName}</div>
-          <div className="text-sm text-zinc-500 dark:text-zinc-400">
+          <div className="font-semibold text-sm">{propertyName}</div>
+          <div className="text-xs text-zinc-500 dark:text-zinc-400">
             {dayjs(rawStatementMonth).isValid()
               ? dayjs(rawStatementMonth).format('MMMM YYYY')
               : 'Invalid Date'}
@@ -206,9 +206,9 @@ export default function OwnerStatementReviewTable({
       </div>
       <div className="overflow-x-auto relative">
         {/* Income Table */}
-        <div className="mb-10">
-          <div className="text-lg font-semibold mb-3">Income:</div>
-          <Table striped className="min-w-[800px]">
+        <div className="mb-6">
+          <div className="text-sm font-semibold mb-2">Income:</div>
+          <Table striped className="min-w-[800px] text-xs">
             <TableHead>
               <TableRow>
                 <TableHeader>Check In</TableHeader>
@@ -281,13 +281,14 @@ export default function OwnerStatementReviewTable({
                       true
                     )}
                   </TableCell>
-                  <TableCell className="w-[50px]">
+                  <TableCell className="w-[40px]">
                     <Button
                       outline
                       onClick={() => handleDelete('incomes', i)}
                       aria-label="Delete row"
+                      className="p-1 h-6 w-6"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-3 h-3" />
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -331,15 +332,15 @@ export default function OwnerStatementReviewTable({
                     currency: 'USD',
                   })}
                 </TableCell>
-                <TableCell className="w-[50px]"></TableCell>
+                <TableCell className="w-[40px]"></TableCell>
               </TableRow>
             </TableBody>
           </Table>
         </div>
         {/* Expenses Table */}
-        <div className="mb-10">
-          <div className="text-lg font-semibold mb-3">Expenses:</div>
-          <Table striped className="min-w-[600px]">
+        <div className="mb-6">
+          <div className="text-sm font-semibold mb-2">Expenses:</div>
+          <Table striped className="min-w-[600px] text-xs">
             <TableHead>
               <TableRow>
                 <TableHeader>Date</TableHeader>
@@ -371,13 +372,14 @@ export default function OwnerStatementReviewTable({
                       true
                     )}
                   </TableCell>
-                  <TableCell className="w-[50px]">
+                  <TableCell className="w-[40px]">
                     <Button
                       outline
                       onClick={() => handleDelete('expenses', i)}
                       aria-label="Delete row"
+                      className="p-1 h-6 w-6"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-3 h-3" />
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -396,15 +398,15 @@ export default function OwnerStatementReviewTable({
                     currency: 'USD',
                   })}
                 </TableCell>
-                <TableCell className="w-[50px]"></TableCell>
+                <TableCell className="w-[40px]"></TableCell>
               </TableRow>
             </TableBody>
           </Table>
         </div>
         {/* Adjustments Table */}
-        <div className="mb-10">
-          <div className="text-lg font-semibold mb-3">Adjustments:</div>
-          <Table striped className="min-w-[700px]">
+        <div className="mb-6">
+          <div className="text-sm font-semibold mb-2">Adjustments:</div>
+          <Table striped className="min-w-[700px] text-xs">
             <TableHead>
               <TableRow>
                 <TableHeader>Check In</TableHeader>
@@ -453,13 +455,14 @@ export default function OwnerStatementReviewTable({
                       true
                     )}
                   </TableCell>
-                  <TableCell className="w-[50px]">
+                  <TableCell className="w-[40px]">
                     <Button
                       outline
                       onClick={() => handleDelete('adjustments', i)}
                       aria-label="Delete row"
+                      className="p-1 h-6 w-6"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-3 h-3" />
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -478,18 +481,18 @@ export default function OwnerStatementReviewTable({
                     currency: 'USD',
                   })}
                 </TableCell>
-                <TableCell className="w-[50px]"></TableCell>
+                <TableCell className="w-[40px]"></TableCell>
               </TableRow>
             </TableBody>
           </Table>
         </div>
       </div>
       {/* Notes and Grand Total */}
-      <div className="flex flex-col lg:flex-row justify-between items-start mt-10 pt-6 border-t border-zinc-200 dark:border-zinc-700">
-        <div className="w-full lg:w-3/5 mb-6 lg:mb-0 lg:pr-8">
+      <div className="flex flex-col lg:flex-row justify-between items-start mt-6 pt-4 border-t border-zinc-200 dark:border-zinc-700">
+        <div className="w-full lg:w-3/5 mb-4 lg:mb-0 lg:pr-8">
           <label
             htmlFor="notesInput"
-            className="block text-base font-semibold mb-2"
+            className="block text-sm font-semibold mb-1"
           >
             Notes
           </label>
@@ -502,11 +505,12 @@ export default function OwnerStatementReviewTable({
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === 'Escape') setEditing(null)
               }}
+              className="text-xs"
             />
           ) : (
             <div
               id="notesDisplay"
-              className={`min-h-[44px] px-3 py-2.5 text-sm rounded border border-transparent ${!readOnly ? 'cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800/50 hover:border-zinc-300 dark:hover:border-zinc-700 focus:outline-none focus:ring-1 focus:ring-primary/50' : 'text-zinc-600 dark:text-zinc-400'}`}
+              className={`min-h-[36px] px-3 py-2 text-xs rounded border border-transparent ${!readOnly ? 'cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800/50 hover:border-zinc-300 dark:hover:border-zinc-700 focus:outline-none focus:ring-1 focus:ring-primary/40' : 'text-zinc-600 dark:text-zinc-400'}`}
               tabIndex={readOnly ? -1 : 0}
               onClick={() => !readOnly && handleEditStart('notes', 0, 'notes')}
               onKeyDown={(e) => {
@@ -524,11 +528,11 @@ export default function OwnerStatementReviewTable({
           )}
         </div>
         <div className="text-right w-full lg:w-2/5 lg:pl-8">
-          <div className="text-base font-semibold mb-1">
+          <div className="text-sm font-semibold mb-1">
             Grand Total/Disbursement
           </div>
           <div
-            className={`text-3xl font-bold ${grandTotalDisbursement >= 0 ? 'text-green-700 dark:text-green-500' : 'text-red-600 dark:text-red-500'}`}
+            className={`text-2xl font-bold ${grandTotalDisbursement >= 0 ? 'text-green-700 dark:text-green-500' : 'text-red-600 dark:text-red-500'}`}
           >
             {Math.abs(grandTotalDisbursement).toLocaleString('en-US', {
               style: 'currency',

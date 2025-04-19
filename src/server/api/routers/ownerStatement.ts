@@ -542,4 +542,56 @@ Respond ONLY with the JSON object. Do not include explanations, apologies, or ma
 
       return parsedExpensesMap
     }),
+
+  delete: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const { orgId, userId } = ctx.auth
+      if (!orgId || !userId) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'No organization/user',
+        })
+      }
+
+      return ctx.db.$transaction(async (tx) => {
+        // First check if statement exists and user has permission
+        const statement = await tx.ownerStatement.findUnique({
+          where: { id: input.id },
+          select: { managementGroupId: true, deletedAt: true },
+        })
+
+        if (!statement) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: `Owner Statement with ID ${input.id} not found.`,
+          })
+        }
+
+        if (statement.managementGroupId !== orgId) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'You do not have permission to delete this statement.',
+          })
+        }
+
+        if (statement.deletedAt) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'This statement has already been deleted.',
+          })
+        }
+
+        // Soft delete the statement by updating deletedAt field
+        await tx.ownerStatement.update({
+          where: { id: input.id },
+          data: {
+            deletedAt: new Date(),
+            updatedBy: userId,
+          },
+        })
+
+        return { success: true }
+      })
+    }),
 })

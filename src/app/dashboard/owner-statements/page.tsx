@@ -269,9 +269,7 @@ export default function OwnerStatementsPage() {
         parsedData={parsedData}
         selectedFile={selectedFile}
         setSelectedFile={setSelectedFile}
-        setParsedData={setParsedData}
         setError={setError}
-        setLoading={setIsParsing}
         month={selectedMonth}
         setMonth={setSelectedMonth}
       />

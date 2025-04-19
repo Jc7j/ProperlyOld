@@ -7,7 +7,6 @@ import {
   DialogActions,
   DialogBody,
   DialogTitle,
-  Input,
 } from '~/components/ui'
 
 export default function ImportModal({
@@ -19,9 +18,7 @@ export default function ImportModal({
   parsedData,
   selectedFile,
   setSelectedFile,
-  setParsedData,
   setError,
-  setLoading,
   month,
   setMonth,
 }: {
@@ -33,9 +30,7 @@ export default function ImportModal({
   parsedData: any
   selectedFile: File | null
   setSelectedFile: (f: File | null) => void
-  setParsedData: (d: any) => void
   setError: (e: string | null) => void
-  setLoading: (b: boolean) => void
   month: Date | null
   setMonth: (d: Date | null) => void
 }) {
