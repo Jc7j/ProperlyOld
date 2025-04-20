@@ -57,7 +57,7 @@ export default function ImportModal({
 
   return (
     <Dialog open={open} onClose={onClose}>
-      <DialogTitle>Import Owner Statements (Excel)</DialogTitle>
+      <DialogTitle>Import Hostaway data (.xlsx)</DialogTitle>
       <DialogBody>
         <div className="mb-4">
           <label className="block text-sm font-medium mb-1">

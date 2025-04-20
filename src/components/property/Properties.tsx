@@ -72,14 +72,20 @@ export default function Properties({ properties }: PropertiesProps) {
   const SortButton = ({
     field,
     children,
+    align = 'left',
   }: {
     field: SortField
     children: React.ReactNode
+    align?: 'left' | 'right' | 'center'
   }) => (
     <button
       type="button"
       onClick={() => handleSort(field)}
-      className="flex items-center gap-2 hover:text-zinc-900 dark:hover:text-white text-right"
+      className={cn(
+        'flex items-center gap-2 hover:text-zinc-900 dark:hover:text-white w-full',
+        align === 'right' && 'justify-end',
+        align === 'center' && 'justify-center'
+      )}
     >
       {children}
       {sortField === field && (
@@ -99,24 +105,24 @@ export default function Properties({ properties }: PropertiesProps) {
             </SortButton>
           </TableHeader>
           <TableHeader align="right">
-            <SortButton field="address">
+            <SortButton field="address" align="right">
               <MapPin className="size-4 text-zinc-400" />
               Address
             </SortButton>
           </TableHeader>
           <TableHeader align="right">
-            <SortButton field="owner">
+            <SortButton field="owner" align="right">
               <User2 className="size-4 text-zinc-400" />
               Owner
             </SortButton>
           </TableHeader>
           <TableHeader align="right">
-            <SortButton field="invoices">
+            <SortButton field="invoices" align="right">
               <FileText className="size-4 text-zinc-400" /># of Invoices
             </SortButton>
           </TableHeader>
           <TableHeader align="right">
-            <SortButton field="updated">
+            <SortButton field="updated" align="right">
               <Clock className="size-4 text-zinc-400" />
               Last Updated
             </SortButton>

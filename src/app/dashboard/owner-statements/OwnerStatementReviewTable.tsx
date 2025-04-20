@@ -174,23 +174,6 @@ export default function OwnerStatementReviewTable({
     )
   }
 
-  const renderAddRow = (
-    section: 'incomes' | 'expenses' | 'adjustments',
-    template: any
-  ) => (
-    <TableRow>
-      <TableCell colSpan={100} align="center">
-        <Button
-          outline
-          onClick={() => handleAdd(section, template)}
-          className="mx-auto text-xs py-1 h-7"
-        >
-          <Plus className="w-3 h-3 mr-1" /> Add Row
-        </Button>
-      </TableCell>
-    </TableRow>
-  )
-
   return (
     <Card className="mx-auto p-4">
       <div className="flex justify-between items-center mb-3">
@@ -207,7 +190,29 @@ export default function OwnerStatementReviewTable({
       <div className="overflow-x-auto relative">
         {/* Income Table */}
         <div className="mb-6">
-          <div className="text-sm font-semibold mb-2">Income:</div>
+          <div className="flex justify-between items-center mb-2">
+            <div className="text-sm font-semibold">Income:</div>
+            {!readOnly && (
+              <Button
+                onClick={() =>
+                  handleAdd('incomes', {
+                    checkIn: '',
+                    checkOut: '',
+                    days: 0,
+                    platform: '',
+                    guest: '',
+                    grossRevenue: 0,
+                    hostFee: 0,
+                    platformFee: 0,
+                    grossIncome: 0,
+                  })
+                }
+                className="text-xs px-2 py-1"
+              >
+                <Plus className="w-4 h-4 " /> Income
+              </Button>
+            )}
+          </div>
           <Table striped className="min-w-[800px] text-xs">
             <TableHead>
               <TableRow>
@@ -220,7 +225,7 @@ export default function OwnerStatementReviewTable({
                 <TableHeader align="right">Host Fee</TableHeader>
                 <TableHeader align="right">Platform Fee</TableHeader>
                 <TableHeader align="right">Gross Income</TableHeader>
-                <TableHeader />
+                {!readOnly && <TableHeader className="w-[50px]" />}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -281,29 +286,20 @@ export default function OwnerStatementReviewTable({
                       true
                     )}
                   </TableCell>
-                  <TableCell className="w-[40px]">
-                    <Button
-                      outline
-                      onClick={() => handleDelete('incomes', i)}
-                      aria-label="Delete row"
-                      className="p-1 h-6 w-6"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </TableCell>
+                  {!readOnly && (
+                    <TableCell className="w-[50px]">
+                      <Button
+                        color="destructive-outline"
+                        onClick={() => handleDelete('incomes', i)}
+                        aria-label="Delete row"
+                        className="flex items-center justify-center p-0 rounded-full"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
-              {renderAddRow('incomes', {
-                checkIn: '',
-                checkOut: '',
-                days: 0,
-                platform: '',
-                guest: '',
-                grossRevenue: 0,
-                hostFee: 0,
-                platformFee: 0,
-                grossIncome: 0,
-              })}
               <TableRow className="font-medium bg-zinc-50 dark:bg-zinc-800/50 border-t">
                 <TableCell colSpan={2}>Total</TableCell>
                 <TableCell>{totalDays}</TableCell>
@@ -332,14 +328,31 @@ export default function OwnerStatementReviewTable({
                     currency: 'USD',
                   })}
                 </TableCell>
-                <TableCell className="w-[40px]"></TableCell>
+                {!readOnly && <TableCell></TableCell>}
               </TableRow>
             </TableBody>
           </Table>
         </div>
         {/* Expenses Table */}
         <div className="mb-6">
-          <div className="text-sm font-semibold mb-2">Expenses:</div>
+          <div className="flex justify-between items-center mb-2">
+            <div className="text-sm font-semibold">Expenses:</div>
+            {!readOnly && (
+              <Button
+                onClick={() =>
+                  handleAdd('expenses', {
+                    date: '',
+                    description: '',
+                    vendor: '',
+                    amount: 0,
+                  })
+                }
+                className="text-xs px-2 py-1"
+              >
+                <Plus className="w-4 h-4" /> Expense
+              </Button>
+            )}
+          </div>
           <Table striped className="min-w-[600px] text-xs">
             <TableHead>
               <TableRow>
@@ -347,7 +360,7 @@ export default function OwnerStatementReviewTable({
                 <TableHeader>Description</TableHeader>
                 <TableHeader>Vendor</TableHeader>
                 <TableHeader align="right">Amount</TableHeader>
-                <TableHeader />
+                {!readOnly && <TableHeader className="w-[50px]" />}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -372,24 +385,20 @@ export default function OwnerStatementReviewTable({
                       true
                     )}
                   </TableCell>
-                  <TableCell className="w-[40px]">
-                    <Button
-                      outline
-                      onClick={() => handleDelete('expenses', i)}
-                      aria-label="Delete row"
-                      className="p-1 h-6 w-6"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </TableCell>
+                  {!readOnly && (
+                    <TableCell className="w-[50px]">
+                      <Button
+                        color="destructive-outline"
+                        onClick={() => handleDelete('expenses', i)}
+                        aria-label="Delete row"
+                        className="flex items-center justify-center p-0 rounded-full"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
-              {renderAddRow('expenses', {
-                date: '',
-                description: '',
-                vendor: '',
-                amount: 0,
-              })}
               <TableRow className="font-medium bg-zinc-50 dark:bg-zinc-800/50 border-t">
                 <TableCell colSpan={3}>Total</TableCell>
                 <TableCell align="right">
@@ -398,14 +407,31 @@ export default function OwnerStatementReviewTable({
                     currency: 'USD',
                   })}
                 </TableCell>
-                <TableCell className="w-[40px]"></TableCell>
+                {!readOnly && <TableCell></TableCell>}
               </TableRow>
             </TableBody>
           </Table>
         </div>
         {/* Adjustments Table */}
         <div className="mb-6">
-          <div className="text-sm font-semibold mb-2">Adjustments:</div>
+          <div className="flex justify-between items-center mb-2">
+            <div className="text-sm font-semibold">Adjustments:</div>
+            {!readOnly && (
+              <Button
+                onClick={() =>
+                  handleAdd('adjustments', {
+                    checkIn: '',
+                    checkOut: '',
+                    description: '',
+                    amount: 0,
+                  })
+                }
+                className="text-xs px-2 py-1"
+              >
+                <Plus className="w-4 h-4" /> Adjustment
+              </Button>
+            )}
+          </div>
           <Table striped className="min-w-[700px] text-xs">
             <TableHead>
               <TableRow>
@@ -413,7 +439,7 @@ export default function OwnerStatementReviewTable({
                 <TableHeader>Check Out</TableHeader>
                 <TableHeader>Description</TableHeader>
                 <TableHeader align="right">Amount</TableHeader>
-                <TableHeader />
+                {!readOnly && <TableHeader className="w-[50px]" />}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -455,24 +481,20 @@ export default function OwnerStatementReviewTable({
                       true
                     )}
                   </TableCell>
-                  <TableCell className="w-[40px]">
-                    <Button
-                      outline
-                      onClick={() => handleDelete('adjustments', i)}
-                      aria-label="Delete row"
-                      className="p-1 h-6 w-6"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </TableCell>
+                  {!readOnly && (
+                    <TableCell className="w-[50px]">
+                      <Button
+                        color="destructive-outline"
+                        onClick={() => handleDelete('adjustments', i)}
+                        aria-label="Delete row"
+                        className="flex items-center justify-center p-0 rounded-full"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
-              {renderAddRow('adjustments', {
-                checkIn: '',
-                checkOut: '',
-                description: '',
-                amount: 0,
-              })}
               <TableRow className="font-medium bg-zinc-50 dark:bg-zinc-800/50 border-t">
                 <TableCell colSpan={3}>Total</TableCell>
                 <TableCell align="right">
@@ -481,7 +503,7 @@ export default function OwnerStatementReviewTable({
                     currency: 'USD',
                   })}
                 </TableCell>
-                <TableCell className="w-[40px]"></TableCell>
+                {!readOnly && <TableCell></TableCell>}
               </TableRow>
             </TableBody>
           </Table>
@@ -490,12 +512,11 @@ export default function OwnerStatementReviewTable({
       {/* Notes and Grand Total */}
       <div className="flex flex-col lg:flex-row justify-between items-start mt-6 pt-4 border-t border-zinc-200 dark:border-zinc-700">
         <div className="w-full lg:w-3/5 mb-4 lg:mb-0 lg:pr-8">
-          <label
-            htmlFor="notesInput"
-            className="block text-sm font-semibold mb-1"
-          >
-            Notes
-          </label>
+          <div className="flex justify-between items-center mb-1">
+            <label htmlFor="notesInput" className="block text-sm font-semibold">
+              Notes
+            </label>
+          </div>
           {editing && editing.section === 'notes' ? (
             <Input
               autoFocus
@@ -527,7 +548,7 @@ export default function OwnerStatementReviewTable({
             </div>
           )}
         </div>
-        <div className="text-right w-full lg:w-2/5 lg:pl-8">
+        <div className="text-right w-full lg:w-2/5 lg:pl-8 lg:border-l lg:border-zinc-200 dark:lg:border-zinc-700">
           <div className="text-sm font-semibold mb-1">
             Grand Total/Disbursement
           </div>

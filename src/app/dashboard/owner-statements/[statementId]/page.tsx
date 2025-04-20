@@ -337,7 +337,7 @@ export default function OwnerStatementDetailPage() {
 
   // Navigate back to owner statements list
   const handleBackClick = () => {
-    router.push('/dashboard/owner-statements')
+    router.back()
   }
 
   if (isLoading) {

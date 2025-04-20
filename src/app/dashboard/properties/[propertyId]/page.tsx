@@ -1,5 +1,6 @@
 'use client'
 
+import { type Decimal } from '@prisma/client/runtime/library'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { ChevronRight, Home } from 'lucide-react'
 import Image from 'next/image'
@@ -823,9 +824,34 @@ function InvoicesTableSkeleton() {
   )
 }
 
+// Update the helper function to convert Decimal to number safely
+function toNumber(value: Decimal | number | null | undefined): number {
+  if (value === null || value === undefined) return 0
+  if (typeof value === 'number') return value
+
+  // Handle Decimal objects - try multiple approaches to safely convert
+  try {
+    // Try converting using Number constructor
+    return Number(value)
+  } catch (e) {
+    // Fall back to string conversion and parsing if that fails
+    try {
+      return parseFloat(value.toString())
+    } catch (e) {
+      console.error('Failed to convert value to number:', value)
+      return 0
+    }
+  }
+}
+
 function PropertyContent({ propertyId }: { propertyId: string }) {
   const { data: property, isLoading } = api.property.getOne.useQuery({
     propertyId,
+  })
+
+  // Fetch owner statements for this property
+  const { data: ownerStatements } = api.ownerStatement.getMany.useQuery({
+    propertyId: propertyId,
   })
 
   if (isLoading) {
@@ -869,6 +895,113 @@ function PropertyContent({ propertyId }: { propertyId: string }) {
             <Suspense fallback={<InvoicesTableSkeleton />}>
               <InvoicesTable property={property} />
             </Suspense>
+          </div>
+        </Card>
+
+        {/* Owner Statements section */}
+        <Card className="mt-6">
+          <div className="border-b border-zinc-950/5 px-4 py-3 dark:border-white/5 sm:px-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                Owner Statements
+              </h2>
+              <Link
+                href={`/dashboard/owner-statements?propertyId=${propertyId}`}
+                passHref
+              >
+                <Button color="primary-outline">View All Statements</Button>
+              </Link>
+            </div>
+          </div>
+          <div className="p-4 sm:p-6">
+            {!ownerStatements || ownerStatements.length === 0 ? (
+              <div className="text-center">
+                <svg
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  className="mx-auto size-12 text-muted-foreground"
+                >
+                  <path
+                    d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"
+                    strokeWidth={2}
+                    vectorEffect="non-scaling-stroke"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                <h3 className="mt-2 text-sm font-semibold">
+                  No owner statements
+                </h3>
+                <p className="text-muted-foreground mt-1 text-sm">
+                  No owner statements available for this property.
+                </p>
+                <div className="mt-6">
+                  <Link href="/dashboard/owner-statements" passHref>
+                    <Button color="primary-outline">
+                      Go to Owner Statements
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <Table striped>
+                <TableHead>
+                  <TableRow>
+                    <TableHeader>Month</TableHeader>
+                    <TableHeader align="right">Income</TableHeader>
+                    <TableHeader align="right">Expenses</TableHeader>
+                    <TableHeader align="right">Adjustments</TableHeader>
+                    <TableHeader align="right">Total</TableHeader>
+                    <TableHeader align="right">Actions</TableHeader>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {ownerStatements.slice(0, 5).map((statement) => (
+                    <TableRow key={statement.id}>
+                      <TableCell>
+                        {dayjs(statement.statementMonth).format('MMMM YYYY')}
+                      </TableCell>
+                      <TableCell align="right">
+                        {formatCurrency(toNumber(statement.totalIncome))}
+                      </TableCell>
+                      <TableCell align="right">
+                        {formatCurrency(toNumber(statement.totalExpenses))}
+                      </TableCell>
+                      <TableCell align="right">
+                        {formatCurrency(toNumber(statement.totalAdjustments))}
+                      </TableCell>
+                      <TableCell align="right">
+                        {formatCurrency(toNumber(statement.grandTotal))}
+                      </TableCell>
+                      <TableCell align="right">
+                        <Link
+                          href={`/dashboard/owner-statements/${statement.id}`}
+                        >
+                          <Button plain>View</Button>
+                        </Link>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+            {ownerStatements && ownerStatements.length > 5 && (
+              <div className="mt-4 text-center">
+                <Link
+                  href={`/dashboard/owner-statements?propertyId=${propertyId}`}
+                  passHref
+                >
+                  <Button
+                    plain
+                    className="text-sm text-primary hover:text-primary/80"
+                  >
+                    View all {ownerStatements.length} statements
+                  </Button>
+                </Link>
+              </div>
+            )}
           </div>
         </Card>
       </div>
