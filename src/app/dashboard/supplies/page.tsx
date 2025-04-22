@@ -138,7 +138,7 @@ export default function SuppliesPage() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Heading level={1}>Supplies</Heading>
           <Button
-            color="primary"
+            variant="default"
             onClick={() => setIsCreateDialogOpen(true)}
             className="w-full sm:w-auto shrink-0"
           >
@@ -305,8 +305,8 @@ export default function SuppliesPage() {
                           </Link>
                         )}
                         <Button
-                          plain
-                          onClick={(e: MouseEvent) => {
+                          variant="ghost"
+                          onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                             e.stopPropagation()
                             setEditingItem(item)
                           }}
@@ -319,8 +319,8 @@ export default function SuppliesPage() {
                           <Pencil className="size-4" />
                         </Button>
                         <Button
-                          plain
-                          onClick={(e: MouseEvent) => {
+                          variant="ghost"
+                          onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                             e.stopPropagation()
                             if (
                               confirm(

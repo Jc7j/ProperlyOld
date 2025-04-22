@@ -35,7 +35,6 @@ import {
   PopoverTrigger,
 } from '~/components/ui/popover'
 import { Select } from '~/components/ui/select'
-import { useDebouncedCallback } from '~/lib/hooks/useDebounceCallback'
 import { cn } from '~/lib/utils/cn'
 import { formatDate } from '~/lib/utils/format'
 
@@ -43,6 +42,7 @@ import {
   getDefaultFilterOperator,
   getFilterOperators,
 } from './utils/data-table'
+import { useDebouncedCallback } from './utils/useDebounceCallback'
 
 const FILTERS_KEY = 'filters'
 const DEBOUNCE_MS = 300

@@ -296,10 +296,10 @@ export function EditItemDialog({
             )}
 
             <DialogActions>
-              <Button type="button" outline onClick={onClose}>
+              <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
               </Button>
-              <Button type="submit" color="primary-solid" disabled={isPending}>
+              <Button type="submit" variant="default" disabled={isPending}>
                 {isPending ? 'Saving...' : 'Save Changes'}
               </Button>
             </DialogActions>

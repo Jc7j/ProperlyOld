@@ -345,7 +345,7 @@ export default function OwnerStatementDetailPage() {
       <div className="mx-auto max-w-7xl px-3 py-4 sm:px-4 lg:px-6">
         <div className="flex items-center mb-4">
           <Button
-            outline
+            variant="outline"
             onClick={handleBackClick}
             className="text-xs py-1 h-7"
           >
@@ -366,7 +366,7 @@ export default function OwnerStatementDetailPage() {
       <div className="mx-auto max-w-7xl px-3 py-4 sm:px-4 lg:px-6">
         <div className="flex items-center mb-4">
           <Button
-            outline
+            variant="outline"
             onClick={handleBackClick}
             className="text-xs py-1 h-7"
           >
@@ -392,7 +392,7 @@ export default function OwnerStatementDetailPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3">
         <div className="flex items-center">
           <Button
-            outline
+            variant="outline"
             onClick={handleBackClick}
             className="mr-3 text-xs py-1 h-7"
           >
@@ -405,8 +405,7 @@ export default function OwnerStatementDetailPage() {
         </div>
         <div className="flex gap-2">
           <Button
-            destructive
-            outline
+            variant="destructive"
             onClick={handleDeleteClick}
             disabled={deleteMutation.isPending}
             className="text-xs py-1 h-7"
@@ -414,7 +413,7 @@ export default function OwnerStatementDetailPage() {
             Delete
           </Button>
           <Button
-            color="primary-solid"
+            variant="default"
             onClick={handleSaveSection}
             disabled={!hasAnyChanges || updateMutation.isPending}
             className="text-xs py-1 h-7"
@@ -457,7 +456,7 @@ export default function OwnerStatementDetailPage() {
         </DialogBody>
         <DialogActions>
           <Button
-            outline
+            variant="outline"
             onClick={() => setIsDeleteDialogOpen(false)}
             disabled={deleteMutation.isPending}
             className="text-xs py-1 h-7"
@@ -465,7 +464,7 @@ export default function OwnerStatementDetailPage() {
             Cancel
           </Button>
           <Button
-            destructive
+            variant="destructive"
             onClick={handleConfirmDelete}
             disabled={deleteMutation.isPending}
             className="text-xs py-1 h-7"

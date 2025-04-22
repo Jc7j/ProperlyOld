@@ -98,11 +98,14 @@ export function InvoiceDetails({ invoice }: InvoiceDetailsProps) {
                     </div>
                   </TableCell>
                   <TableCell className="flex justify-center space-x-2">
-                    <Button plain onClick={() => setEditingItem(item)}>
+                    <Button
+                      variant="ghost"
+                      onClick={() => setEditingItem(item)}
+                    >
                       <Pencil className="h-4 w-4" />
                     </Button>
                     <Button
-                      plain
+                      variant="ghost"
                       onClick={() => {
                         if (
                           confirm('Are you sure you want to delete this item?')
@@ -146,11 +149,14 @@ export function InvoiceDetails({ invoice }: InvoiceDetailsProps) {
                     </div>
                   </TableCell>
                   <TableCell className="flex justify-center space-x-2">
-                    <Button plain onClick={() => setEditingItem(item)}>
+                    <Button
+                      variant="ghost"
+                      onClick={() => setEditingItem(item)}
+                    >
                       <Pencil className="h-4 w-4" />
                     </Button>
                     <Button
-                      plain
+                      variant="ghost"
                       onClick={() => {
                         if (
                           confirm('Are you sure you want to delete this item?')

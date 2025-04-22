@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import type React from 'react'
 import { cn } from '~/lib/utils/cn'
 
@@ -31,7 +32,7 @@ export function PaginationPrevious({
     <span className={cn(className, 'grow basis-0')}>
       <Button
         {...(href === null ? { disabled: true } : { href })}
-        plain
+        variant="ghost"
         aria-label="Previous page"
         onClick={onClick}
       >
@@ -69,7 +70,7 @@ export function PaginationNext({
     <span className={cn(className, 'flex grow basis-0 justify-end')}>
       <Button
         {...(href === null ? { disabled: true } : { href })}
-        plain
+        variant="ghost"
         aria-label="Next page"
         onClick={onClick}
       >
@@ -118,9 +119,8 @@ export function PaginationPage({
   onClick?: (e: React.MouseEvent) => void
 }>) {
   return (
-    <Button
+    <Link
       href={href}
-      plain
       aria-current={current ? 'page' : undefined}
       className={cn(
         className,
@@ -130,7 +130,7 @@ export function PaginationPage({
       onClick={onClick}
     >
       <span className="-mx-0.5">{children}</span>
-    </Button>
+    </Link>
   )
 }
 

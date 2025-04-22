@@ -172,3 +172,42 @@ export function formatAddress(location: {
 
   return parts.join(', ')
 }
+
+export function formatDate(
+  date: Date | string | number | undefined,
+  opts: Intl.DateTimeFormatOptions = {}
+) {
+  if (!date) return ''
+
+  return new Intl.DateTimeFormat('en-US', {
+    month: opts.month ?? 'long',
+    day: opts.day ?? 'numeric',
+    year: opts.year ?? 'numeric',
+    ...opts,
+  }).format(new Date(date))
+}
+export function formatDuration(start: Date, end: Date, hoursOnly = false) {
+  const startInPST = new Date(start)
+  const endInPST = new Date(end)
+  const durationHours =
+    endInPST.getTime() - startInPST.getTime() / 1000 / 60 / 60
+
+  if (hoursOnly) {
+    if (durationHours % 1 !== 0) {
+      return `${durationHours.toFixed(1)} hours`
+    }
+    return durationHours === 1 ? '1 hour' : `${durationHours} hours`
+  }
+
+  if (durationHours === 1) return '1 hour'
+  if (durationHours < 1) {
+    const minutes = Math.round(durationHours * 60)
+    return `${minutes} minutes`
+  }
+
+  if (durationHours % 1 !== 0) {
+    return `${durationHours.toFixed(1)} hours`
+  }
+
+  return `${durationHours} hours`
+}

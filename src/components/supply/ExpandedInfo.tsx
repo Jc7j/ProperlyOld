@@ -140,7 +140,7 @@ export default function ExpandedInfo({
               <span className="text-sm text-zinc-900 dark:text-zinc-50">
                 {item.quantityOnHand}
               </span>
-              <Button plain onClick={handleEdit}>
+              <Button variant="ghost" onClick={handleEdit}>
                 <Pencil className="size-4" />
               </Button>
             </div>
@@ -159,14 +159,14 @@ export default function ExpandedInfo({
         </DialogDescription>
         <DialogActions>
           <Button
-            outline
+            variant="outline"
             onClick={() => setShowConfirmation(false)}
             disabled={isPending}
           >
             Cancel
           </Button>
           <Button
-            color="primary-solid"
+            variant="default"
             onClick={handleConfirm}
             disabled={isPending}
           >

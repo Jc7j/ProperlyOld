@@ -5,8 +5,8 @@ import { LayoutGroup, motion } from 'framer-motion'
 import React, { forwardRef, useId } from 'react'
 import { cn } from '~/lib/utils/cn'
 
-import { TouchTarget } from './button'
 import { Link } from './link'
+import { TouchTarget } from './touch-target'
 
 export function Sidebar({
   className,

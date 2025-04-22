@@ -274,7 +274,7 @@ export default function OwnerStatementsPage() {
             />
           </div>
           <Button
-            color="primary-solid"
+            variant="default"
             onClick={() => setIsModalOpen(true)}
             className="px-4 py-2 rounded-md w-full sm:w-auto"
           >

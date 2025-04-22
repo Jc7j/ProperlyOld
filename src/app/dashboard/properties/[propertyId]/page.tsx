@@ -104,10 +104,10 @@ function EditNameDialog({
             />
 
             <DialogActions>
-              <Button type="button" outline onClick={onClose}>
+              <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
               </Button>
-              <Button type="submit" color="primary-solid" disabled={isPending}>
+              <Button type="submit" variant="default" disabled={isPending}>
                 {isPending ? 'Saving...' : 'Save Changes'}
               </Button>
             </DialogActions>
@@ -275,10 +275,10 @@ function EditLocationDialog({
             />
 
             <DialogActions>
-              <Button type="button" outline onClick={onClose}>
+              <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
               </Button>
-              <Button type="submit" color="primary-solid" disabled={isPending}>
+              <Button type="submit" variant="default" disabled={isPending}>
                 {isPending ? 'Saving...' : 'Save Changes'}
               </Button>
             </DialogActions>
@@ -379,10 +379,15 @@ function EditOwnerDialog({
             />
 
             <DialogActions>
-              <Button type="button" outline onClick={onClose}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onClose}
+                disabled={isPending}
+              >
                 Cancel
               </Button>
-              <Button type="submit" color="primary-solid" disabled={isPending}>
+              <Button type="submit" variant="default" disabled={isPending}>
                 {isPending ? 'Saving...' : 'Save Changes'}
               </Button>
             </DialogActions>
@@ -402,7 +407,7 @@ function LocationInfo({ property }: { property: ParsedProperty | null }) {
         <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
           Address
         </h2>
-        <Button plain onClick={() => setIsEditing(true)}>
+        <Button variant="ghost" onClick={() => setIsEditing(true)}>
           <Pencil className="size-4" />
         </Button>
       </div>
@@ -454,7 +459,7 @@ function OwnerInfo({ property }: { property: ParsedProperty | null }) {
         <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
           Owner
         </h2>
-        <Button plain onClick={() => setIsEditing(true)}>
+        <Button variant="ghost" onClick={() => setIsEditing(true)}>
           <Pencil className="size-4" />
         </Button>
       </div>
@@ -507,9 +512,11 @@ function CreateInvoiceButton({ propertyId }: { propertyId: string }) {
 
   return (
     <Popover>
-      <PopoverTrigger buttonColor="primary">
-        <Plus className="h-4 w-4" />
-        <span>New Invoice</span>
+      <PopoverTrigger asChild>
+        <Button variant="default">
+          <Plus className="h-4 w-4" />
+          <span>New Invoice</span>
+        </Button>
       </PopoverTrigger>
       <PopoverContent className="p-0 w-72">
         <div className="border-b border-zinc-200 p-3 dark:border-zinc-700">
@@ -724,11 +731,11 @@ function DeletePropertyDialog({
 
       <DialogBody>
         <DialogActions>
-          <Button type="button" outline onClick={onClose}>
+          <Button type="button" variant="outline" onClick={onClose}>
             Cancel
           </Button>
           <Button
-            color="destructive-outline"
+            variant="destructiveOutline"
             disabled={isPending}
             onClick={() => deleteProperty({ propertyId })}
           >
@@ -761,12 +768,12 @@ function PropertyHeader({ property }: { property: ParsedProperty }) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Heading level={1}>{property.name}</Heading>
-            <Button plain onClick={() => setIsEditingName(true)}>
+            <Button variant="ghost" onClick={() => setIsEditingName(true)}>
               <Pencil className="size-4" />
             </Button>
           </div>
           <Button
-            color="destructive-outline"
+            variant="destructiveOutline"
             onClick={() => setIsDeleting(true)}
           >
             <Trash2 className="size-4" />
@@ -909,7 +916,7 @@ function PropertyContent({ propertyId }: { propertyId: string }) {
                 href={`/dashboard/owner-statements?propertyId=${propertyId}`}
                 passHref
               >
-                <Button color="primary-outline">View All Statements</Button>
+                <Button variant="outline">View All Statements</Button>
               </Link>
             </div>
           </div>
@@ -939,9 +946,7 @@ function PropertyContent({ propertyId }: { propertyId: string }) {
                 </p>
                 <div className="mt-6">
                   <Link href="/dashboard/owner-statements" passHref>
-                    <Button color="primary-outline">
-                      Go to Owner Statements
-                    </Button>
+                    <Button variant="outline">Go to Owner Statements</Button>
                   </Link>
                 </div>
               </div>
@@ -979,7 +984,7 @@ function PropertyContent({ propertyId }: { propertyId: string }) {
                         <Link
                           href={`/dashboard/owner-statements/${statement.id}`}
                         >
-                          <Button plain>View</Button>
+                          <Button variant="ghost">View</Button>
                         </Link>
                       </TableCell>
                     </TableRow>
@@ -994,7 +999,7 @@ function PropertyContent({ propertyId }: { propertyId: string }) {
                   passHref
                 >
                   <Button
-                    plain
+                    variant="ghost"
                     className="text-sm text-primary hover:text-primary/80"
                   >
                     View all {ownerStatements.length} statements

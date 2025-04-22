@@ -107,11 +107,11 @@ export default function ImportModal({
         )}
       </DialogBody>
       <DialogActions>
-        <Button outline onClick={onClose}>
+        <Button variant="outline" onClick={onClose}>
           Cancel
         </Button>
         <Button
-          color="primary-solid"
+          variant="default"
           disabled={!parsedData || !month || loading}
           onClick={onNext}
         >

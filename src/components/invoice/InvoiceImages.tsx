@@ -5,7 +5,7 @@ import Image from 'next/image'
 import { useState } from 'react'
 import { Button, Card } from '~/components/ui'
 import dayjs from '~/lib/utils/day'
-import { UploadButton, UploadDropzone } from '~/lib/utils/uploadthing'
+import { UploadButton } from '~/lib/utils/uploadthing'
 import { type InvoiceWithUser } from '~/server/api/routers/invoice'
 import { api } from '~/trpc/react'
 
@@ -59,7 +59,7 @@ export function InvoiceImages({ invoice, propertyId }: InvoiceImagesProps) {
             {uploadMode === null ? (
               <>
                 <Button
-                  color="primary-solid"
+                  variant="default"
                   onClick={() => setUploadMode('file')}
                   disabled={isUploading}
                 >
@@ -67,7 +67,7 @@ export function InvoiceImages({ invoice, propertyId }: InvoiceImagesProps) {
                   Upload
                 </Button>
                 <Button
-                  color="primary-outline"
+                  variant="outline"
                   onClick={() => setUploadMode('camera')}
                   disabled={isUploading}
                 >
@@ -77,7 +77,7 @@ export function InvoiceImages({ invoice, propertyId }: InvoiceImagesProps) {
               </>
             ) : (
               <Button
-                outline
+                variant="outline"
                 onClick={() => setUploadMode(null)}
                 disabled={isUploading}
               >
@@ -233,7 +233,7 @@ export function InvoiceImages({ invoice, propertyId }: InvoiceImagesProps) {
               </div>
             </div>
             <Button
-              plain
+              variant="ghost"
               className="-m-2 text-zinc-400 hover:text-zinc-500"
               onClick={() => handleRemoveImage(image.url)}
               disabled={isRemoving === image.url}

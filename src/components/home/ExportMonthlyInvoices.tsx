@@ -58,7 +58,7 @@ export default function ExportMonthlyInvoices() {
 
   return (
     <>
-      <Button color="primary" onClick={() => setIsOpen(true)}>
+      <Button variant="default" onClick={() => setIsOpen(true)}>
         Export Monthly Invoices
       </Button>
 
@@ -90,11 +90,15 @@ export default function ExportMonthlyInvoices() {
           </div>
 
           <DialogActions>
-            <Button type="button" outline onClick={() => setIsOpen(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsOpen(false)}
+            >
               Cancel
             </Button>
             <Button
-              color="primary"
+              variant="default"
               disabled={!selectedDate || !invoices?.length || isExporting}
               onClick={handleExport}
             >

@@ -160,7 +160,7 @@ export default function EditItemDialog({
             <DialogActions>
               <Button
                 type="button"
-                outline
+                variant="outline"
                 onClick={onClose}
                 className="w-full sm:w-auto"
               >
@@ -168,7 +168,7 @@ export default function EditItemDialog({
               </Button>
               <Button
                 type="submit"
-                color="primary-solid"
+                variant="default"
                 disabled={isPending}
                 className="w-full sm:w-auto"
               >

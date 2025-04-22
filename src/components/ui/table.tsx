@@ -186,7 +186,7 @@ export function TableHeader({
   const content =
     sortable && sortKey ? (
       <Button
-        plain
+        variant="ghost"
         onClick={() => onSort?.(sortKey)}
         className={cn(
           'group h-auto p-0 font-normal px-0 py-0',

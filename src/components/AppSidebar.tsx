@@ -127,7 +127,7 @@ export function AppSidebar({ children }: { children: ReactNode }) {
 
             <SidebarFooter>
               <Button
-                plain
+                variant="ghost"
                 onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
                 aria-label="Toggle theme"
                 className={cn(
@@ -144,7 +144,7 @@ export function AppSidebar({ children }: { children: ReactNode }) {
               </Button>
 
               <Button
-                plain
+                variant="ghost"
                 onClick={() => setShowOrgSettings(true)}
                 className={cn(
                   'flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors duration-200',

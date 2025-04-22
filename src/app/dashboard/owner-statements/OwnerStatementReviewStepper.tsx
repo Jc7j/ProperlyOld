@@ -352,7 +352,7 @@ export default function OwnerStatementReviewStepper({
         <div className="text-lg font-semibold">
           Review Owner Statements ({step + 1} of {orderedDrafts.length})
         </div>
-        <Button outline onClick={onDone}>
+        <Button variant="outline" onClick={onDone}>
           Exit Review
         </Button>
       </div>
@@ -362,7 +362,7 @@ export default function OwnerStatementReviewStepper({
         <aside className="w-full md:w-80 lg:w-96 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 p-6 overflow-y-auto flex flex-col gap-6">
           {/* Add Invoice Button */}
           <Button
-            outline
+            variant="outline"
             onClick={() => setIsInvoiceDialogOpen(true)}
             className="w-full"
             disabled={isParsingInvoice}
@@ -459,7 +459,7 @@ export default function OwnerStatementReviewStepper({
             {/* Action Buttons - Centered on mobile, right-aligned on md+ */}
             <div className="flex flex-col sm:flex-row justify-center sm:justify-end gap-3 mt-8 w-full">
               <Button
-                outline
+                variant="outline"
                 disabled={step === 0}
                 onClick={() => setStep((s) => s - 1)}
                 className="w-full sm:w-auto"
@@ -467,7 +467,7 @@ export default function OwnerStatementReviewStepper({
                 Previous
               </Button>
               <Button
-                color="secondary"
+                variant="secondary"
                 onClick={handleCreateStatement}
                 disabled={created[step] ?? createMutation.isPending}
                 className="w-full sm:w-auto"
@@ -479,7 +479,7 @@ export default function OwnerStatementReviewStepper({
                     : 'Create Statement'}
               </Button>
               <Button
-                color="primary-solid"
+                variant="default"
                 onClick={handleNext}
                 className="w-full sm:w-auto"
               >
@@ -571,14 +571,14 @@ export default function OwnerStatementReviewStepper({
         </DialogBody>
         <DialogActions>
           <Button
-            outline
+            variant="outline"
             onClick={closeInvoiceDialog}
             disabled={isParsingInvoice}
           >
             Cancel
           </Button>
           <Button
-            color="primary-solid"
+            variant="default"
             onClick={handleProcessInvoice}
             disabled={
               !dialogVendor ||

@@ -289,7 +289,7 @@ export default function OwnerStatementReviewTable({
                   {!readOnly && (
                     <TableCell className="w-[50px]">
                       <Button
-                        color="destructive-outline"
+                        variant="destructiveOutline"
                         onClick={() => handleDelete('incomes', i)}
                         aria-label="Delete row"
                         className="flex items-center justify-center p-0 rounded-full"
@@ -388,7 +388,7 @@ export default function OwnerStatementReviewTable({
                   {!readOnly && (
                     <TableCell className="w-[50px]">
                       <Button
-                        color="destructive-outline"
+                        variant="destructiveOutline"
                         onClick={() => handleDelete('expenses', i)}
                         aria-label="Delete row"
                         className="flex items-center justify-center p-0 rounded-full"
@@ -484,7 +484,7 @@ export default function OwnerStatementReviewTable({
                   {!readOnly && (
                     <TableCell className="w-[50px]">
                       <Button
-                        color="destructive-outline"
+                        variant="destructiveOutline"
                         onClick={() => handleDelete('adjustments', i)}
                         aria-label="Delete row"
                         className="flex items-center justify-center p-0 rounded-full"

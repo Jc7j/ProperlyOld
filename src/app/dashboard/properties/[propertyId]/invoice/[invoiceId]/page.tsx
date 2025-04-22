@@ -414,11 +414,11 @@ function DeleteInvoiceDialog({
 
       <DialogBody>
         <DialogActions>
-          <Button type="button" outline onClick={onClose}>
+          <Button type="button" variant="outline" onClick={onClose}>
             Cancel
           </Button>
           <Button
-            color="destructive-outline"
+            variant="destructive"
             disabled={isPending}
             onClick={() => deleteInvoice({ invoiceId, propertyId })}
           >
@@ -494,7 +494,7 @@ export default function InvoicePage() {
             </div>
             <div className="flex items-center gap-x-4 sm:gap-x-6">
               <Button
-                color="primary"
+                variant="default"
                 onClick={() =>
                   exportInvoiceToPdf({
                     invoice,
@@ -512,7 +512,7 @@ export default function InvoicePage() {
                 Export
               </Button>
               <Button
-                color="destructive-outline"
+                variant="destructiveOutline"
                 onClick={() => setIsDeleting(true)}
               >
                 <Trash2 className="size-4" />

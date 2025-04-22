@@ -185,7 +185,7 @@ export default function CreateItemDialog({
             <DialogActions>
               <Button
                 type="button"
-                outline
+                variant="outline"
                 onClick={onClose}
                 className="w-full sm:w-auto"
               >
@@ -193,7 +193,7 @@ export default function CreateItemDialog({
               </Button>
               <Button
                 type="submit"
-                color="primary-solid"
+                variant="default"
                 disabled={isPending}
                 className="w-full sm:w-auto"
               >
