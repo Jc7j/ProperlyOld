@@ -59,13 +59,23 @@ function Calendar({
         ...classNames,
       }}
       components={{
-        IconLeft: ({ className, ...props }) => (
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        ChevronLeft: ({
+          className,
+          ...props
+        }: React.SVGProps<SVGSVGElement>) => (
           <ChevronLeft
             className={cn('h-4 w-4 cursor-pointer', className)}
             {...props}
           />
         ),
-        IconRight: ({ className, ...props }) => (
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        ChevronRight: ({
+          className,
+          ...props
+        }: React.SVGProps<SVGSVGElement>) => (
           <ChevronRight
             className={cn('h-4 w-4 cursor-pointer', className)}
             {...props}

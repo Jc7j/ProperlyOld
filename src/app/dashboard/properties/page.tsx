@@ -50,7 +50,7 @@ type PropertyData = {
   latestInvoiceDate: Date | null
 }
 
-export const propertyColumns = (): ColumnDef<PropertyData>[] => [
+const propertyColumns = (): ColumnDef<PropertyData>[] => [
   {
     accessorKey: 'name',
     header: ({ column }: { column: Column<PropertyData, unknown> }) => (
