@@ -1,8 +1,9 @@
 'use client'
 
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, FileDown } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { exportSingleOwnerStatement } from '~/components/owner-statement/ExportOwnerStatement'
 import {
   Button,
   Card,
@@ -340,6 +341,16 @@ export default function OwnerStatementDetailPage() {
     router.back()
   }
 
+  // Handler for exporting the current statement to PDF
+  const handleExportPdf = () => {
+    if (!statementData) {
+      ErrorToast('Statement data is not available for export.')
+      return
+    }
+    // Call the export function with the current statement data
+    exportSingleOwnerStatement(statementData)
+  }
+
   if (isLoading) {
     return (
       <div className="mx-auto max-w-7xl px-3 py-4 sm:px-4 lg:px-6">
@@ -404,6 +415,14 @@ export default function OwnerStatementDetailPage() {
           </Heading>
         </div>
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={handleExportPdf}
+            disabled={!statementData || isLoading}
+            className="text-xs py-1 h-7"
+          >
+            <FileDown className="w-3 h-3 mr-1" /> Export PDF
+          </Button>
           <Button
             variant="destructive"
             onClick={handleDeleteClick}

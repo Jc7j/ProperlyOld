@@ -14,6 +14,7 @@ import { useMemo, useState } from 'react'
 import ReactDatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import * as XLSX from 'xlsx'
+import ExportMonthlyStatements from '~/components/owner-statement/ExportMonthlyStatements'
 import { DataTable } from '~/components/table/data-table'
 import { DataTableColumnHeader } from '~/components/table/data-table-column-header'
 import { DataTablePagination } from '~/components/table/data-table-pagination'
@@ -328,6 +329,7 @@ export default function OwnerStatementsPage() {
               isClearable
             />
           </div>
+          <ExportMonthlyStatements />
           <Button
             variant="default"
             onClick={() => setIsModalOpen(true)}

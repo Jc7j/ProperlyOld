@@ -62,7 +62,7 @@ export const invoiceRouter = createTRPCRouter({
   getMany: protectedProcedure
     .input(
       z.object({
-        limit: z.number().min(1).max(100).default(10),
+        limit: z.number().min(1).max(200).default(10),
         month: z
           .string()
           .regex(/^\d{4}-\d{2}$/)
