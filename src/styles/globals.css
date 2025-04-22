@@ -1,7 +1,6 @@
 @import 'tailwindcss';
 
 @custom-variant dark (&:where(.dark, .dark *));
-
 @import 'uploadthing/tw/v4';
 @source '../node_modules/@uploadthing/react/dist';
 
@@ -9,40 +8,6 @@
   --font-sans:
     var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
     'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
-
-  /* Primary (Green) */
-  --primary-50: oklch(98% 0.02 142); /* EFFEF5 */
-  --primary-100: oklch(96% 0.04 142); /* D7F5DF */
-  --primary-200: oklch(94% 0.06 142); /* B5EBC7 */
-  --primary-300: oklch(90% 0.1 142); /* 8BDBA8 */
-  --primary-400: oklch(85% 0.15 142); /* 4DC77F */
-  --primary-500: oklch(80% 0.18 142); /* 22B35F */
-  --primary-600: oklch(75% 0.2 142); /* 0B994D */
-  --primary-700: oklch(70% 0.18 142); /* 087F41 */
-  --primary-800: oklch(65% 0.15 142); /* 066535 */
-  --primary-900: oklch(55% 0.12 142); /* 044B27 */
-  --primary-950: oklch(45% 0.1 142); /* 023518 */
-
-  /* Semantic Colors */
-  --success-50: oklch(98% 0.02 142);
-  --success-100: oklch(96% 0.04 142);
-  --success-500: oklch(80% 0.18 142);
-  --success-900: oklch(50% 0.08 142);
-
-  --warning-50: oklch(98% 0.02 85);
-  --warning-100: oklch(96% 0.04 85);
-  --warning-500: oklch(80% 0.18 85);
-  --warning-900: oklch(50% 0.08 85);
-
-  --info-50: oklch(98% 0.02 250);
-  --info-100: oklch(96% 0.04 250);
-  --info-500: oklch(80% 0.18 250);
-  --info-900: oklch(50% 0.08 250);
-
-  --destructive-50: oklch(98% 0.02 0);
-  --destructive-100: oklch(96% 0.04 0);
-  --destructive-500: oklch(80% 0.18 0);
-  --destructive-900: oklch(50% 0.08 0);
 }
 
 /*
@@ -53,8 +18,121 @@
   If we ever want to remove these styles, we need to add an explicit border
   color utility to any element that depends on these defaults.
 */
+:root {
+  --background: hsl(0 0% 100%);
+  --foreground: hsl(0 0% 3.9%);
+  --card: hsl(0 0% 100%);
+  --card-foreground: hsl(0 0% 3.9%);
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(0 0% 3.9%);
+  --primary: hsl(0 0% 9%);
+  --primary-foreground: hsl(0 0% 98%);
+  --secondary: hsl(0 0% 96.1%);
+  --secondary-foreground: hsl(0 0% 9%);
+  --muted: hsl(0 0% 96.1%);
+  --muted-foreground: hsl(0 0% 45.1%);
+  --accent: hsl(0 0% 96.1%);
+  --accent-foreground: hsl(0 0% 9%);
+  --destructive: hsl(0 84.2% 60.2%);
+  --destructive-foreground: hsl(0 0% 0%);
+  --border: hsl(0 0% 89.8%);
+  --input: hsl(0 0% 89.8%);
+  --ring: hsl(0 0% 3.9%);
+  --chart-1: hsl(12 76% 61%);
+  --chart-2: hsl(173 58% 39%);
+  --chart-3: hsl(197 37% 24%);
+  --chart-4: hsl(43 74% 66%);
+  --chart-5: hsl(27 87% 67%);
+  --radius: 0.6rem;
+
+  /* Rainbow Button Colors */
+  --color-1: 0 100% 63%;
+  --color-2: 270 100% 63%;
+  --color-3: 210 100% 63%;
+  --color-4: 195 100% 63%;
+  --color-5: 90 100% 63%;
+  --rainbow-speed: 2s;
+
+  /* Scrollbar custom properties */
+  /* --scrollbar-size: 8px;
+  --scrollbar-thumb: hsla(0, 0%, 80%, 0.6);
+  --scrollbar-thumb-hover: hsla(0, 0%, 70%, 0.8); */
+}
+
+.dark {
+  --background: hsl(0 0% 3.9%);
+  --foreground: hsl(0 0% 98%);
+  --card: hsl(0 0% 3.9%);
+  --card-foreground: hsl(0 0% 98%);
+  --popover: hsl(0 0% 3.9%);
+  --popover-foreground: hsl(0 0% 98%);
+  --primary: hsl(0 0% 98%);
+  --primary-foreground: hsl(0 0% 9%);
+  --secondary: hsl(0 0% 14.9%);
+  --secondary-foreground: hsl(0 0% 98%);
+  --muted: hsl(0 0% 14.9%);
+  --muted-foreground: hsl(0 0% 63.9%);
+  --accent: hsl(0 0% 14.9%);
+  --accent-foreground: hsl(0 0% 98%);
+  --destructive: hsl(0 62.8% 30.6%);
+  --destructive-foreground: hsl(0 0% 98%);
+  --border: hsl(0 0% 14.9%);
+  --input: hsl(0 0% 14.9%);
+  --ring: hsl(0 0% 83.1%);
+  --chart-1: hsl(220 70% 50%);
+  --chart-2: hsl(160 60% 45%);
+  --chart-3: hsl(30 80% 55%);
+  --chart-4: hsl(280 65% 60%);
+  --chart-5: hsl(340 75% 55%);
+
+  /* Dark mode scrollbar custom properties */
+  /* --scrollbar-thumb: hsla(0, 0%, 35%, 0.6);
+  --scrollbar-thumb-hover: hsla(0, 0%, 45%, 0.8); */
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --animate-gradient: gradient 8s linear infinite;
+
+  @keyframes gradient {
+    to {
+      background-position: var(--bg-size, 300%) 0;
+    }
+  }
+}
+
 @layer base {
-  *,
+  * {
+    @apply border-border outline-ring/50;
+  }
   ::after,
   ::before,
   ::backdrop,
@@ -62,19 +140,79 @@
     border-color: var(--color-gray-200, currentColor);
   }
 
-  :root {
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
+  body {
+    @apply bg-background text-foreground;
   }
 
-  .dark {
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
+  /* Webkit scrollbar styles (Chrome, Safari, newer Edge) */
+  ::-webkit-scrollbar {
+    width: var(--scrollbar-size);
+    height: var(--scrollbar-size);
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: var(--radius-sm);
+    transition: background-color 0.2s ease;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  /* Firefox scrollbar styles */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
+
+  /* Calendar specific scrollbar styles */
+  .fc-scroller {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
+
+  .fc-scroller::-webkit-scrollbar {
+    width: var(--scrollbar-size);
+    height: var(--scrollbar-size);
+  }
+
+  .fc-scroller::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .fc-scroller::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: var(--radius-sm);
+  }
+
+  .fc-scroller::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+  }
+}
+
+@keyframes rainbow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@layer utilities {
+  .animate-rainbow {
+    animation: rainbow var(--rainbow-speed, 2s) linear infinite;
   }
 }

@@ -1,38 +1,45 @@
 'use client'
 
+import {
+  type ColumnDef,
+  type PaginationState,
+  type SortingState,
+  getCoreRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from '@tanstack/react-table'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import ReactDatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import * as XLSX from 'xlsx'
-import {
-  Button,
-  Heading,
-  Select,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '~/components/ui'
-import { cn } from '~/lib/utils/cn'
+import { DataTable } from '~/components/table/data-table'
+import { DataTableColumnHeader } from '~/components/table/data-table-column-header'
+import { DataTablePagination } from '~/components/table/data-table-pagination'
+import { Button, Heading, Select } from '~/components/ui'
 import dayjs from '~/lib/utils/day'
+import { formatCurrency } from '~/lib/utils/format'
 import { api } from '~/trpc/react'
 
 import ImportModal from './ImportModal'
 import OwnerStatementReviewStepper from './OwnerStatementReviewStepper'
 
-// Define sort field and direction types
-type SortField =
-  | 'property'
-  | 'month'
-  | 'income'
-  | 'expenses'
-  | 'adjustments'
-  | 'total'
-  | 'notes'
-type SortDirection = 'asc' | 'desc'
+type OwnerStatementData = {
+  id: string
+  property: {
+    name?: string | null
+  } | null
+  statementMonth: Date
+  totalIncome: number | null
+  totalExpenses: number | null
+  totalAdjustments: number | null
+  grandTotal: number | null
+  notes: string | null
+  // Add any other fields returned by the API query if needed
+}
+
+// Removed manual sort type definitions
 
 export default function OwnerStatementsPage() {
   const [propertyId, setPropertyId] = useState('')
@@ -46,9 +53,14 @@ export default function OwnerStatementsPage() {
   const [reviewDrafts, setReviewDrafts] = useState<any[] | null>(null)
   const [unmatchedListings, setUnmatchedListings] = useState<string[]>([])
 
-  // Add sort state
-  const [sortField, setSortField] = useState<SortField>('month')
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+  // Add state for tanstack table
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: 'statementMonth', desc: true }, // Default sort by month descending
+  ])
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 15, // Default page size
+  })
 
   // Fetch properties for filter dropdown
   const { data: properties, isLoading: loadingProperties } =
@@ -60,42 +72,6 @@ export default function OwnerStatementsPage() {
       propertyId: propertyId || undefined,
       month: month ? dayjs(month).format('YYYY-MM') : undefined,
     })
-
-  // Handle sorting
-  const handleSort = (field: SortField) => {
-    if (field === sortField) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
-    } else {
-      setSortField(field)
-      setSortDirection('asc')
-    }
-  }
-
-  // Sort button component
-  const SortButton = ({
-    field,
-    children,
-    align = 'left',
-  }: {
-    field: SortField
-    children: React.ReactNode
-    align?: 'left' | 'right' | 'center'
-  }) => (
-    <button
-      type="button"
-      onClick={() => handleSort(field)}
-      className={cn(
-        'flex items-center gap-1 hover:text-zinc-900 dark:hover:text-white w-full text-xs font-medium text-gray-500 uppercase',
-        align === 'right' && 'justify-end',
-        align === 'center' && 'justify-center'
-      )}
-    >
-      {children}
-      {sortField === field && (
-        <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-      )}
-    </button>
-  )
 
   // Parse file when selectedFile changes
   async function parseFile(file: File) {
@@ -120,6 +96,7 @@ export default function OwnerStatementsPage() {
     } finally {
       setIsParsing(false)
     }
+    setIsModalOpen(false)
   }
 
   // Watch for file selection
@@ -196,61 +173,131 @@ export default function OwnerStatementsPage() {
     setIsModalOpen(false)
   }
 
-  // Sort the owner statements before rendering
-  const sortedStatements = ownerStatements
-    ? [...ownerStatements].sort((a, b) => {
-        // Helper function for comparison with direction
-        const compare = (aVal: any, bVal: any) => {
-          return sortDirection === 'asc' ? aVal - bVal : bVal - aVal
-        }
+  // Define columns for the DataTable
+  const columns = useMemo<ColumnDef<OwnerStatementData>[]>(
+    () => [
+      {
+        accessorKey: 'property.name',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Property" />
+        ),
+        cell: ({ row }) => <div>{row.original.property?.name ?? '-'}</div>,
+        enableSorting: true,
+      },
+      {
+        accessorKey: 'statementMonth',
+        header: ({ column }) => (
+          <DataTableColumnHeader
+            column={column}
+            title="Month"
+            className="justify-end text-right"
+          />
+        ),
+        cell: ({ row }) => (
+          <div className="text-right">
+            {dayjs(row.original.statementMonth).format('MMM YYYY')}
+          </div>
+        ),
+        enableSorting: true,
+      },
+      {
+        accessorKey: 'totalIncome',
+        header: ({ column }) => (
+          <DataTableColumnHeader
+            column={column}
+            title="Income"
+            className="justify-end text-right"
+          />
+        ),
+        cell: ({ row }) => (
+          <div className="text-right tabular-nums">
+            {formatCurrency(row.original.totalIncome)}
+          </div>
+        ),
+        enableSorting: true,
+      },
+      {
+        accessorKey: 'totalExpenses',
+        header: ({ column }) => (
+          <DataTableColumnHeader
+            column={column}
+            title="Expenses"
+            className="justify-end text-right"
+          />
+        ),
+        cell: ({ row }) => (
+          <div className="text-right tabular-nums">
+            {formatCurrency(row.original.totalExpenses)}
+          </div>
+        ),
+        enableSorting: true,
+      },
+      {
+        accessorKey: 'totalAdjustments',
+        header: ({ column }) => (
+          <DataTableColumnHeader
+            column={column}
+            title="Adjustments"
+            className="justify-end text-right"
+          />
+        ),
+        cell: ({ row }) => (
+          <div className="text-right tabular-nums">
+            {formatCurrency(row.original.totalAdjustments)}
+          </div>
+        ),
+        enableSorting: true,
+      },
+      {
+        accessorKey: 'grandTotal',
+        header: ({ column }) => (
+          <DataTableColumnHeader
+            column={column}
+            title="Total"
+            className="justify-end text-right"
+          />
+        ),
+        cell: ({ row }) => (
+          <div className="text-right tabular-nums font-medium">
+            {formatCurrency(row.original.grandTotal)}
+          </div>
+        ),
+        enableSorting: true,
+      },
+      {
+        id: 'actions',
+        header: () => <div className="text-right">Actions</div>,
+        cell: ({ row }) => (
+          <div className="text-right">
+            <Button asChild variant="ghost" size="sm">
+              <Link href={`/dashboard/owner-statements/${row.original.id}`}>
+                View
+              </Link>
+            </Button>
+          </div>
+        ),
+        enableSorting: false,
+      },
+    ],
+    []
+  )
 
-        // Helper for string comparison
-        const compareStrings = (aStr: string, bStr: string) => {
-          const result = aStr.localeCompare(bStr)
-          return sortDirection === 'asc' ? result : -result
-        }
-
-        switch (sortField) {
-          case 'property': {
-            const aName = a.property?.name ?? ''
-            const bName = b.property?.name ?? ''
-            return compareStrings(aName, bName)
-          }
-          case 'month': {
-            const aTime = new Date(a.statementMonth).getTime()
-            const bTime = new Date(b.statementMonth).getTime()
-            return compare(aTime, bTime)
-          }
-          case 'income': {
-            const aIncome = a.totalIncome ?? 0
-            const bIncome = b.totalIncome ?? 0
-            return compare(aIncome, bIncome)
-          }
-          case 'expenses': {
-            const aExpenses = a.totalExpenses ?? 0
-            const bExpenses = b.totalExpenses ?? 0
-            return compare(aExpenses, bExpenses)
-          }
-          case 'adjustments': {
-            const aAdj = a.totalAdjustments ?? 0
-            const bAdj = b.totalAdjustments ?? 0
-            return compare(aAdj, bAdj)
-          }
-          case 'total': {
-            const aTotal = a.grandTotal ?? 0
-            const bTotal = b.grandTotal ?? 0
-            return compare(aTotal, bTotal)
-          }
-          case 'notes': {
-            const aNote = a.notes ?? ''
-            const bNote = b.notes ?? ''
-            return compareStrings(aNote, bNote)
-          }
-          default:
-            return 0
-        }
-      })
-    : []
+  // Create table instance
+  const table = useReactTable({
+    data: (ownerStatements as OwnerStatementData[]) ?? [], // Cast data and provide default
+    columns,
+    state: {
+      sorting,
+      pagination,
+    },
+    onSortingChange: setSorting,
+    onPaginationChange: setPagination,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    manualPagination: false, // Client-side pagination
+    manualSorting: false, // Client-side sorting
+  })
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6">
@@ -300,98 +347,20 @@ export default function OwnerStatementsPage() {
         </Select>
       </div>
 
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHead>
-            <TableRow className="border-b border-gray-200">
-              <TableHeader className="py-3">
-                <SortButton field="property">Property</SortButton>
-              </TableHeader>
-              <TableHeader className="py-3">
-                <SortButton field="month">Month</SortButton>
-              </TableHeader>
-              <TableHeader className="py-3 text-right">
-                <SortButton field="income" align="right">
-                  Income
-                </SortButton>
-              </TableHeader>
-              <TableHeader className="py-3 text-right">
-                <SortButton field="expenses" align="right">
-                  Expenses
-                </SortButton>
-              </TableHeader>
-              <TableHeader className="py-3 text-right">
-                <SortButton field="adjustments" align="right">
-                  Adjustments
-                </SortButton>
-              </TableHeader>
-              <TableHeader className="py-3 text-right">
-                <SortButton field="total" align="right">
-                  Total
-                </SortButton>
-              </TableHeader>
-              <TableHeader className="py-3">
-                <SortButton field="notes">Notes</SortButton>
-              </TableHeader>
-              <TableHeader className="py-3 text-right">Actions</TableHeader>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center py-4">
-                  Loading statements...
-                </TableCell>
-              </TableRow>
-            ) : !sortedStatements.length ? (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center py-4">
-                  No owner statements found.
-                </TableCell>
-              </TableRow>
-            ) : (
-              sortedStatements.map((os: any) => (
-                <TableRow key={os.id} className="border-b border-gray-100">
-                  <TableCell className="py-4">
-                    {os.property?.name || '-'}
-                  </TableCell>
-                  <TableCell className="py-4">
-                    {dayjs(os.statementMonth).format('MMM YYYY')}
-                  </TableCell>
-                  <TableCell className="py-4 text-right">
-                    {typeof os.totalIncome === 'number'
-                      ? os.totalIncome.toFixed(2)
-                      : '-'}
-                  </TableCell>
-                  <TableCell className="py-4 text-right">
-                    {typeof os.totalExpenses === 'number'
-                      ? os.totalExpenses.toFixed(2)
-                      : '-'}
-                  </TableCell>
-                  <TableCell className="py-4 text-right">
-                    {typeof os.totalAdjustments === 'number'
-                      ? os.totalAdjustments.toFixed(2)
-                      : '-'}
-                  </TableCell>
-                  <TableCell className="py-4 text-right">
-                    {typeof os.grandTotal === 'number'
-                      ? os.grandTotal.toFixed(2)
-                      : '-'}
-                  </TableCell>
-                  <TableCell className="py-4">{os.notes || ''}</TableCell>
-                  <TableCell className="py-4 text-right">
-                    <Link
-                      href={`/dashboard/owner-statements/${os.id}`}
-                      className="px-4 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50"
-                    >
-                      View
-                    </Link>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+      {/* Replace Table with DataTable */}
+      <div className="space-y-4">
+        {isLoading ? (
+          <div className="text-center py-10 text-muted-foreground">
+            Loading statements...
+          </div>
+        ) : !table.getRowModel().rows.length ? (
+          <div className="text-center py-10 text-muted-foreground">
+            No owner statements found matching your filters.
+          </div>
+        ) : (
+          <DataTable table={table} />
+        )}
+        <DataTablePagination table={table} />
       </div>
 
       {/* Import Modal */}

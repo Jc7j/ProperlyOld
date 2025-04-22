@@ -1,3 +1,5 @@
+import { type Decimal } from '@prisma/client/runtime/library'
+
 interface FormatCurrencyOptions {
   locale?: string
   minimumFractionDigits?: number
@@ -45,10 +47,37 @@ export function formatMinutes(
  * @returns Formatted currency string (e.g., "$10.00", "€10.00")
  */
 export function formatCurrency(
-  amount: number,
+  amount: number | Decimal | null | undefined,
   currency = 'USD',
   options: FormatCurrencyOptions = {}
 ): string {
+  // Handle null or undefined
+  if (amount === null || amount === undefined)
+    return formatCurrency(0, currency, options)
+
+  // Convert Decimal to number if needed
+  let numericAmount: number
+  if (typeof amount === 'number') {
+    numericAmount = amount
+  } else {
+    // Handle Decimal objects from Prisma
+    try {
+      // Try Number constructor first
+      numericAmount = Number(amount)
+      // Check if conversion failed
+      if (isNaN(numericAmount)) throw new Error('Conversion failed')
+    } catch (e) {
+      // Fallback to string conversion
+      try {
+        numericAmount = parseFloat(amount.toString())
+        if (isNaN(numericAmount)) return formatCurrency(0, currency, options)
+      } catch (err) {
+        console.error('Failed to convert Decimal to number:', amount)
+        return formatCurrency(0, currency, options)
+      }
+    }
+  }
+
   const {
     locale = 'en',
     minimumFractionDigits = 2,
@@ -58,7 +87,7 @@ export function formatCurrency(
     hideZeroDecimals = false,
   } = options
 
-  const value = centsToDollars ? amount / 100 : amount
+  const value = centsToDollars ? numericAmount / 100 : numericAmount
 
   // If hideZeroDecimals is true and the decimal part is zero, set minimumFractionDigits to 0
   const effectiveMinFractionDigits =

@@ -1,115 +1,49 @@
 'use client'
 
 import {
-  Boxes,
-  ChevronRight,
-  ChevronUp,
-  DollarSign,
-  ExternalLink,
-  Package,
-  PackageCheck,
-  Pencil,
-  Plus,
-  Search,
-  Trash2,
-} from 'lucide-react'
+  type ColumnDef,
+  type PaginationState,
+  type SortingState,
+  getCoreRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from '@tanstack/react-table'
+import { ExternalLink, Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import Link from 'next/link'
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import CreateItemDialog from '~/components/supply/CreateItemDialog'
 import EditItemDialog from '~/components/supply/EditItemDialog'
-import ExpandedInfo from '~/components/supply/ExpandedInfo'
+import { DataTable } from '~/components/table/data-table'
+import { DataTableColumnHeader } from '~/components/table/data-table-column-header'
+import { DataTablePagination } from '~/components/table/data-table-pagination'
 import {
   Button,
+  Drawer,
+  DrawerBody,
+  DrawerFooter,
+  DrawerHeader,
   Heading,
-  Pagination,
-  PaginationList,
-  PaginationNext,
-  PaginationPage,
-  PaginationPrevious,
   Spinner,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
 } from '~/components/ui'
 import { cn } from '~/lib/utils/cn'
 import { formatCurrency } from '~/lib/utils/format'
 import { type ManagementGroupItemWithUser } from '~/server/api/routers/managementGroupItems'
 import { api } from '~/trpc/react'
 
-type SortField = 'name' | 'defaultPrice' | 'quantityOnHand' | 'quantityUsed'
-type SortDirection = 'asc' | 'desc'
-
 const ITEMS_PER_PAGE = 15
 
 export default function SuppliesPage() {
   const { data: items, isLoading } = api.managementGroupItems.getMany.useQuery()
-  const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [currentPage, setCurrentPage] = useState(1)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [editingItem, setEditingItem] =
     useState<ManagementGroupItemWithUser | null>(null)
-  const [sortField, setSortField] = useState<SortField>('name')
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [searchQuery, setSearchQuery] = useState('')
 
-  // Sort, filter and paginate items
-  const paginatedItems = useMemo(() => {
-    if (!items) return null
-
-    // Filter items first
-    const filtered = items.filter(
-      (item) =>
-        item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.description?.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-
-    // Then sort
-    const sorted = [...filtered].sort((a, b) => {
-      const aValue = a[sortField]
-      const bValue = b[sortField]
-
-      if (typeof aValue === 'string' && typeof bValue === 'string') {
-        return sortDirection === 'asc'
-          ? aValue.localeCompare(bValue)
-          : bValue.localeCompare(aValue)
-      }
-
-      if (typeof aValue === 'number' && typeof bValue === 'number') {
-        return sortDirection === 'asc' ? aValue - bValue : bValue - aValue
-      }
-
-      return 0
-    })
-
-    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
-    const endIndex = startIndex + ITEMS_PER_PAGE
-
-    return sorted.slice(startIndex, endIndex)
-  }, [items, sortField, sortDirection, currentPage, searchQuery])
-
-  const totalPages = items ? Math.ceil(items.length / ITEMS_PER_PAGE) : 0
-
-  // Reset to first page when sorting changes
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [sortField, sortDirection])
-
-  // Reset to first page when search changes
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [searchQuery, sortField, sortDirection])
-
-  function handleSort(field: SortField) {
-    if (field === sortField) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
-    } else {
-      setSortField(field)
-      setSortDirection('asc')
-    }
-  }
+  // Drawer state for item details
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [selectedItem, setSelectedItem] =
+    useState<ManagementGroupItemWithUser | null>(null)
 
   // Add delete mutation
   const utils = api.useUtils()
@@ -119,16 +53,191 @@ export default function SuppliesPage() {
     },
   })
 
-  // Calculate pagination info
-  const totalItems =
-    items?.filter(
+  // Sorting and pagination state
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: 'name', desc: false },
+  ])
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: ITEMS_PER_PAGE,
+  })
+
+  // Filter items based on search query
+  const filteredItems = useMemo(() => {
+    if (!items) return []
+
+    return items.filter(
       (item) =>
         item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.description?.toLowerCase().includes(searchQuery.toLowerCase())
-    ).length ?? 0
-  const startItem =
-    totalItems === 0 ? 0 : (currentPage - 1) * ITEMS_PER_PAGE + 1
-  const endItem = Math.min(currentPage * ITEMS_PER_PAGE, totalItems)
+    )
+  }, [items, searchQuery])
+
+  // Reset to first page when search changes
+  useEffect(() => {
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }))
+  }, [searchQuery])
+
+  // Function to view item details in drawer
+  const viewItemDetails = (item: ManagementGroupItemWithUser) => {
+    setSelectedItem(item)
+    setDrawerOpen(true)
+  }
+
+  // Define columns
+  const columns = useMemo<ColumnDef<ManagementGroupItemWithUser>[]>(
+    () => [
+      {
+        accessorKey: 'name',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Name" />
+        ),
+        cell: ({ row }) => {
+          const item = row.original
+          return (
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="max-w-md">
+                  <span className="font-medium text-zinc-900 dark:text-zinc-50">
+                    {item.name}
+                  </span>
+                  {item.description && (
+                    <p className="line-clamp-2 text-sm text-zinc-500 dark:text-zinc-400">
+                      {item.description}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                {item.link && (
+                  <Link
+                    href={item.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={cn(
+                      'rounded-full p-2 transition-all duration-200',
+                      'text-blue-500 hover:bg-zinc-100 hover:text-blue-600',
+                      'dark:text-blue-400 dark:hover:bg-zinc-800 dark:hover:text-blue-400',
+                      'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900'
+                    )}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <ExternalLink className="size-4" />
+                  </Link>
+                )}
+                <Button
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setEditingItem(item)
+                  }}
+                  className={cn(
+                    'rounded-full p-2 transition-all duration-200',
+                    'text-amber-500 hover:bg-zinc-100 hover:text-amber-600',
+                    'dark:text-amber-400 dark:hover:bg-zinc-800 dark:hover:text-amber-400'
+                  )}
+                >
+                  <Pencil className="size-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (confirm('Are you sure you want to delete this item?')) {
+                      deleteItem({ id: item.id })
+                    }
+                  }}
+                  className={cn(
+                    'rounded-full p-2 transition-all duration-200',
+                    'text-red-500 hover:bg-zinc-100 hover:text-red-600',
+                    'dark:text-red-400 dark:hover:bg-zinc-800 dark:hover:text-red-400'
+                  )}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              </div>
+            </div>
+          )
+        },
+        enableSorting: true,
+      },
+      {
+        accessorKey: 'defaultPrice',
+        header: ({ column }) => (
+          <DataTableColumnHeader
+            column={column}
+            title="Price"
+            className="text-right justify-end"
+          />
+        ),
+        cell: ({ row }) => (
+          <div className="text-right tabular-nums text-zinc-900 dark:text-zinc-50">
+            {formatCurrency(row.original.defaultPrice)}
+          </div>
+        ),
+        enableSorting: true,
+      },
+      {
+        accessorKey: 'quantityOnHand',
+        header: ({ column }) => (
+          <DataTableColumnHeader
+            column={column}
+            title="On Hand"
+            className="text-right justify-end"
+          />
+        ),
+        cell: ({ row }) => {
+          const quantity = row.original.quantityOnHand
+          return (
+            <div
+              className={cn(
+                'text-right tabular-nums',
+                quantity < 0
+                  ? 'text-red-600 dark:text-red-400'
+                  : 'text-zinc-900 dark:text-zinc-50'
+              )}
+            >
+              {quantity}
+            </div>
+          )
+        },
+        enableSorting: true,
+      },
+      {
+        accessorKey: 'quantityUsed',
+        header: ({ column }) => (
+          <DataTableColumnHeader
+            column={column}
+            title="Used"
+            className="text-right justify-end"
+          />
+        ),
+        cell: ({ row }) => (
+          <div className="text-right tabular-nums text-zinc-900 dark:text-zinc-50">
+            {row.original.quantityUsed}
+          </div>
+        ),
+        enableSorting: true,
+      },
+    ],
+    [deleteItem]
+  )
+
+  // Create table instance
+  const table = useReactTable({
+    data: filteredItems,
+    columns,
+    state: {
+      sorting,
+      pagination,
+    },
+    onSortingChange: setSorting,
+    onPaginationChange: setPagination,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  })
 
   if (isLoading) return <Spinner size="lg" />
 
@@ -169,251 +278,146 @@ export default function SuppliesPage() {
       </div>
 
       {/* Show "No results" message when needed */}
-      {paginatedItems?.length === 0 && (
+      {filteredItems.length === 0 && !isLoading && (
         <div className="text-muted-foreground py-12 text-center">
           No items found matching your search.
         </div>
       )}
 
-      <div className="overflow-x-auto">
-        <Table striped>
-          <TableHead>
-            <TableRow>
-              <TableHeader
-                className="min-w-[300px] cursor-pointer select-none"
-                onClick={() => handleSort('name')}
-              >
-                <div className="flex items-center gap-2">
-                  <Package className="size-4 text-zinc-400" />
-                  Name
-                  {sortField === 'name' && (
-                    <ChevronUp
-                      className={cn(
-                        'size-4 transition-transform',
-                        sortDirection === 'desc' && 'rotate-180'
-                      )}
-                    />
-                  )}
-                </div>
-              </TableHeader>
-              <TableHeader
-                align="right"
-                className="min-w-[100px] cursor-pointer select-none"
-                onClick={() => handleSort('defaultPrice')}
-              >
-                <div className="flex items-center justify-end gap-2">
-                  <DollarSign className="size-4 text-zinc-400" />
-                  Price
-                  {sortField === 'defaultPrice' && (
-                    <ChevronUp
-                      className={cn(
-                        'size-4 transition-transform',
-                        sortDirection === 'desc' && 'rotate-180'
-                      )}
-                    />
-                  )}
-                </div>
-              </TableHeader>
-              <TableHeader
-                align="right"
-                className="min-w-[100px] cursor-pointer select-none"
-                onClick={() => handleSort('quantityOnHand')}
-              >
-                <div className="flex items-center justify-end gap-2">
-                  <Boxes className="size-4 text-zinc-400" />
-                  On Hand
-                  {sortField === 'quantityOnHand' && (
-                    <ChevronUp
-                      className={cn(
-                        'size-4 transition-transform',
-                        sortDirection === 'desc' && 'rotate-180'
-                      )}
-                    />
-                  )}
-                </div>
-              </TableHeader>
-              <TableHeader
-                align="right"
-                className="min-w-[100px] cursor-pointer select-none"
-                onClick={() => handleSort('quantityUsed')}
-              >
-                <div className="flex items-center justify-end gap-2">
-                  <PackageCheck className="size-4 text-zinc-400" />
-                  Used
-                  {sortField === 'quantityUsed' && (
-                    <ChevronUp
-                      className={cn(
-                        'size-4 transition-transform',
-                        sortDirection === 'desc' && 'rotate-180'
-                      )}
-                    />
-                  )}
-                </div>
-              </TableHeader>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {paginatedItems?.map((item) => (
-              <Fragment key={item.id}>
-                <TableRow
-                  className={cn(
-                    'group cursor-pointer transition-colors duration-200',
-                    'hover:bg-zinc-50 dark:hover:bg-zinc-800/50',
-                    expandedId === item.id && 'bg-zinc-50 dark:bg-zinc-800/50'
-                  )}
-                  onClick={() =>
-                    setExpandedId(expandedId === item.id ? null : item.id)
-                  }
-                >
-                  <TableCell>
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-4">
-                        <ChevronRight
-                          className={cn(
-                            'size-4 transition-transform duration-200',
-                            'text-primary-400 group-hover:text-primary-600 dark:text-primary-500 dark:group-hover:text-primary-400',
-                            expandedId === item.id && 'rotate-90'
-                          )}
-                        />
-                        <div className="max-w-md ">
-                          <span className="font-medium text-zinc-900 dark:text-zinc-50">
-                            {item.name}
-                          </span>
-                          {item.description && (
-                            <p className="line-clamp-2 text-sm text-zinc-500 dark:text-zinc-400">
-                              {item.description}
-                            </p>
-                          )}
-                        </div>
-                      </div>
+      <div className="space-y-4">
+        <DataTable
+          table={table}
+          onRowClick={(row) => viewItemDetails(row.original)}
+        />
 
-                      <div className="flex items-center gap-3">
-                        {item.link && (
-                          <Link
-                            href={item.link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className={cn(
-                              'rounded-full p-2 transition-all duration-200',
-                              'text-blue-500 hover:bg-zinc-100 hover:text-blue-600',
-                              'dark:text-blue-400 dark:hover:bg-zinc-800 dark:hover:text-blue-400',
-                              'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900'
-                            )}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <ExternalLink className="size-4" />
-                          </Link>
-                        )}
-                        <Button
-                          variant="ghost"
-                          onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                            e.stopPropagation()
-                            setEditingItem(item)
-                          }}
-                          className={cn(
-                            'rounded-full p-2 transition-all duration-200',
-                            'text-amber-500 hover:bg-zinc-100 hover:text-amber-600',
-                            'dark:text-amber-400 dark:hover:bg-zinc-800 dark:hover:text-amber-400'
-                          )}
-                        >
-                          <Pencil className="size-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                            e.stopPropagation()
-                            if (
-                              confirm(
-                                'Are you sure you want to delete this item?'
-                              )
-                            ) {
-                              deleteItem({ id: item.id })
-                            }
-                          }}
-                          className={cn(
-                            'rounded-full p-2 transition-all duration-200',
-                            'text-red-500 hover:bg-zinc-100 hover:text-red-600',
-                            'dark:text-red-400 dark:hover:bg-zinc-800 dark:hover:text-red-400'
-                          )}
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </TableCell>
-
-                  <TableCell
-                    align="right"
-                    className="tabular-nums text-zinc-900 dark:text-zinc-50"
-                  >
-                    {formatCurrency(item.defaultPrice)}
-                  </TableCell>
-                  <TableCell
-                    align="right"
-                    className={cn(
-                      'tabular-nums',
-                      item.quantityOnHand < 0
-                        ? 'text-red-600 dark:text-red-400'
-                        : 'text-zinc-900 dark:text-zinc-50'
-                    )}
-                  >
-                    {item.quantityOnHand}
-                  </TableCell>
-                  <TableCell
-                    align="right"
-                    className="tabular-nums text-zinc-900 dark:text-zinc-50"
-                  >
-                    {item.quantityUsed}
-                  </TableCell>
-                </TableRow>
-                {expandedId === item.id && (
-                  <TableRow key={`${item.id}-expanded`}>
-                    <TableCell
-                      colSpan={4}
-                      className="animate-in slide-in-from-top duration-200 bg-zinc-50 dark:bg-zinc-800/50"
-                    >
-                      <ExpandedInfo item={item} />
-                    </TableCell>
-                  </TableRow>
-                )}
-              </Fragment>
-            ))}
-          </TableBody>
-        </Table>
+        <DataTablePagination table={table} />
       </div>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="mt-6 space-y-2">
-          <div className="text-muted-foreground text-center text-sm">
-            Showing {startItem} to {endItem} of {totalItems} items
-          </div>
-          <Pagination className="justify-center">
-            <PaginationPrevious
-              href={currentPage > 1 ? '#' : null}
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+      {/* Drawer for item details */}
+      <Drawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        position="right"
+        showBackdrop={true}
+      >
+        {selectedItem && (
+          <>
+            <DrawerHeader
+              title={
+                <div className="flex items-center gap-2">
+                  {selectedItem.name}
+                  {selectedItem.link && (
+                    <Link
+                      href={selectedItem.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-full p-1 text-blue-500 hover:bg-primary/10 hover:text-blue-600 focus:outline-none"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <ExternalLink className="size-4" />
+                    </Link>
+                  )}
+                </div>
+              }
+              description={selectedItem.description ?? undefined}
+              onClose={() => setDrawerOpen(false)}
+              action={
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setDrawerOpen(false)
+                    setEditingItem(selectedItem)
+                  }}
+                  className="text-amber-500 hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-zinc-800"
+                >
+                  <Pencil className="size-4 mr-1" />
+                  <span>Edit</span>
+                </Button>
+              }
             />
-            <PaginationList>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                (page) => (
-                  <PaginationPage
-                    key={page}
-                    href="#"
-                    current={page === currentPage}
-                    onClick={() => setCurrentPage(page)}
-                  >
-                    {page}
-                  </PaginationPage>
-                )
-              )}
-            </PaginationList>
-            <PaginationNext
-              href={currentPage < totalPages ? '#' : null}
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            />
-          </Pagination>
-        </div>
-      )}
+            <DrawerBody>
+              <div className="space-y-6">
+                {/* Key metrics */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="rounded-lg bg-zinc-50 p-4 dark:bg-zinc-900">
+                    <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                      Price
+                    </p>
+                    <p className="mt-1 text-2xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">
+                      {formatCurrency(selectedItem.defaultPrice)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-zinc-50 p-4 dark:bg-zinc-900">
+                    <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                      In Stock
+                    </p>
+                    <p
+                      className={cn(
+                        'mt-1 text-2xl font-semibold tabular-nums',
+                        selectedItem.quantityOnHand <= 0
+                          ? 'text-red-600 dark:text-red-400'
+                          : selectedItem.quantityOnHand < 5
+                            ? 'text-amber-600 dark:text-amber-400'
+                            : 'text-green-600 dark:text-green-400'
+                      )}
+                    >
+                      {selectedItem.quantityOnHand}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-zinc-50 p-4 dark:bg-zinc-900">
+                    <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                      Used
+                    </p>
+                    <p className="mt-1 text-2xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">
+                      {selectedItem.quantityUsed}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Detailed information */}
+                <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                  <div className="flex items-center justify-between px-4 py-3">
+                    <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                      Last Updated
+                    </span>
+                    <span className="text-sm text-zinc-900 dark:text-zinc-50">
+                      {selectedItem.updatedAt
+                        ? selectedItem.updatedAt.toLocaleDateString()
+                        : 'N/A'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </DrawerBody>
+            <DrawerFooter>
+              <Button variant="outline" onClick={() => setDrawerOpen(false)}>
+                Close
+              </Button>
+              <Button
+                variant="destructiveOutline"
+                onClick={() => {
+                  if (confirm('Are you sure you want to delete this item?')) {
+                    deleteItem({ id: selectedItem.id })
+                    setDrawerOpen(false)
+                  }
+                }}
+              >
+                <Trash2 className="size-4 mr-1" />
+                Delete
+              </Button>
+              <Button
+                onClick={() => {
+                  setDrawerOpen(false)
+                  setEditingItem(selectedItem)
+                }}
+              >
+                <Pencil className="size-4 mr-1" />
+                Edit
+              </Button>
+            </DrawerFooter>
+          </>
+        )}
+      </Drawer>
 
       <CreateItemDialog
         isOpen={isCreateDialogOpen}

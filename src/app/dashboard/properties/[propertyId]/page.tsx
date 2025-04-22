@@ -1,47 +1,46 @@
 'use client'
 
-import { type Decimal } from '@prisma/client/runtime/library'
+import {
+  type Column,
+  type ColumnDef,
+  type SortingState,
+  getCoreRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from '@tanstack/react-table'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { ChevronRight, Home } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
-import { Suspense, useState } from 'react'
+import { Suspense, useCallback, useMemo, useState } from 'react'
 import DatePicker from 'react-datepicker'
 import { useForm } from 'react-hook-form'
 import { type z } from 'zod'
 import PlacesAutocomplete from '~/components/google/PlacesAutocomplete'
+import { DataTable } from '~/components/table/data-table'
+import { DataTableColumnHeader } from '~/components/table/data-table-column-header'
 import {
   Button,
   Card,
-  ErrorToast,
-  Heading,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '~/components/ui'
-import {
   Dialog,
   DialogActions,
   DialogBody,
   DialogDescription,
   DialogTitle,
+  ErrorToast,
   Form,
   FormControl,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
+  Heading,
   Input,
-} from '~/components/ui'
-import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '~/components/ui/popover'
+} from '~/components/ui'
 import { ROUTES } from '~/lib/constants/routes'
 import dayjs from '~/lib/utils/day'
 import { formatCurrency } from '~/lib/utils/format'
@@ -555,12 +554,208 @@ function CreateInvoiceButton({ propertyId }: { propertyId: string }) {
   )
 }
 
+// Define invoice columns
+type InvoiceData = {
+  id: string
+  invoiceDate: Date
+  financialDetails: {
+    totalAmount: number
+  } | null
+  updatedByName: string
+  updatedByImageUrl: string | null
+  updatedAt: Date
+}
+
+function invoiceColumns(): ColumnDef<InvoiceData>[] {
+  return [
+    {
+      accessorKey: 'invoiceDate',
+      header: ({ column }: { column: Column<InvoiceData, unknown> }) => (
+        <DataTableColumnHeader column={column} title="Date" />
+      ),
+      cell: ({ row }) => (
+        <div>{dayjs(row.getValue('invoiceDate')).format('MMMM YYYY')}</div>
+      ),
+      enableSorting: true,
+    },
+    {
+      accessorKey: 'totalAmount',
+      accessorFn: (row) => row.financialDetails?.totalAmount ?? 0,
+      header: ({ column }: { column: Column<InvoiceData, unknown> }) => (
+        <DataTableColumnHeader
+          column={column}
+          title="Total"
+          className="text-right justify-end"
+        />
+      ),
+      cell: ({ row }) => (
+        <div className="text-right">
+          {formatCurrency(row.getValue('totalAmount'))}
+        </div>
+      ),
+      enableSorting: true,
+    },
+    {
+      accessorKey: 'updatedBy',
+      header: ({ column }: { column: Column<InvoiceData, unknown> }) => (
+        <DataTableColumnHeader
+          column={column}
+          title="Updated by"
+          className="text-right justify-end"
+        />
+      ),
+      cell: ({ row }) => (
+        <div className="flex items-center justify-end gap-3">
+          {row.original.updatedByImageUrl && (
+            <Image
+              src={row.original.updatedByImageUrl}
+              alt={row.original.updatedByName}
+              width={24}
+              height={24}
+              className="rounded-full"
+            />
+          )}
+          <div className="space-y-1 text-sm">
+            <p className="text-neutral-500">{row.original.updatedByName}</p>
+            <p className="text-neutral-500">
+              {dayjs(row.original.updatedAt).format('MMM D, YYYY')}
+            </p>
+          </div>
+        </div>
+      ),
+      enableSorting: true,
+    },
+  ]
+}
+
+// Define owner statement columns
+type OwnerStatementData = {
+  id: string
+  statementMonth: Date
+  totalIncome: number | null
+  totalExpenses: number | null
+  totalAdjustments: number | null
+  grandTotal: number | null
+}
+
+const ownerStatementColumns = (): ColumnDef<OwnerStatementData>[] => [
+  {
+    accessorKey: 'statementMonth',
+    header: ({ column }: { column: Column<OwnerStatementData, unknown> }) => (
+      <DataTableColumnHeader column={column} title="Month" />
+    ),
+    cell: ({ row }) => (
+      <div>{dayjs(row.getValue('statementMonth')).format('MMMM YYYY')}</div>
+    ),
+    enableSorting: true,
+  },
+  {
+    accessorKey: 'totalIncome',
+    header: ({ column }: { column: Column<OwnerStatementData, unknown> }) => (
+      <DataTableColumnHeader
+        column={column}
+        title="Income"
+        className="text-right"
+      />
+    ),
+    cell: ({ row }) => (
+      <div className="text-right">
+        {formatCurrency(row.getValue('totalIncome'))}
+      </div>
+    ),
+    enableSorting: true,
+  },
+  {
+    accessorKey: 'totalExpenses',
+    header: ({ column }: { column: Column<OwnerStatementData, unknown> }) => (
+      <DataTableColumnHeader
+        column={column}
+        title="Expenses"
+        className="text-right"
+      />
+    ),
+    cell: ({ row }) => (
+      <div className="text-right">
+        {formatCurrency(row.getValue('totalExpenses'))}
+      </div>
+    ),
+    enableSorting: true,
+  },
+  {
+    accessorKey: 'totalAdjustments',
+    header: ({ column }: { column: Column<OwnerStatementData, unknown> }) => (
+      <DataTableColumnHeader
+        column={column}
+        title="Adjustments"
+        className="text-right"
+      />
+    ),
+    cell: ({ row }) => (
+      <div className="text-right">
+        {formatCurrency(row.getValue('totalAdjustments'))}
+      </div>
+    ),
+    enableSorting: true,
+  },
+  {
+    accessorKey: 'grandTotal',
+    header: ({ column }: { column: Column<OwnerStatementData, unknown> }) => (
+      <DataTableColumnHeader
+        column={column}
+        title="Total"
+        className="text-right"
+      />
+    ),
+    cell: ({ row }) => (
+      <div className="text-right">
+        {formatCurrency(row.getValue('grandTotal'))}
+      </div>
+    ),
+    enableSorting: true,
+  },
+  {
+    id: 'actions',
+    header: ({ column }: { column: Column<OwnerStatementData, unknown> }) => (
+      <DataTableColumnHeader
+        column={column}
+        title="Actions"
+        className="text-right"
+      />
+    ),
+    cell: ({ row }) => (
+      <div className="text-right">
+        <Link href={`/dashboard/owner-statements/${row.original.id}`}>
+          <Button variant="ghost">View</Button>
+        </Link>
+      </div>
+    ),
+    enableSorting: false,
+  },
+]
+
 function InvoicesTable({
   property,
 }: {
   property: NonNullable<ParsedProperty>
 }) {
   const router = useRouter()
+  const [sorting, setSorting] = useState<SortingState>([])
+  const columns = useMemo(() => invoiceColumns(), [])
+  const data = useMemo(
+    () => property.invoices as InvoiceData[],
+    [property.invoices]
+  )
+
+  const table = useReactTable({
+    data,
+    columns,
+    state: {
+      sorting,
+    },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  })
 
   if (!property.invoices?.length) {
     return (
@@ -592,57 +787,17 @@ function InvoicesTable({
   }
 
   return (
-    <Table striped>
-      <TableHead>
-        <TableRow>
-          <TableHeader>Date</TableHeader>
-          <TableHeader align="right">Total</TableHeader>
-          <TableHeader align="right">Updated by</TableHeader>
-        </TableRow>
-      </TableHead>
-      <TableBody>
-        {property.invoices.map((invoice) => (
-          <TableRow
-            key={invoice.id}
-            className="cursor-pointer hover:bg-muted/50"
-            onClick={() => {
-              router.push(
-                ROUTES.DASHBOARD.INVOICE.replace(
-                  ':propertyId',
-                  property.id
-                ).replace(':invoiceId', invoice.id)
-              )
-            }}
-          >
-            <TableCell>
-              {dayjs(invoice.invoiceDate).format('MMMM YYYY')}
-            </TableCell>
-            <TableCell align="right">
-              {formatCurrency(invoice.financialDetails?.totalAmount ?? 0)}
-            </TableCell>
-            <TableCell align="right">
-              <div className="flex items-center justify-end gap-3">
-                {invoice.updatedByImageUrl && (
-                  <Image
-                    src={invoice.updatedByImageUrl}
-                    alt={invoice.updatedByName}
-                    width={24}
-                    height={24}
-                    className="rounded-full"
-                  />
-                )}
-                <div className="space-y-1 text-sm">
-                  <p className="text-neutral-500">{invoice.updatedByName}</p>
-                  <p className="text-neutral-500">
-                    {dayjs(invoice.updatedAt).format('MMM D, YYYY')}
-                  </p>
-                </div>
-              </div>
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+    <DataTable
+      table={table}
+      onRowClick={(row) => {
+        router.push(
+          ROUTES.DASHBOARD.INVOICE.replace(':propertyId', property.id).replace(
+            ':invoiceId',
+            row.original.id
+          )
+        )
+      }}
+    />
   )
 }
 
@@ -831,27 +986,8 @@ function InvoicesTableSkeleton() {
   )
 }
 
-// Update the helper function to convert Decimal to number safely
-function toNumber(value: Decimal | number | null | undefined): number {
-  if (value === null || value === undefined) return 0
-  if (typeof value === 'number') return value
-
-  // Handle Decimal objects - try multiple approaches to safely convert
-  try {
-    // Try converting using Number constructor
-    return Number(value)
-  } catch (e) {
-    // Fall back to string conversion and parsing if that fails
-    try {
-      return parseFloat(value.toString())
-    } catch (e) {
-      console.error('Failed to convert value to number:', value)
-      return 0
-    }
-  }
-}
-
 function PropertyContent({ propertyId }: { propertyId: string }) {
+  const router = useRouter()
   const { data: property, isLoading } = api.property.getOne.useQuery({
     propertyId,
   })
@@ -860,6 +996,36 @@ function PropertyContent({ propertyId }: { propertyId: string }) {
   const { data: ownerStatements } = api.ownerStatement.getMany.useQuery({
     propertyId: propertyId,
   })
+
+  // Add sorting state for owner statements
+  const [ownerStatementSorting, setOwnerStatementSorting] =
+    useState<SortingState>([])
+
+  // Create columns and table for owner statements - moved before conditionals
+  const ownerStatementCols = useMemo(() => ownerStatementColumns(), [])
+  const ownerStatementData = useMemo(
+    () => (ownerStatements?.slice(0, 5) as OwnerStatementData[]) ?? [],
+    [ownerStatements]
+  )
+
+  const ownerStatementTable = useReactTable({
+    data: ownerStatementData,
+    columns: ownerStatementCols,
+    state: {
+      sorting: ownerStatementSorting,
+    },
+    onSortingChange: setOwnerStatementSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  })
+
+  // Create a memoized function for handling owner statement row clicks
+  const handleOwnerStatementRowClick = useCallback(
+    (row: { original: OwnerStatementData }) => {
+      router.push(`/dashboard/owner-statements/${row.original.id}`)
+    },
+    [router]
+  )
 
   if (isLoading) {
     return (
@@ -951,46 +1117,10 @@ function PropertyContent({ propertyId }: { propertyId: string }) {
                 </div>
               </div>
             ) : (
-              <Table striped>
-                <TableHead>
-                  <TableRow>
-                    <TableHeader>Month</TableHeader>
-                    <TableHeader align="right">Income</TableHeader>
-                    <TableHeader align="right">Expenses</TableHeader>
-                    <TableHeader align="right">Adjustments</TableHeader>
-                    <TableHeader align="right">Total</TableHeader>
-                    <TableHeader align="right">Actions</TableHeader>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {ownerStatements.slice(0, 5).map((statement) => (
-                    <TableRow key={statement.id}>
-                      <TableCell>
-                        {dayjs(statement.statementMonth).format('MMMM YYYY')}
-                      </TableCell>
-                      <TableCell align="right">
-                        {formatCurrency(toNumber(statement.totalIncome))}
-                      </TableCell>
-                      <TableCell align="right">
-                        {formatCurrency(toNumber(statement.totalExpenses))}
-                      </TableCell>
-                      <TableCell align="right">
-                        {formatCurrency(toNumber(statement.totalAdjustments))}
-                      </TableCell>
-                      <TableCell align="right">
-                        {formatCurrency(toNumber(statement.grandTotal))}
-                      </TableCell>
-                      <TableCell align="right">
-                        <Link
-                          href={`/dashboard/owner-statements/${statement.id}`}
-                        >
-                          <Button variant="ghost">View</Button>
-                        </Link>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <DataTable
+                table={ownerStatementTable}
+                onRowClick={handleOwnerStatementRowClick}
+              />
             )}
             {ownerStatements && ownerStatements.length > 5 && (
               <div className="mt-4 text-center">
