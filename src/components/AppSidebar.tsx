@@ -54,6 +54,12 @@ const mainItems: NavigationItem[] = [
     exact: true,
   },
   {
+    title: 'Invoices',
+    url: ROUTES.DASHBOARD.INVOICES,
+    icon: File,
+    exact: true,
+  },
+  {
     title: 'Owner Statements',
     url: ROUTES.DASHBOARD.OWNER_STATEMENTS,
     icon: File,

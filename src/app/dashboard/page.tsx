@@ -1,4 +1,3 @@
-import ExportMonthlyInvoices from '~/components/home/ExportMonthlyInvoices'
 import RecentInvoices from '~/components/home/RecentInvoices'
 import YearlyInvoicesLineChart from '~/components/home/YearlyInvoicesLineChart'
 import { Card } from '~/components/ui'
@@ -15,8 +14,6 @@ export default function DashboardPage() {
             Overview of your recent activity
           </p>
         </div>
-
-        <ExportMonthlyInvoices />
       </div>
 
       <div className="space-y-8">

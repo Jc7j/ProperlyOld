@@ -37,10 +37,7 @@ type OwnerStatementData = {
   totalAdjustments: number | null
   grandTotal: number | null
   notes: string | null
-  // Add any other fields returned by the API query if needed
 }
-
-// Removed manual sort type definitions
 
 export default function OwnerStatementsPage() {
   const [propertyId, setPropertyId] = useState('')
@@ -54,27 +51,23 @@ export default function OwnerStatementsPage() {
   const [reviewDrafts, setReviewDrafts] = useState<any[] | null>(null)
   const [unmatchedListings, setUnmatchedListings] = useState<string[]>([])
 
-  // Add state for tanstack table
   const [sorting, setSorting] = useState<SortingState>([
-    { id: 'statementMonth', desc: true }, // Default sort by month descending
+    { id: 'statementMonth', desc: true },
   ])
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
-    pageSize: 15, // Default page size
+    pageSize: 15,
   })
 
-  // Fetch properties for filter dropdown
   const { data: properties, isLoading: loadingProperties } =
     api.property.getMany.useQuery()
 
-  // Fetch owner statements with filters
   const { data: ownerStatements, isLoading } =
     api.ownerStatement.getMany.useQuery({
       propertyId: propertyId || undefined,
       month: month ? dayjs(month).format('YYYY-MM') : undefined,
     })
 
-  // Parse file when selectedFile changes
   async function parseFile(file: File) {
     setIsParsing(true)
     setError(null)

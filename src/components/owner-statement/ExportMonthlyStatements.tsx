@@ -244,26 +244,21 @@ export default function ExportMonthlyStatements() {
       setIsExporting(false)
       setIsOpen(false)
       setSelectedDate(null) // Reset date after export
-      // Optionally invalidate the query if needed, though staleTime might suffice
-      // void utils.ownerStatement.getMany.invalidate();
     }
   }
 
   const handleOpen = () => {
     setIsOpen(true)
-    // Reset date when opening? Or keep last selected? Let's keep it for now.
-    // setSelectedDate(null);
   }
 
   const handleClose = () => {
     setIsOpen(false)
-    // No need to reset date here, keep it for next open unless explicitly cleared
   }
 
   return (
     <>
       <Button variant="default" onClick={handleOpen}>
-        Export Monthly Summary
+        Export
       </Button>
 
       <Dialog open={isOpen} onClose={handleClose}>

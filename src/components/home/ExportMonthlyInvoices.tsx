@@ -24,7 +24,7 @@ export default function ExportMonthlyInvoices() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [isExporting, setIsExporting] = useState(false)
 
-  const { data: invoices, isLoading: isLoadingInvoices } =
+  const { data: invoiceQueryResult, isLoading: isLoadingInvoices } =
     api.invoice.getMany.useQuery(
       {
         limit: 150,
@@ -36,13 +36,11 @@ export default function ExportMonthlyInvoices() {
       }
     )
 
+  const invoices = invoiceQueryResult?.invoices
+
   async function handleExport() {
     if (!selectedDate || !invoices || invoices.length === 0) {
       ErrorToast('No invoices found for the selected month.')
-      return
-    }
-    if (!Array.isArray(invoices)) {
-      ErrorToast('Received invalid invoice data.')
       return
     }
 
@@ -56,12 +54,19 @@ export default function ExportMonthlyInvoices() {
         const invoice = invoices[i]
 
         if (!invoice) {
-          console.warn(`Skipping null/undefined invoice at index ${i}`)
+          console.warn(`Skipping invalid invoice data at index ${i}`)
           continue
         }
 
-        if (!invoice?.property?.name) {
-          console.warn('Skipping invoice due to missing data:', invoice)
+        const propertyName = invoice.property?.name
+        const propertyLocation = invoice.property?.locationInfo
+        const ownerInfo = invoice.property?.owner
+
+        if (!propertyName || !propertyLocation) {
+          console.warn(
+            'Skipping invoice due to missing property data:',
+            invoice.id
+          )
           continue
         }
 
@@ -72,12 +77,12 @@ export default function ExportMonthlyInvoices() {
 
         const params: AddInvoiceToPdfParams = {
           invoice: invoice,
-          propertyName: invoice.property.name,
-          propertyLocation: invoice.property.locationInfo as any,
+          propertyName: propertyName,
+          propertyLocation: propertyLocation,
           ownerInfo: {
-            name: (invoice.property.owner as any)?.name ?? '',
-            email: (invoice.property.owner as any)?.email ?? '',
-            phone: (invoice.property.owner as any)?.phone ?? '',
+            name: ownerInfo?.name ?? '',
+            email: ownerInfo?.email ?? '',
+            phone: ownerInfo?.phone ?? '',
           },
         }
 
@@ -115,7 +120,7 @@ export default function ExportMonthlyInvoices() {
   return (
     <>
       <Button variant="default" onClick={() => setIsOpen(true)}>
-        Export Monthly Invoices (PDF)
+        Export Invoices
       </Button>
 
       <Dialog open={isOpen} onClose={() => setIsOpen(false)}>
@@ -141,18 +146,23 @@ export default function ExportMonthlyInvoices() {
 
             {selectedDate && isLoadingInvoices && (
               <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                Loading invoices...
-              </p>
-            )}
-            {selectedDate && !isLoadingInvoices && invoices && (
-              <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                {invoices.length} invoice{invoices.length !== 1 ? 's' : ''}{' '}
-                found for {dayjs(selectedDate).format('MMMM YYYY')}
+                Loading invoices for {dayjs(selectedDate).format('MMMM YYYY')}
+                ...
               </p>
             )}
             {selectedDate &&
               !isLoadingInvoices &&
-              (!invoices || invoices.length === 0) && (
+              invoiceQueryResult?.invoices && (
+                <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                  {invoiceQueryResult.invoices.length} invoice
+                  {invoiceQueryResult.invoices.length !== 1 ? 's' : ''} found
+                  for {dayjs(selectedDate).format('MMMM YYYY')}
+                </p>
+              )}
+            {selectedDate &&
+              !isLoadingInvoices &&
+              (!invoiceQueryResult?.invoices ||
+                invoiceQueryResult.invoices.length === 0) && (
                 <p className="text-sm text-yellow-600 dark:text-yellow-500">
                   No invoices found for{' '}
                   {dayjs(selectedDate).format('MMMM YYYY')}.
@@ -173,15 +183,15 @@ export default function ExportMonthlyInvoices() {
               disabled={
                 !selectedDate ||
                 isLoadingInvoices ||
-                !invoices?.length ||
+                !invoiceQueryResult?.invoices?.length ||
                 isExporting
               }
               onClick={handleExport}
             >
               {isExporting
                 ? 'Exporting...'
-                : `Export ${invoices?.length ?? 0} Invoice${
-                    (invoices?.length ?? 0) !== 1 ? 's' : ''
+                : `Export ${invoiceQueryResult?.invoices?.length ?? 0} Invoice${
+                    (invoiceQueryResult?.invoices?.length ?? 0) !== 1 ? 's' : ''
                   }`}
             </Button>
           </DialogActions>

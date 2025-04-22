@@ -227,28 +227,24 @@ export function InvoiceDetails({ invoice }: InvoiceDetailsProps) {
       {/* Maintenance Items Section */}
       {maintenanceItems.length > 0 && (
         <>
-          <div className="rounded-md border">
-            <div className="bg-zinc-50 px-4 py-2 dark:bg-zinc-900">
-              <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                Maintenance Items
-              </span>
-            </div>
-            <DataTable table={maintenanceTable} />
+          <div className="bg-zinc-50 px-4 py-2 dark:bg-zinc-900">
+            <span className="font-medium text-emerald-600 dark:text-emerald-400">
+              Maintenance Items
+            </span>
           </div>
+          <DataTable table={maintenanceTable} />
         </>
       )}
 
       {/* Supply Items Section */}
       {supplyItems.length > 0 && (
         <>
-          <div className="rounded-md border">
-            <div className="bg-zinc-50 px-4 py-2 dark:bg-zinc-900">
-              <span className="font-medium text-blue-600 dark:text-blue-400">
-                Supply Items (Taxed at 8.375%)
-              </span>
-            </div>
-            <DataTable table={supplyTable} />
+          <div className="bg-zinc-50 px-4 py-2 dark:bg-zinc-900">
+            <span className="font-medium text-blue-600 dark:text-blue-400">
+              Supply Items (Taxed at 8.375%)
+            </span>
           </div>
+          <DataTable table={supplyTable} />
         </>
       )}
 

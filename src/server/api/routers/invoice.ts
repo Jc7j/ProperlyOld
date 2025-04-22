@@ -1,4 +1,5 @@
 import { type InvoiceImage } from '@prisma/client'
+import { type Prisma } from '@prisma/client'
 import { TRPCError } from '@trpc/server'
 import { subMonths } from 'date-fns'
 import { z } from 'zod'
@@ -62,11 +63,13 @@ export const invoiceRouter = createTRPCRouter({
   getMany: protectedProcedure
     .input(
       z.object({
-        limit: z.number().min(1).max(200).default(10),
+        limit: z.number().min(1).max(100).default(15),
+        pageIndex: z.number().min(0).default(0),
         month: z
           .string()
           .regex(/^\d{4}-\d{2}$/)
           .optional(), // YYYY-MM format
+        propertyName: z.string().optional(),
       })
     )
     .query(async ({ ctx, input }) => {
@@ -79,7 +82,7 @@ export const invoiceRouter = createTRPCRouter({
         })
       }
 
-      const where = {
+      const where: Prisma.InvoiceWhereInput = {
         managementGroupId: orgId,
         deletedAt: null,
         ...(input.month
@@ -94,39 +97,56 @@ export const invoiceRouter = createTRPCRouter({
               },
             }
           : {}),
+        ...(input.propertyName && {
+          property: {
+            name: {
+              contains: input.propertyName,
+              mode: 'insensitive', // Case-insensitive search
+            },
+          },
+        }),
       }
 
-      const invoices = await ctx.db.invoice.findMany({
-        where,
-        take: input.limit,
-        include: {
-          property: {
-            select: {
-              name: true,
-              locationInfo: true,
-              owner: true,
-            },
+      // Use transaction to get both count and data efficiently
+      const [totalCount, invoices] = await ctx.db.$transaction([
+        ctx.db.invoice.count({ where }),
+        ctx.db.invoice.findMany({
+          where,
+          skip: input.pageIndex * input.limit,
+          take: input.limit,
+          orderBy: {
+            // TODO: Make sorting dynamic based on input
+            invoiceDate: 'desc',
           },
-          images: {
-            select: {
-              id: true,
-              url: true,
-              createdAt: true,
+          include: {
+            property: {
+              select: {
+                name: true,
+                locationInfo: true,
+                owner: true,
+              },
             },
-          },
-          items: {
-            include: {
-              managementGroupItem: {
-                select: {
-                  name: true,
+            images: {
+              select: {
+                id: true,
+                url: true,
+                createdAt: true,
+              },
+            },
+            items: {
+              include: {
+                managementGroupItem: {
+                  select: {
+                    name: true,
+                  },
                 },
               },
             },
           },
-        },
-      })
+        }),
+      ])
 
-      return invoices.map((invoice) => ({
+      const processedInvoices = invoices.map((invoice) => ({
         ...invoice,
         financialDetails: invoice.financialDetails as InvoiceFinancialDetails,
         property: {
@@ -141,6 +161,11 @@ export const invoiceRouter = createTRPCRouter({
           price: Number(item.price),
         })),
       })) as InvoiceWithUser[]
+
+      return {
+        invoices: processedInvoices,
+        totalCount,
+      }
     }),
 
   getOne: protectedProcedure

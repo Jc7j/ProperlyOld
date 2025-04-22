@@ -11,6 +11,7 @@ export const ROUTES = {
     SUPPLIES: '/dashboard/supplies',
     INVOICE: '/dashboard/properties/:propertyId/invoice/:invoiceId',
     OWNER_STATEMENTS: '/dashboard/owner-statements',
+    INVOICES: '/dashboard/invoices',
   },
 } as const
 
