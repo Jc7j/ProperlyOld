@@ -1,154 +1,116 @@
-import Link from 'next/link'
-import type React from 'react'
+import { ChevronLeft, ChevronRight, MoreHorizontal } from 'lucide-react'
+import * as React from 'react'
+import { type ButtonProps, buttonVariants } from '~/components/ui/button'
 import { cn } from '~/lib/utils/cn'
 
-import { Button } from './button'
+const Pagination = ({ className, ...props }: React.ComponentProps<'nav'>) => (
+  <nav
+    role="navigation"
+    aria-label="pagination"
+    className={cn('mx-auto flex w-full justify-center', className)}
+    {...props}
+  />
+)
+Pagination.displayName = 'Pagination'
 
-export function Pagination({
-  'aria-label': ariaLabel = 'Page navigation',
+const PaginationContent = React.forwardRef<
+  HTMLUListElement,
+  React.ComponentProps<'ul'>
+>(({ className, ...props }, ref) => (
+  <ul
+    ref={ref}
+    className={cn('flex flex-row items-center gap-1', className)}
+    {...props}
+  />
+))
+PaginationContent.displayName = 'PaginationContent'
+
+const PaginationItem = React.forwardRef<
+  HTMLLIElement,
+  React.ComponentProps<'li'>
+>(({ className, ...props }, ref) => (
+  <li ref={ref} className={cn('', className)} {...props} />
+))
+PaginationItem.displayName = 'PaginationItem'
+
+type PaginationLinkProps = {
+  isActive?: boolean
+} & Pick<ButtonProps, 'size'> &
+  React.ComponentProps<'a'>
+
+const PaginationLink = ({
+  className,
+  isActive,
+  size = 'icon',
+  ...props
+}: PaginationLinkProps) => (
+  <a
+    aria-current={isActive ? 'page' : undefined}
+    className={cn(
+      buttonVariants({
+        variant: isActive ? 'outline' : 'ghost',
+        size,
+      }),
+      className
+    )}
+    {...props}
+  />
+)
+PaginationLink.displayName = 'PaginationLink'
+
+const PaginationPrevious = ({
   className,
   ...props
-}: React.ComponentPropsWithoutRef<'nav'>) {
-  return (
-    <nav
-      aria-label={ariaLabel}
-      {...props}
-      className={cn(className, 'flex gap-x-2')}
-    />
-  )
-}
+}: React.ComponentProps<typeof PaginationLink>) => (
+  <PaginationLink
+    aria-label="Go to previous page"
+    size="default"
+    className={cn('gap-1 pl-2.5', className)}
+    {...props}
+  >
+    <ChevronLeft className="h-4 w-4" />
+    <span>Previous</span>
+  </PaginationLink>
+)
+PaginationPrevious.displayName = 'PaginationPrevious'
 
-export function PaginationPrevious({
-  href = null,
-  className,
-  children = 'Previous',
-  onClick,
-}: React.PropsWithChildren<{
-  href?: string | null
-  className?: string
-  onClick?: (e: React.MouseEvent) => void
-}>) {
-  return (
-    <span className={cn(className, 'grow basis-0')}>
-      <Button
-        {...(href === null ? { disabled: true } : { href })}
-        variant="ghost"
-        aria-label="Previous page"
-        onClick={onClick}
-      >
-        <svg
-          className="stroke-current"
-          data-slot="icon"
-          viewBox="0 0 16 16"
-          fill="none"
-          aria-hidden="true"
-        >
-          <path
-            d="M2.75 8H13.25M2.75 8L5.25 5.5M2.75 8L5.25 10.5"
-            strokeWidth={1.5}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-        {children}
-      </Button>
-    </span>
-  )
-}
-
-export function PaginationNext({
-  href = null,
-  className,
-  children = 'Next',
-  onClick,
-}: React.PropsWithChildren<{
-  href?: string | null
-  className?: string
-  onClick?: (e: React.MouseEvent) => void
-}>) {
-  return (
-    <span className={cn(className, 'flex grow basis-0 justify-end')}>
-      <Button
-        {...(href === null ? { disabled: true } : { href })}
-        variant="ghost"
-        aria-label="Next page"
-        onClick={onClick}
-      >
-        {children}
-        <svg
-          className="stroke-current"
-          data-slot="icon"
-          viewBox="0 0 16 16"
-          fill="none"
-          aria-hidden="true"
-        >
-          <path
-            d="M13.25 8L2.75 8M13.25 8L10.75 10.5M13.25 8L10.75 5.5"
-            strokeWidth={1.5}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </Button>
-    </span>
-  )
-}
-
-export function PaginationList({
+const PaginationNext = ({
   className,
   ...props
-}: React.ComponentPropsWithoutRef<'span'>) {
-  return (
-    <span
-      {...props}
-      className={cn(className, 'hidden items-baseline gap-x-2 sm:flex')}
-    />
-  )
-}
+}: React.ComponentProps<typeof PaginationLink>) => (
+  <PaginationLink
+    aria-label="Go to next page"
+    size="default"
+    className={cn('gap-1 pr-2.5', className)}
+    {...props}
+  >
+    <span>Next</span>
+    <ChevronRight className="h-4 w-4" />
+  </PaginationLink>
+)
+PaginationNext.displayName = 'PaginationNext'
 
-export function PaginationPage({
-  href,
+const PaginationEllipsis = ({
   className,
-  current = false,
-  children,
-  onClick,
-}: React.PropsWithChildren<{
-  href: string
-  className?: string
-  current?: boolean
-  onClick?: (e: React.MouseEvent) => void
-}>) {
-  return (
-    <Link
-      href={href}
-      aria-current={current ? 'page' : undefined}
-      className={cn(
-        className,
-        'min-w-[2.25rem] before:absolute before:-inset-px before:rounded-lg',
-        current && 'before:bg-zinc-950/5 dark:before:bg-white/10'
-      )}
-      onClick={onClick}
-    >
-      <span className="-mx-0.5">{children}</span>
-    </Link>
-  )
-}
-
-export function PaginationGap({
-  className,
-  children = <>&hellip;</>,
   ...props
-}: React.ComponentPropsWithoutRef<'span'>) {
-  return (
-    <span
-      aria-hidden="true"
-      {...props}
-      className={cn(
-        className,
-        'w-[2.25rem] text-center text-sm/6 font-semibold text-zinc-950 select-none dark:text-white'
-      )}
-    >
-      {children}
-    </span>
-  )
+}: React.ComponentProps<'span'>) => (
+  <span
+    aria-hidden
+    className={cn('flex h-9 w-9 items-center justify-center', className)}
+    {...props}
+  >
+    <MoreHorizontal className="h-4 w-4" />
+    <span className="sr-only">More pages</span>
+  </span>
+)
+PaginationEllipsis.displayName = 'PaginationEllipsis'
+
+export {
+  Pagination,
+  PaginationContent,
+  PaginationLink,
+  PaginationItem,
+  PaginationPrevious,
+  PaginationNext,
+  PaginationEllipsis,
 }

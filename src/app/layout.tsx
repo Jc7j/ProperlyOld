@@ -4,6 +4,7 @@ import { TooltipProvider } from '@radix-ui/react-tooltip'
 import { NextSSRPlugin } from '@uploadthing/react/next-ssr-plugin'
 import { GeistSans } from 'geist/font/sans'
 import { type Metadata } from 'next'
+import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { Toaster } from 'sonner'
 import { extractRouterConfig } from 'uploadthing/server'
 import { SyncActiveOrganization } from '~/components/clerk/SyncActiveOrganizations'
@@ -41,10 +42,12 @@ export default async function RootLayout({
       <html lang="en" className={`${GeistSans.variable}`}>
         <body>
           <TooltipProvider>
-            <TRPCReactProvider>
-              <ThemeProvider>{children}</ThemeProvider>
-              <Toaster />
-            </TRPCReactProvider>
+            <NuqsAdapter>
+              <TRPCReactProvider>
+                <ThemeProvider>{children}</ThemeProvider>
+                <Toaster />
+              </TRPCReactProvider>
+            </NuqsAdapter>
           </TooltipProvider>
         </body>
       </html>

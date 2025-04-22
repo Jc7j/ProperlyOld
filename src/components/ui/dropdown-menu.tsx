@@ -1,216 +1,214 @@
 'use client'
 
-import * as Headless from '@headlessui/react'
-import type React from 'react'
+import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
+import { Check, ChevronRight, Circle } from 'lucide-react'
+import * as React from 'react'
 import { cn } from '~/lib/utils/cn'
 
-import { Button } from './button'
-import { Link } from './link'
+const DropdownMenu = DropdownMenuPrimitive.Root
 
-export function Dropdown(props: Headless.MenuProps) {
-  return <Headless.Menu {...props} />
+const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger
+
+const DropdownMenuGroup = DropdownMenuPrimitive.Group
+
+const DropdownMenuPortal = DropdownMenuPrimitive.Portal
+
+const DropdownMenuSub = DropdownMenuPrimitive.Sub
+
+const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup
+
+// Define interface for DropdownMenuSubTrigger props
+interface DropdownMenuSubTriggerProps
+  extends React.ComponentPropsWithoutRef<
+    typeof DropdownMenuPrimitive.SubTrigger
+  > {
+  inset?: boolean
 }
 
-export function DropdownButton<T extends React.ElementType = typeof Button>({
-  as = Button,
-  buttonColor = 'plain',
-  ...props
-}: { className?: string; buttonColor?: string } & Omit<
-  Headless.MenuButtonProps<T>,
-  'className'
->) {
-  return <Headless.MenuButton color={buttonColor} as={as} {...props} />
-}
+const DropdownMenuSubTrigger = React.forwardRef<
+  React.ElementRef<typeof DropdownMenuPrimitive.SubTrigger>,
+  DropdownMenuSubTriggerProps
+>(({ className, inset, children, ...props }, ref) => (
+  <DropdownMenuPrimitive.SubTrigger
+    ref={ref}
+    className={cn(
+      'flex cursor-default gap-2 select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent data-[state=open]:bg-accent [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
+      inset && 'pl-8',
+      className
+    )}
+    {...props}
+  >
+    {children}
+    <ChevronRight className="ml-auto" />
+  </DropdownMenuPrimitive.SubTrigger>
+))
+DropdownMenuSubTrigger.displayName =
+  DropdownMenuPrimitive.SubTrigger.displayName
 
-export function DropdownMenu({
-  anchor = 'bottom',
-  className,
-  ...props
-}: { className?: string } & Omit<Headless.MenuItemsProps, 'as' | 'className'>) {
-  return (
-    <Headless.MenuItems
-      {...props}
-      transition
-      anchor={anchor}
+const DropdownMenuSubContent = React.forwardRef<
+  React.ElementRef<typeof DropdownMenuPrimitive.SubContent>,
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubContent>
+>(({ className, ...props }, ref) => (
+  <DropdownMenuPrimitive.SubContent
+    ref={ref}
+    className={cn(
+      'z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
+      className
+    )}
+    {...props}
+  />
+))
+DropdownMenuSubContent.displayName =
+  DropdownMenuPrimitive.SubContent.displayName
+
+const DropdownMenuContent = React.forwardRef<
+  React.ElementRef<typeof DropdownMenuPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>
+>(({ className, sideOffset = 4, ...props }, ref) => (
+  <DropdownMenuPrimitive.Portal>
+    <DropdownMenuPrimitive.Content
+      ref={ref}
+      sideOffset={sideOffset}
       className={cn(
-        'z-50 min-w-[8rem] rounded-lg bg-white/95 p-1 shadow-lg dark:bg-zinc-800/95',
-        'backdrop-blur-sm backdrop-saturate-150',
-        'ring-1 ring-zinc-950/10 dark:ring-white/10',
-        'animate-in fade-in zoom-in-95 duration-200',
-        'data-closed:animate-out data-closed:fade-out data-closed:zoom-out-95 data-closed:duration-150',
-        'data-[anchor=top]:slide-in-from-bottom-2',
-        'data-[anchor=bottom]:slide-in-from-top-2',
+        'z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md',
+        'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
         className
       )}
-    />
-  )
-}
-
-export function DropdownItem({
-  className,
-  ...props
-}: { className?: string } & (
-  | Omit<Headless.MenuItemProps<'button'>, 'as' | 'className'>
-  | Omit<Headless.MenuItemProps<typeof Link>, 'as' | 'className'>
-)) {
-  const classes = cn(
-    'relative flex w-full select-none items-center rounded-md px-2 py-1.5 text-sm outline-none',
-    'text-zinc-700 dark:text-zinc-300',
-    'transition-all duration-200',
-    'hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-700/50 dark:hover:text-zinc-50',
-    'focus:bg-zinc-100 focus:text-zinc-900 dark:focus:bg-zinc-700/50 dark:focus:text-zinc-50',
-    'active:bg-zinc-200 dark:active:bg-zinc-700',
-    'disabled:pointer-events-none disabled:opacity-50',
-    '[&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-zinc-500 [&>svg]:dark:text-zinc-400',
-    '[&>svg]:transition-colors [&>svg]:duration-200',
-    'hover:[&>svg]:text-zinc-900 dark:hover:[&>svg]:text-zinc-50',
-    className
-  )
-
-  return 'href' in props ? (
-    <Headless.MenuItem as={Link} {...props} className={classes} />
-  ) : (
-    <Headless.MenuItem
-      as="button"
-      type="button"
       {...props}
-      className={classes}
     />
-  )
+  </DropdownMenuPrimitive.Portal>
+))
+DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName
+
+// Define interface for DropdownMenuItem props
+interface DropdownMenuItemProps
+  extends React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item> {
+  inset?: boolean
 }
 
-export function DropdownHeader({
+const DropdownMenuItem = React.forwardRef<
+  React.ElementRef<typeof DropdownMenuPrimitive.Item>,
+  DropdownMenuItemProps
+>(({ className, inset, ...props }, ref) => (
+  <DropdownMenuPrimitive.Item
+    ref={ref}
+    className={cn(
+      'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&>svg]:size-4 [&>svg]:shrink-0',
+      inset && 'pl-8',
+      className
+    )}
+    {...props}
+  />
+))
+DropdownMenuItem.displayName = DropdownMenuPrimitive.Item.displayName
+
+const DropdownMenuCheckboxItem = React.forwardRef<
+  React.ElementRef<typeof DropdownMenuPrimitive.CheckboxItem>,
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.CheckboxItem>
+>(({ className, children, checked, ...props }, ref) => (
+  <DropdownMenuPrimitive.CheckboxItem
+    ref={ref}
+    className={cn(
+      'relative flex cursor-default select-none items-center rounded-sm py-1.5 pr-8 pl-2 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+      className
+    )}
+    checked={checked}
+    {...props}
+  >
+    <span className="absolute right-2 flex h-3.5 w-3.5 items-center justify-center">
+      <DropdownMenuPrimitive.ItemIndicator>
+        <Check className="h-4 w-4 text-green-600" />
+      </DropdownMenuPrimitive.ItemIndicator>
+    </span>
+    {children}
+  </DropdownMenuPrimitive.CheckboxItem>
+))
+DropdownMenuCheckboxItem.displayName =
+  DropdownMenuPrimitive.CheckboxItem.displayName
+
+const DropdownMenuRadioItem = React.forwardRef<
+  React.ElementRef<typeof DropdownMenuPrimitive.RadioItem>,
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.RadioItem>
+>(({ className, children, ...props }, ref) => (
+  <DropdownMenuPrimitive.RadioItem
+    ref={ref}
+    className={cn(
+      'relative flex cursor-default select-none items-center rounded-sm py-1.5 pr-8 pl-2 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+      className
+    )}
+    {...props}
+  >
+    <span className="absolute right-2 flex h-3.5 w-3.5 items-center justify-center">
+      <DropdownMenuPrimitive.ItemIndicator>
+        <Circle className="h-2 w-2 fill-current text-green-600" />
+      </DropdownMenuPrimitive.ItemIndicator>
+    </span>
+    {children}
+  </DropdownMenuPrimitive.RadioItem>
+))
+DropdownMenuRadioItem.displayName = DropdownMenuPrimitive.RadioItem.displayName
+
+// Define interface for DropdownMenuLabel props
+interface DropdownMenuLabelProps
+  extends React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Label> {
+  inset?: boolean
+}
+
+const DropdownMenuLabel = React.forwardRef<
+  React.ElementRef<typeof DropdownMenuPrimitive.Label>,
+  DropdownMenuLabelProps
+>(({ className, inset, ...props }, ref) => (
+  <DropdownMenuPrimitive.Label
+    ref={ref}
+    className={cn(
+      'px-2 py-1.5 text-sm font-semibold',
+      inset && 'pl-8',
+      className
+    )}
+    {...props}
+  />
+))
+DropdownMenuLabel.displayName = DropdownMenuPrimitive.Label.displayName
+
+const DropdownMenuSeparator = React.forwardRef<
+  React.ElementRef<typeof DropdownMenuPrimitive.Separator>,
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Separator>
+>(({ className, ...props }, ref) => (
+  <DropdownMenuPrimitive.Separator
+    ref={ref}
+    className={cn('-mx-1 my-1 h-px bg-muted', className)}
+    {...props}
+  />
+))
+DropdownMenuSeparator.displayName = DropdownMenuPrimitive.Separator.displayName
+
+const DropdownMenuShortcut = ({
   className,
   ...props
-}: React.ComponentPropsWithoutRef<'div'>) {
+}: React.HTMLAttributes<HTMLSpanElement>) => {
   return (
-    <div
+    <span
+      className={cn('ml-auto text-xs tracking-widest opacity-60', className)}
       {...props}
-      className={cn(
-        'px-2 py-1.5 text-sm font-semibold',
-        'text-zinc-900 dark:text-zinc-50',
-        className
-      )}
     />
   )
 }
+DropdownMenuShortcut.displayName = 'DropdownMenuShortcut'
 
-export function DropdownSection({
-  className,
-  ...props
-}: { className?: string } & Omit<
-  Headless.MenuSectionProps,
-  'as' | 'className'
->) {
-  return <Headless.MenuSection {...props} className={cn('py-1', className)} />
-}
-
-export function DropdownHeading({
-  className,
-  ...props
-}: { className?: string } & Omit<
-  Headless.MenuHeadingProps,
-  'as' | 'className'
->) {
-  return (
-    <Headless.MenuHeading
-      {...props}
-      className={cn(
-        'px-2 py-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400',
-        className
-      )}
-    />
-  )
-}
-
-export function DropdownDivider({
-  className,
-  ...props
-}: { className?: string } & Omit<
-  Headless.MenuSeparatorProps,
-  'as' | 'className'
->) {
-  return (
-    <Headless.MenuSeparator
-      {...props}
-      className={cn(
-        'my-1 h-px',
-        'bg-gradient-to-r from-zinc-200 via-zinc-200 to-transparent',
-        'dark:from-zinc-700 dark:via-zinc-700',
-        className
-      )}
-    />
-  )
-}
-
-export function DropdownLabel({
-  className,
-  ...props
-}: { className?: string } & Omit<Headless.LabelProps, 'as' | 'className'>) {
-  return (
-    <Headless.Label
-      {...props}
-      className={cn(
-        'px-2 py-1.5 text-sm font-medium',
-        'text-zinc-700 dark:text-zinc-300',
-        'transition-colors duration-200',
-        className
-      )}
-    />
-  )
-}
-
-export function DropdownDescription({
-  className,
-  ...props
-}: { className?: string } & Omit<
-  Headless.DescriptionProps,
-  'as' | 'className'
->) {
-  return (
-    <Headless.Description
-      {...props}
-      className={cn(
-        'text-sm',
-        'text-zinc-500 dark:text-zinc-400',
-        'transition-colors duration-200',
-        'group-hover:text-zinc-900 dark:group-hover:text-zinc-50',
-        'group-focus:text-zinc-900 dark:group-focus:text-zinc-50',
-        className
-      )}
-    />
-  )
-}
-
-export function DropdownShortcut({
-  keys,
-  className,
-  ...props
-}: { keys: string | string[]; className?: string } & Omit<
-  Headless.DescriptionProps<'kbd'>,
-  'as' | 'className'
->) {
-  return (
-    <Headless.Description
-      as="kbd"
-      {...props}
-      className={cn('ml-auto flex items-center gap-1', className)}
-    >
-      {(Array.isArray(keys) ? keys : keys.split('')).map((key, index) => (
-        <kbd
-          key={index}
-          className={cn(
-            'min-w-[1.25rem] rounded px-1 text-center text-xs',
-            'bg-zinc-100 text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400',
-            'transition-colors duration-200',
-            'group-hover:bg-zinc-200 group-hover:text-zinc-900',
-            'dark:group-hover:bg-zinc-600 dark:group-hover:text-zinc-50',
-            index > 0 && key.length > 1 && 'ml-1'
-          )}
-        >
-          {key}
-        </kbd>
-      ))}
-    </Headless.Description>
-  )
+export {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuCheckboxItem,
+  DropdownMenuRadioItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuGroup,
+  DropdownMenuPortal,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuRadioGroup,
 }

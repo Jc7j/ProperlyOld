@@ -1,25 +1,156 @@
 'use client'
 
+import {
+  type Column,
+  type ColumnDef,
+  type PaginationState,
+  type Row,
+  type SortingState,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from '@tanstack/react-table'
 import { Plus, Search } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { Suspense, useState } from 'react'
-import Properties from '~/components/property/Properties'
-import {
-  Button,
-  ErrorToast,
-  Heading,
-  Pagination,
-  PaginationList,
-  PaginationNext,
-  PaginationPage,
-  PaginationPrevious,
-} from '~/components/ui'
+import { Suspense, useMemo, useState } from 'react'
+import { DataTable } from '~/components/table/data-table'
+import { DataTableColumnHeader } from '~/components/table/data-table-column-header'
+import { DataTablePagination } from '~/components/table/data-table-pagination'
+import { Button, ErrorToast, Heading } from '~/components/ui'
 import { ROUTES } from '~/lib/constants/routes'
 import { cn } from '~/lib/utils/cn'
-import { type ParsedProperty } from '~/server/api/routers/property'
+import dayjs from '~/lib/utils/day'
 import { api } from '~/trpc/react'
 
-const ITEMS_PER_PAGE = 15
+type PropertyData = {
+  id: string
+  managementGroupId: string
+  name: string
+  locationInfo: {
+    address?: string | null
+    city?: string | null
+    state?: string | null
+    postalCode?: string | null
+    country?: string | null
+    timezone?: string | null
+  } | null
+  owner: {
+    name?: string | null
+    email?: string | null
+    phone?: string | null
+  } | null
+  createdAt: Date | null
+  updatedAt: Date | null
+  createdBy: string
+  updatedBy: string
+  deletedAt: Date | null
+  totalInvoices: number
+  latestInvoiceDate: Date | null
+}
+
+export const propertyColumns = (): ColumnDef<PropertyData>[] => [
+  {
+    accessorKey: 'name',
+    header: ({ column }: { column: Column<PropertyData, unknown> }) => (
+      <DataTableColumnHeader column={column} title="Name" />
+    ),
+    cell: ({ row }: { row: Row<PropertyData> }) => (
+      <div>{row.getValue('name')}</div>
+    ),
+  },
+  {
+    id: 'address',
+    accessorFn: (row) => row.locationInfo?.address,
+    header: ({ column }: { column: Column<PropertyData, unknown> }) => (
+      <DataTableColumnHeader
+        column={column}
+        title="Address"
+        className="justify-end text-right"
+      />
+    ),
+    cell: ({ row }: { row: Row<PropertyData> }) => {
+      const addressValue = row.getValue('address')
+      const address =
+        typeof addressValue === 'string' && addressValue ? addressValue : null
+      return (
+        <div className="text-right text-zinc-600 dark:text-zinc-400">
+          {address ?? '-'}
+        </div>
+      )
+    },
+    enableSorting: false,
+  },
+  {
+    id: 'ownerName',
+    accessorFn: (row) => row.owner?.name,
+    header: ({ column }: { column: Column<PropertyData, unknown> }) => (
+      <DataTableColumnHeader
+        column={column}
+        title="Owner"
+        className="justify-end text-right"
+      />
+    ),
+    cell: ({ row }: { row: Row<PropertyData> }) => (
+      <div className="text-right text-zinc-600 dark:text-zinc-400">
+        {row.getValue('ownerName') ?? 'N/A'}
+      </div>
+    ),
+  },
+  {
+    accessorKey: 'totalInvoices',
+    header: ({ column }: { column: Column<PropertyData, unknown> }) => (
+      <DataTableColumnHeader
+        column={column}
+        title="# of Invoices"
+        className="justify-end"
+      />
+    ),
+    cell: ({ row }: { row: Row<PropertyData> }) => (
+      <div className="flex flex-col items-end gap-1 text-right text-zinc-600 dark:text-zinc-400">
+        <span>{row.getValue('totalInvoices')}</span>
+        {row.original.latestInvoiceDate && (
+          <span className="text-xs">
+            Latest:{' '}
+            {dayjs(row.original.latestInvoiceDate).format('MMM D, YYYY')}
+          </span>
+        )}
+      </div>
+    ),
+  },
+  {
+    accessorKey: 'updatedAt',
+    header: ({ column }: { column: Column<PropertyData, unknown> }) => (
+      <DataTableColumnHeader
+        column={column}
+        title="Last Updated"
+        className="justify-end"
+      />
+    ),
+    cell: ({ row }: { row: Row<PropertyData> }) => {
+      const updatedAtValue = row.getValue('updatedAt')
+      const updatedAt =
+        typeof updatedAtValue === 'string' || updatedAtValue instanceof Date
+          ? updatedAtValue
+          : null
+
+      return (
+        <div
+          className={cn(
+            'text-right text-sm',
+            updatedAt
+              ? 'text-zinc-600 dark:text-zinc-400'
+              : 'text-red-600 dark:text-red-400'
+          )}
+        >
+          {updatedAt ? dayjs(updatedAt).fromNow() : 'N/A'}
+        </div>
+      )
+    },
+    sortingFn: 'datetime',
+  },
+]
 
 function PropertiesTableSkeleton() {
   return (
@@ -37,9 +168,47 @@ function PropertiesTableSkeleton() {
 }
 
 function PropertiesContent() {
+  const router = useRouter()
   const { data: properties, isPending } = api.property.getMany.useQuery()
   const [searchQuery, setSearchQuery] = useState('')
-  const [currentPage, setCurrentPage] = useState(1)
+
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: 'name', desc: false },
+  ])
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 20,
+  })
+
+  const columns = useMemo(() => propertyColumns(), [])
+
+  const filteredProperties = useMemo(() => {
+    const currentProperties = properties as PropertyData[] | undefined
+    if (!currentProperties) return []
+    return currentProperties.filter(
+      (property) =>
+        property.name.toLowerCase().includes(searchQuery.toLowerCase()) ??
+        property.locationInfo?.address
+          ?.toLowerCase()
+          .includes(searchQuery.toLowerCase()) ??
+        property.owner?.name?.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+  }, [properties, searchQuery])
+
+  const table = useReactTable({
+    data: filteredProperties,
+    columns,
+    state: {
+      sorting,
+      pagination,
+    },
+    onSortingChange: setSorting,
+    onPaginationChange: setPagination,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+  })
 
   if (isPending) {
     return <PropertiesTableSkeleton />
@@ -71,28 +240,41 @@ function PropertiesContent() {
     )
   }
 
-  // Filter properties
-  const filteredProperties = properties.filter(
-    (property) =>
-      property.name.toLowerCase().includes(searchQuery.toLowerCase()) ??
-      property.locationInfo?.address
-        ?.toLowerCase()
-        .includes(searchQuery.toLowerCase()) ??
-      property.owner?.name?.toLowerCase().includes(searchQuery.toLowerCase())
-  )
-
-  // Calculate pagination
-  const totalItems = filteredProperties.length
-  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE)
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
-  const paginatedProperties = filteredProperties.slice(
-    startIndex,
-    startIndex + ITEMS_PER_PAGE
-  )
+  if (!isPending && !table.getRowModel().rows.length && searchQuery) {
+    return (
+      <div className="space-y-4">
+        <div className="relative">
+          <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+            <Search className="size-4 text-zinc-400" />
+          </div>
+          <input
+            type="text"
+            placeholder="Search properties..."
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value)
+              table.setPageIndex(0)
+            }}
+            className={cn(
+              'w-full rounded-lg border bg-white px-3 py-2 pl-10 text-sm outline-none transition-all',
+              'border-zinc-200 placeholder:text-zinc-400',
+              'dark:border-zinc-800 dark:bg-zinc-900 dark:placeholder:text-zinc-600',
+              'focus:border-primary/50 focus:ring-4 focus:ring-primary/10',
+              'dark:focus:border-primary/50 dark:focus:ring-primary/20'
+            )}
+          />
+        </div>
+        <div className="text-center py-10">
+          <p className="text-muted-foreground">
+            No properties found matching &quot;{searchQuery}&quot;.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">
-      {/* Search field */}
       <div className="relative">
         <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
           <Search className="size-4 text-zinc-400" />
@@ -103,7 +285,7 @@ function PropertiesContent() {
           value={searchQuery}
           onChange={(e) => {
             setSearchQuery(e.target.value)
-            setCurrentPage(1)
+            table.setPageIndex(0)
           }}
           className={cn(
             'w-full rounded-lg border bg-white px-3 py-2 pl-10 text-sm outline-none transition-all',
@@ -115,44 +297,16 @@ function PropertiesContent() {
         />
       </div>
 
-      <Properties
-        properties={paginatedProperties as unknown as ParsedProperty[]}
+      <DataTable<PropertyData>
+        table={table}
+        onRowClick={(row: { original: PropertyData }) =>
+          router.push(`/dashboard/properties/${row.original.id}`)
+        }
       />
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="mt-6 space-y-2">
-          <div className="text-muted-foreground text-center text-sm">
-            Showing {startIndex + 1} to{' '}
-            {Math.min(startIndex + ITEMS_PER_PAGE, totalItems)} of {totalItems}{' '}
-            properties
-          </div>
-          <Pagination className="justify-center">
-            <PaginationPrevious
-              href={currentPage > 1 ? '#' : null}
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            />
-            <PaginationList>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                (page) => (
-                  <PaginationPage
-                    key={page}
-                    href="#"
-                    current={page === currentPage}
-                    onClick={() => setCurrentPage(page)}
-                  >
-                    {page}
-                  </PaginationPage>
-                )
-              )}
-            </PaginationList>
-            <PaginationNext
-              href={currentPage < totalPages ? '#' : null}
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            />
-          </Pagination>
-        </div>
-      )}
+      <div className="mt-4">
+        <DataTablePagination table={table} />
+      </div>
     </div>
   )
 }
