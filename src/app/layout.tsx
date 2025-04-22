@@ -1,5 +1,6 @@
 import { ClerkProvider } from '@clerk/nextjs'
 import { auth } from '@clerk/nextjs/server'
+import { TooltipProvider } from '@radix-ui/react-tooltip'
 import { NextSSRPlugin } from '@uploadthing/react/next-ssr-plugin'
 import { GeistSans } from 'geist/font/sans'
 import { type Metadata } from 'next'
@@ -39,10 +40,12 @@ export default async function RootLayout({
       />
       <html lang="en" className={`${GeistSans.variable}`}>
         <body>
-          <TRPCReactProvider>
-            <ThemeProvider>{children}</ThemeProvider>
-            <Toaster />
-          </TRPCReactProvider>
+          <TooltipProvider>
+            <TRPCReactProvider>
+              <ThemeProvider>{children}</ThemeProvider>
+              <Toaster />
+            </TRPCReactProvider>
+          </TooltipProvider>
         </body>
       </html>
     </ClerkProvider>
