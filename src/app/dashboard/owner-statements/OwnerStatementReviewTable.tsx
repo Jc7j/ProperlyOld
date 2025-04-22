@@ -160,9 +160,17 @@ const createEditableCell = <TData extends { id?: string }>(
         return <span className="text-red-500 text-xs">Invalid Data</span>
       }
 
+      if (field === 'days') {
+        return typeof value === 'number' || typeof value === 'string' ? (
+          value.toLocaleString()
+        ) : (
+          <span className="text-red-500 text-xs">Invalid Days</span>
+        )
+      }
+
       if (type === 'number') {
         return typeof value === 'number' ? (
-          formatCurrency(value)
+          formatCurrency(value, 'USD', { centsToDollars: false })
         ) : (
           <span className="text-red-500 text-xs">Invalid Number</span>
         )
@@ -285,49 +293,49 @@ export default function OwnerStatementReviewTable({
       },
       {
         accessorKey: 'checkOut',
-        header: 'Check Out',
-        cell: createEditableCell('text'),
+        header: () => <div className="text-right">Check Out</div>,
+        cell: createEditableCell('text', true),
       },
       {
         accessorKey: 'days',
-        header: 'Days',
-        cell: createEditableCell('number'),
+        header: () => <div className="text-right">Days</div>,
+        cell: createEditableCell('number', true),
       },
       {
         accessorKey: 'platform',
-        header: 'Platform',
-        cell: createEditableCell('text'),
+        header: () => <div className="text-right">Platform</div>,
+        cell: createEditableCell('text', true),
       },
       {
         accessorKey: 'guest',
-        header: 'Guest',
-        cell: createEditableCell('text'),
+        header: () => <div className="text-right">Guest</div>,
+        cell: createEditableCell('text', true),
       },
       {
         accessorKey: 'grossRevenue',
-        header: 'Gross Revenue',
+        header: () => <div className="text-right">Gross Revenue</div>,
         cell: createEditableCell('number', true),
       },
       {
         accessorKey: 'hostFee',
-        header: 'Host Fee',
+        header: () => <div className="text-right">Host Fee</div>,
         cell: createEditableCell('number', true),
       },
       {
         accessorKey: 'platformFee',
-        header: 'Platform Fee',
+        header: () => <div className="text-right">Platform Fee</div>,
         cell: createEditableCell('number', true),
       },
       {
         accessorKey: 'grossIncome',
-        header: 'Gross Income',
+        header: () => <div className="text-right">Gross Income</div>,
         cell: createEditableCell('number', true),
       },
       ...(!readOnly
         ? [
             {
               id: 'actions',
-              header: () => <div className="w-[50px]"></div>,
+              header: () => <div className="w-[50px] text-right"></div>,
               cell: ({
                 row,
                 table,
@@ -335,7 +343,7 @@ export default function OwnerStatementReviewTable({
                 row: Row<IncomeItem>
                 table: Table<IncomeItem>
               }) => (
-                <div className="flex items-center justify-center w-[50px]">
+                <div className="flex items-center justify-end w-[50px]">
                   <Button
                     variant="destructiveOutline"
                     size="sm"
@@ -364,24 +372,24 @@ export default function OwnerStatementReviewTable({
       { accessorKey: 'date', header: 'Date', cell: createEditableCell('text') },
       {
         accessorKey: 'description',
-        header: 'Description',
-        cell: createEditableCell('text'),
+        header: () => <div className="text-right">Description</div>,
+        cell: createEditableCell('text', true),
       },
       {
         accessorKey: 'vendor',
-        header: 'Vendor',
-        cell: createEditableCell('text'),
+        header: () => <div className="text-right">Vendor</div>,
+        cell: createEditableCell('text', true),
       },
       {
         accessorKey: 'amount',
-        header: 'Amount',
+        header: () => <div className="text-right">Amount</div>,
         cell: createEditableCell('number', true),
       },
       ...(!readOnly
         ? [
             {
               id: 'actions',
-              header: () => <div className="w-[50px]"></div>,
+              header: () => <div className="w-[50px] text-right"></div>,
               cell: ({
                 row,
                 table,
@@ -389,7 +397,7 @@ export default function OwnerStatementReviewTable({
                 row: Row<ExpenseItem>
                 table: Table<ExpenseItem>
               }) => (
-                <div className="flex items-center justify-center w-[50px]">
+                <div className="flex items-center justify-end w-[50px]">
                   <Button
                     variant="destructiveOutline"
                     size="sm"
@@ -422,24 +430,24 @@ export default function OwnerStatementReviewTable({
       },
       {
         accessorKey: 'checkOut',
-        header: 'Check Out',
-        cell: createEditableCell('text'),
+        header: () => <div className="text-right">Check Out</div>,
+        cell: createEditableCell('text', true),
       },
       {
         accessorKey: 'description',
-        header: 'Description',
-        cell: createEditableCell('text'),
+        header: () => <div className="text-right">Description</div>,
+        cell: createEditableCell('text', true),
       },
       {
         accessorKey: 'amount',
-        header: 'Amount',
+        header: () => <div className="text-right">Amount</div>,
         cell: createEditableCell('number', true),
       },
       ...(!readOnly
         ? [
             {
               id: 'actions',
-              header: () => <div className="w-[50px]"></div>,
+              header: () => <div className="w-[50px] text-right"></div>,
               cell: ({
                 row,
                 table,
@@ -447,7 +455,7 @@ export default function OwnerStatementReviewTable({
                 row: Row<AdjustmentItem>
                 table: Table<AdjustmentItem>
               }) => (
-                <div className="flex items-center justify-center w-[50px]">
+                <div className="flex items-center justify-end w-[50px]">
                   <Button
                     variant="destructiveOutline"
                     size="sm"
@@ -560,24 +568,69 @@ export default function OwnerStatementReviewTable({
               </Button>
             )}
           </div>
-          <DataTable table={incomeTable} className="min-w-[800px] text-xs" />
-          <div className="flex justify-between items-center mt-2 px-3 py-2 text-xs font-medium bg-zinc-50 dark:bg-zinc-800/50 border rounded-b-md">
-            <div className="w-[calc(100%/9*3)]">Total</div>
-            <div className="w-[calc(100%/9)] text-center">{totalDays}</div>
-            <div className="w-[calc(100%/9)]"></div>
-            <div className="w-[calc(100%/9)] text-right">
-              {formatCurrency(totalGrossRevenue)}
-            </div>
-            <div className="w-[calc(100%/9)] text-right">
-              {formatCurrency(totalHostFee)}
-            </div>
-            <div className="w-[calc(100%/9)] text-right">
-              {formatCurrency(totalPlatformFee)}
-            </div>
-            <div className="w-[calc(100%/9)] text-right">
-              {formatCurrency(totalIncome)}
-            </div>
-            {!readOnly && <div className="w-[50px]"></div>}
+          <div className="overflow-x-auto">
+            <DataTable table={incomeTable} className="text-xs border-b" />
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <tbody>
+                <tr className="font-medium bg-zinc-50 dark:bg-zinc-800/50">
+                  <td className="px-3 py-2" style={{ width: '11.11%' }}>
+                    Total
+                  </td>
+                  <td
+                    className="px-3 py-2 text-right"
+                    style={{ width: '11.11%' }}
+                  ></td>
+                  <td className="px-3 py-2 text-right" style={{ width: '8%' }}>
+                    {totalDays}
+                  </td>
+                  <td
+                    className="px-3 py-2 text-right"
+                    style={{ width: '11.11%' }}
+                  ></td>
+                  <td
+                    className="px-3 py-2 text-right"
+                    style={{ width: '11.11%' }}
+                  ></td>
+                  <td
+                    className="px-3 py-2 text-right"
+                    style={{ width: '11.11%' }}
+                  >
+                    {formatCurrency(totalGrossRevenue, 'USD', {
+                      centsToDollars: false,
+                    })}
+                  </td>
+                  <td
+                    className="px-3 py-2 text-right"
+                    style={{ width: '11.11%' }}
+                  >
+                    {formatCurrency(totalHostFee, 'USD', {
+                      centsToDollars: false,
+                    })}
+                  </td>
+                  <td
+                    className="px-3 py-2 text-right"
+                    style={{ width: '11.11%' }}
+                  >
+                    {formatCurrency(totalPlatformFee, 'USD', {
+                      centsToDollars: false,
+                    })}
+                  </td>
+                  <td
+                    className="px-3 py-2 text-right"
+                    style={{ width: '11.11%' }}
+                  >
+                    {formatCurrency(totalIncome, 'USD', {
+                      centsToDollars: false,
+                    })}
+                  </td>
+                  {!readOnly && (
+                    <td className="px-3 py-2" style={{ width: '50px' }}></td>
+                  )}
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </Card>
@@ -603,13 +656,35 @@ export default function OwnerStatementReviewTable({
               </Button>
             )}
           </div>
-          <DataTable table={expenseTable} className="min-w-[600px] text-xs " />
-          <div className="flex justify-between items-center mt-2 px-3 py-2 text-xs font-medium bg-zinc-50 dark:bg-zinc-800/50 border  rounded-b-md">
-            <div className="flex-grow">Total</div>
-            <div className="w-1/4 text-right">
-              {formatCurrency(totalExpenses)}
-            </div>
-            {!readOnly && <div className="w-[50px]"></div>}
+          <div className="overflow-x-auto">
+            <DataTable table={expenseTable} className="text-xs border-b" />
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <tbody>
+                <tr className="font-medium bg-zinc-50 dark:bg-zinc-800/50">
+                  <td className="px-3 py-2" style={{ width: '25%' }}>
+                    Total
+                  </td>
+                  <td
+                    className="px-3 py-2 text-right"
+                    style={{ width: '25%' }}
+                  ></td>
+                  <td
+                    className="px-3 py-2 text-right"
+                    style={{ width: '25%' }}
+                  ></td>
+                  <td className="px-3 py-2 text-right" style={{ width: '25%' }}>
+                    {formatCurrency(totalExpenses, 'USD', {
+                      centsToDollars: false,
+                    })}
+                  </td>
+                  {!readOnly && (
+                    <td className="px-3 py-2" style={{ width: '50px' }}></td>
+                  )}
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </Card>
@@ -635,16 +710,35 @@ export default function OwnerStatementReviewTable({
               </Button>
             )}
           </div>
-          <DataTable
-            table={adjustmentTable}
-            className="min-w-[700px] text-xs "
-          />
-          <div className="flex justify-between items-center mt-2 px-3 py-2 text-xs font-medium bg-zinc-50 dark:bg-zinc-800/50 border  rounded-b-md">
-            <div className="flex-grow">Total</div>
-            <div className="w-1/4 text-right">
-              {formatCurrency(totalAdjustments)}
-            </div>
-            {!readOnly && <div className="w-[50px]"></div>}
+          <div className="overflow-x-auto">
+            <DataTable table={adjustmentTable} className="text-xs border-b" />
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <tbody>
+                <tr className="font-medium bg-zinc-50 dark:bg-zinc-800/50">
+                  <td className="px-3 py-2" style={{ width: '25%' }}>
+                    Total
+                  </td>
+                  <td
+                    className="px-3 py-2 text-right"
+                    style={{ width: '25%' }}
+                  ></td>
+                  <td
+                    className="px-3 py-2 text-right"
+                    style={{ width: '25%' }}
+                  ></td>
+                  <td className="px-3 py-2 text-right" style={{ width: '25%' }}>
+                    {formatCurrency(totalAdjustments, 'USD', {
+                      centsToDollars: false,
+                    })}
+                  </td>
+                  {!readOnly && (
+                    <td className="px-3 py-2" style={{ width: '50px' }}></td>
+                  )}
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </Card>
@@ -699,7 +793,9 @@ export default function OwnerStatementReviewTable({
               <div
                 className={`text-2xl font-bold ${grandTotalDisbursement >= 0 ? 'text-green-700 dark:text-green-500' : 'text-red-600 dark:text-red-500'}`}
               >
-                {formatCurrency(Math.abs(grandTotalDisbursement))}
+                {formatCurrency(Math.abs(grandTotalDisbursement), 'USD', {
+                  centsToDollars: false,
+                })}
                 {grandTotalDisbursement < 0 && ' (Owed)'}
               </div>
             </div>

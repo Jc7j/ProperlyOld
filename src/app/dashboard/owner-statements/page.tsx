@@ -211,7 +211,9 @@ export default function OwnerStatementsPage() {
         ),
         cell: ({ row }) => (
           <div className="text-right tabular-nums">
-            {formatCurrency(row.original.totalIncome)}
+            {formatCurrency(row.original.totalIncome, 'USD', {
+              centsToDollars: false,
+            })}
           </div>
         ),
         enableSorting: true,
@@ -227,7 +229,9 @@ export default function OwnerStatementsPage() {
         ),
         cell: ({ row }) => (
           <div className="text-right tabular-nums">
-            {formatCurrency(row.original.totalExpenses)}
+            {formatCurrency(row.original.totalExpenses, 'USD', {
+              centsToDollars: false,
+            })}
           </div>
         ),
         enableSorting: true,
@@ -243,7 +247,9 @@ export default function OwnerStatementsPage() {
         ),
         cell: ({ row }) => (
           <div className="text-right tabular-nums">
-            {formatCurrency(row.original.totalAdjustments)}
+            {formatCurrency(row.original.totalAdjustments, 'USD', {
+              centsToDollars: false,
+            })}
           </div>
         ),
         enableSorting: true,
@@ -259,7 +265,9 @@ export default function OwnerStatementsPage() {
         ),
         cell: ({ row }) => (
           <div className="text-right tabular-nums font-medium">
-            {formatCurrency(row.original.grandTotal)}
+            {formatCurrency(row.original.grandTotal, 'USD', {
+              centsToDollars: false,
+            })}
           </div>
         ),
         enableSorting: true,
