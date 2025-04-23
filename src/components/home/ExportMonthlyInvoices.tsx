@@ -2,8 +2,7 @@
 
 import jsPDF from 'jspdf'
 import { useState } from 'react'
-import ReactDatePicker from 'react-datepicker'
-import 'react-datepicker/dist/react-datepicker.css'
+import DatePicker from '~/components/DatePicker'
 import {
   type AddInvoiceToPdfParams,
   addInvoiceToPdf,
@@ -133,15 +132,11 @@ export default function ExportMonthlyInvoices() {
               single PDF file.
             </p>
 
-            <ReactDatePicker
-              selected={selectedDate}
+            <DatePicker
+              selected={selectedDate ?? undefined}
               onChange={(date: Date | null) => setSelectedDate(date)}
-              dateFormat="MMMM yyyy"
               showMonthYearPicker
               placeholderText="Select a month"
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-900"
-              wrapperClassName="w-full"
-              popperPlacement="bottom-start"
             />
 
             {selectedDate && isLoadingInvoices && (

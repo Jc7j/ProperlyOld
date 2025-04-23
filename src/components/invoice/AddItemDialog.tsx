@@ -2,9 +2,9 @@
 
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect } from 'react'
-import ReactDatePicker from 'react-datepicker'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
+import DatePicker from '~/components/DatePicker'
 import {
   Button,
   Dialog,
@@ -284,14 +284,12 @@ export function AddItemDialog({
                   <FormItem className="col-span-2">
                     <FormLabel>Date (Optional)</FormLabel>
                     <FormControl>
-                      <ReactDatePicker
-                        selected={field.value}
+                      <DatePicker
+                        selected={field.value ?? undefined}
                         onChange={(date: Date | null) => field.onChange(date)}
                         dateFormat="MMMM d, yyyy"
                         placeholderText="Select a date"
                         isClearable
-                        className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-900"
-                        wrapperClassName="w-full"
                         showMonthDropdown
                         showYearDropdown
                         dropdownMode="select"

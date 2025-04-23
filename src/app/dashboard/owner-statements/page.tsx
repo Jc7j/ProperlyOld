@@ -11,9 +11,8 @@ import {
 } from '@tanstack/react-table'
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
-import ReactDatePicker from 'react-datepicker'
-import 'react-datepicker/dist/react-datepicker.css'
 import * as XLSX from 'xlsx'
+import DatePicker from '~/components/DatePicker'
 import ExportMonthlyStatements from '~/components/owner-statement/ExportMonthlyStatements'
 import { DataTable } from '~/components/table/data-table'
 import { DataTableColumnHeader } from '~/components/table/data-table-column-header'
@@ -307,17 +306,13 @@ export default function OwnerStatementsPage() {
           Owner Statements
         </Heading>
         <div className="flex flex-col sm:flex-row gap-3 items-center mt-3 sm:mt-0">
-          <div className="w-full sm:w-48 relative z-50">
-            <ReactDatePicker
-              selected={month}
+          <div className="w-full sm:w-48">
+            <DatePicker
+              selected={month ?? undefined}
               onChange={setMonth}
               dateFormat="MMM yyyy"
               showMonthYearPicker
               placeholderText="All Months"
-              className="w-full border border-gray-300 p-2 rounded-md"
-              wrapperClassName="w-full"
-              popperClassName="z-[9999]"
-              popperPlacement="bottom-end"
               isClearable
             />
           </div>

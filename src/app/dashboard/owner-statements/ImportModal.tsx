@@ -1,6 +1,5 @@
 import React, { useRef } from 'react'
-import ReactDatePicker from 'react-datepicker'
-import 'react-datepicker/dist/react-datepicker.css'
+import DatePicker from '~/components/DatePicker'
 import {
   Button,
   Dialog,
@@ -63,14 +62,11 @@ export default function ImportModal({
           <label className="block text-sm font-medium mb-1">
             Statement Month
           </label>
-          <ReactDatePicker
-            selected={month}
+          <DatePicker
+            selected={month ?? undefined}
             onChange={setMonth}
-            dateFormat="MMMM yyyy"
             showMonthYearPicker
             placeholderText="Select a month"
-            className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-900"
-            wrapperClassName="w-full"
           />
         </div>
         <div
