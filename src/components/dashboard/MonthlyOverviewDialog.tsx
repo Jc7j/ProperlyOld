@@ -425,7 +425,7 @@ export default function MonthlyOverviewDialog() {
     if (step === 'select-month') {
       return (
         <>
-          <DialogTitle>Generate Monthly Statement</DialogTitle>
+          <DialogTitle>Generate Monthly Disbursement</DialogTitle>
           <DialogBody>
             <p className="text-sm text-zinc-500 mb-4">
               Select a month to generate a comprehensive overview of all
