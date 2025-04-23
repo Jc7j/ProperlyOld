@@ -90,7 +90,6 @@ export default function OwnerStatementsPage() {
     } finally {
       setIsParsing(false)
     }
-    setIsModalOpen(false)
   }
 
   // Watch for file selection

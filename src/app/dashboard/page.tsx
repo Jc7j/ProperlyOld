@@ -1,6 +1,7 @@
-import RecentInvoices from '~/components/home/RecentInvoices'
+'use client'
+
+import MonthlyOverviewDialog from '~/components/dashboard/MonthlyOverviewDialog'
 import YearlyInvoicesLineChart from '~/components/home/YearlyInvoicesLineChart'
-import { Card } from '~/components/ui'
 
 export default function DashboardPage() {
   return (
@@ -14,19 +15,11 @@ export default function DashboardPage() {
             Overview of your recent activity
           </p>
         </div>
+        <MonthlyOverviewDialog />
       </div>
 
       <div className="space-y-8">
         <YearlyInvoicesLineChart />
-
-        <Card>
-          <div className="border-b border-zinc-200 p-4 dark:border-zinc-800">
-            <h2 className="font-medium text-zinc-900 dark:text-zinc-50">
-              Recent Invoices
-            </h2>
-          </div>
-          <RecentInvoices />
-        </Card>
       </div>
     </main>
   )
