@@ -22,6 +22,8 @@ export function DataTablePagination<TData>({
   className,
   ...props
 }: DataTablePaginationProps<TData>) {
+  const pageCount = Math.max(0, table.getPageCount())
+
   return (
     <div
       className={cn(
@@ -55,7 +57,8 @@ export function DataTablePagination<TData>({
         </div>
         <div className="flex items-center justify-center font-medium text-sm">
           Page {table.getState().pagination.pageIndex + 1} of{' '}
-          {table.getPageCount()}
+          {/* Use the calculated pageCount */}
+          {pageCount}
         </div>
         <div className="flex items-center space-x-2">
           <Button
@@ -93,7 +96,8 @@ export function DataTablePagination<TData>({
             variant="outline"
             size="icon"
             className="hidden size-8 lg:flex"
-            onClick={() => table.setPageIndex(table.getPageCount() - 1)}
+            // Use validated pageCount, ensure index is not negative
+            onClick={() => table.setPageIndex(Math.max(0, pageCount - 1))}
             disabled={!table.getCanNextPage()}
           >
             <ChevronsRight />

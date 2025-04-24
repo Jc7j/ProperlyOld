@@ -2,22 +2,28 @@
 
 import {
   type ColumnDef,
+  type ColumnFiltersState,
   type PaginationState,
   type SortingState,
   getCoreRowModel,
+  getFacetedRowModel,
+  getFacetedUniqueValues,
+  getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import * as XLSX from 'xlsx'
 import DatePicker from '~/components/DatePicker'
 import ExportMonthlyStatements from '~/components/owner-statement/ExportMonthlyStatements'
 import { DataTable } from '~/components/table/data-table'
 import { DataTableColumnHeader } from '~/components/table/data-table-column-header'
+import { DataTableFacetedFilter } from '~/components/table/data-table-faceted-filter'
 import { DataTablePagination } from '~/components/table/data-table-pagination'
-import { Button, Heading, Select } from '~/components/ui'
+import { DataTableToolbar } from '~/components/table/data-table-toolbar'
+import { Button, Heading } from '~/components/ui'
 import dayjs from '~/lib/utils/day'
 import { formatCurrency } from '~/lib/utils/format'
 import { api } from '~/trpc/react'
@@ -28,6 +34,7 @@ import OwnerStatementReviewStepper from './OwnerStatementReviewStepper'
 type OwnerStatementData = {
   id: string
   property: {
+    id: string
     name?: string | null
   } | null
   statementMonth: Date
@@ -39,8 +46,7 @@ type OwnerStatementData = {
 }
 
 export default function OwnerStatementsPage() {
-  const [propertyId, setPropertyId] = useState('')
-  const [month, setMonth] = useState<Date | null>(null)
+  const [date, setDate] = useState<Date | undefined>(undefined)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isParsing, setIsParsing] = useState(false)
@@ -57,15 +63,45 @@ export default function OwnerStatementsPage() {
     pageIndex: 0,
     pageSize: 15,
   })
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
 
-  const { data: properties, isLoading: loadingProperties } =
-    api.property.getMany.useQuery()
+  const { data: properties } = api.property.getMany.useQuery()
 
-  const { data: ownerStatements, isLoading } =
-    api.ownerStatement.getMany.useQuery({
-      propertyId: propertyId || undefined,
-      month: month ? dayjs(month).format('YYYY-MM') : undefined,
-    })
+  const queryParams = useMemo(() => {
+    const params: { month?: string } = {}
+    if (date) {
+      params.month = dayjs(date).format('YYYY-MM')
+    }
+    return params
+  }, [date])
+
+  const {
+    data: ownerStatements,
+    isLoading,
+    isError,
+    error: queryError,
+  } = api.ownerStatement.getMany.useQuery(queryParams)
+
+  const propertyOptions = useMemo(() => {
+    if (!properties) return []
+    return properties
+      .map((p: any) => ({
+        label: p.name ?? 'Unnamed Property',
+        value: p.name ?? 'Unnamed Property',
+      }))
+      .filter((option) => option.label !== 'Unnamed Property')
+  }, [properties])
+
+  useEffect(() => {
+    if (selectedFile) {
+      if (!isParsing && !parsedData) {
+        void parseFile(selectedFile)
+      }
+    } else {
+      setParsedData(null)
+      setError(null)
+    }
+  }, [selectedFile])
 
   async function parseFile(file: File) {
     setIsParsing(true)
@@ -91,15 +127,8 @@ export default function OwnerStatementsPage() {
     }
   }
 
-  // Watch for file selection
-  if (selectedFile && !parsedData && !isParsing) {
-    void parseFile(selectedFile)
-  }
-
-  // Map Excel data to OwnerStatement drafts
   const handleNextFromModal = () => {
     if (!parsedData || !selectedMonth || !properties) return
-    // Map property name to propertyId (remove whitespace and lowercase)
     const propertyMap = new Map(
       properties.map((p: any) => [p.name.replace(/\s+/g, '').toLowerCase(), p])
     )
@@ -165,16 +194,26 @@ export default function OwnerStatementsPage() {
     setIsModalOpen(false)
   }
 
-  // Define columns for the DataTable
+  const handleOpenImportModal = () => {
+    setSelectedMonth(date ?? null)
+    setIsModalOpen(true)
+  }
+
   const columns = useMemo<ColumnDef<OwnerStatementData>[]>(
     () => [
       {
+        id: 'property.name',
         accessorKey: 'property.name',
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Property" />
         ),
         cell: ({ row }) => <div>{row.original.property?.name ?? '-'}</div>,
         enableSorting: true,
+        enableColumnFilter: true,
+        filterFn: (row, id, value) => {
+          const propertyName = row.original.property?.name
+          return value.includes(propertyName)
+        },
       },
       {
         accessorKey: 'statementMonth',
@@ -277,26 +316,32 @@ export default function OwnerStatementsPage() {
           </div>
         ),
         enableSorting: false,
+        enableColumnFilter: false,
       },
     ],
     []
   )
 
-  // Create table instance
   const table = useReactTable({
-    data: (ownerStatements as OwnerStatementData[]) ?? [], // Cast data and provide default
+    data: (ownerStatements as OwnerStatementData[]) ?? [],
     columns,
     state: {
       sorting,
       pagination,
+      columnFilters,
     },
     onSortingChange: setSorting,
     onPaginationChange: setPagination,
+    onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    manualPagination: false, // Client-side pagination
-    manualSorting: false, // Client-side sorting
+    getFilteredRowModel: getFilteredRowModel(),
+    getFacetedRowModel: getFacetedRowModel(),
+    getFacetedUniqueValues: getFacetedUniqueValues(),
+    manualPagination: false,
+    manualSorting: false,
+    manualFiltering: false,
   })
 
   return (
@@ -308,9 +353,10 @@ export default function OwnerStatementsPage() {
         <div className="flex flex-col sm:flex-row gap-3 items-center mt-3 sm:mt-0">
           <div className="w-full sm:w-48">
             <DatePicker
-              selected={month ?? undefined}
-              onChange={setMonth}
-              dateFormat="MMM yyyy"
+              selected={date}
+              onChange={(selectedDate: Date | null) => {
+                setDate(selectedDate ?? undefined)
+              }}
               showMonthYearPicker
               placeholderText="All Months"
               isClearable
@@ -319,7 +365,7 @@ export default function OwnerStatementsPage() {
           <ExportMonthlyStatements />
           <Button
             variant="default"
-            onClick={() => setIsModalOpen(true)}
+            onClick={handleOpenImportModal}
             className="px-4 py-2 rounded-md w-full sm:w-auto"
           >
             Import
@@ -327,40 +373,42 @@ export default function OwnerStatementsPage() {
         </div>
       </div>
 
-      <div className="mb-8">
-        <div className="text-sm font-medium mb-2">Property</div>
-        <Select
-          value={propertyId}
-          onChange={(e) => setPropertyId(e.target.value)}
-          className="w-full max-w-md border border-gray-300 rounded-md"
-          disabled={loadingProperties}
-        >
-          <option value="">All Properties</option>
-          {properties?.map((p: any) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </Select>
-      </div>
-
-      {/* Replace Table with DataTable */}
       <div className="space-y-4">
-        {isLoading ? (
+        <DataTableToolbar table={table}>
+          {table.getColumn('property.name') && (
+            <DataTableFacetedFilter
+              column={table.getColumn('property.name')}
+              title="Property"
+              options={propertyOptions}
+            />
+          )}
+        </DataTableToolbar>
+
+        {isError && (
+          <div className="text-center py-10 text-red-600">
+            Error loading statements: {queryError?.message ?? 'Unknown error'}
+          </div>
+        )}
+
+        {isLoading && !isError && (
           <div className="text-center py-10 text-muted-foreground">
             Loading statements...
           </div>
-        ) : !table.getRowModel().rows.length ? (
+        )}
+
+        {!isLoading && !isError && !table.getRowModel().rows.length && (
           <div className="text-center py-10 text-muted-foreground">
             No owner statements found matching your filters.
           </div>
-        ) : (
+        )}
+
+        {!isLoading && !isError && table.getRowModel().rows.length > 0 && (
           <DataTable table={table} />
         )}
+
         <DataTablePagination table={table} />
       </div>
 
-      {/* Import Modal */}
       <ImportModal
         open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -375,12 +423,14 @@ export default function OwnerStatementsPage() {
         setMonth={setSelectedMonth}
       />
 
-      {/* Review Stepper */}
       {reviewDrafts && (
         <OwnerStatementReviewStepper
           drafts={reviewDrafts}
           unmatchedListings={unmatchedListings}
           onDone={() => {
+            if (selectedMonth) {
+              setDate(selectedMonth)
+            }
             setReviewDrafts(null)
             setParsedData(null)
             setSelectedFile(null)
