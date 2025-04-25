@@ -428,9 +428,13 @@ export default function OwnerStatementReviewStepper({
           </Card>
           {/* Unmatched Listings Card */}
           <Card className="p-5 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800/50 shadow-sm">
-            <div className="flex items-center gap-2 mb-3 text-yellow-800 dark:text-yellow-200 font-semibold text-base">
+            <div className="flex flex-col  gap-2 mb-3 text-yellow-800 dark:text-yellow-200 font-semibold text-base">
               <AlertTriangle className="w-5 h-5" />
               Unmatched Listings
+              <p className="text-xs mb-2 font-normal">
+                Properties from imported data that couldn&apos;t be matched with
+                existing property names in the system.
+              </p>
             </div>
             {unmatchedListings.length === 0 ? (
               <div className="text-sm text-zinc-600 dark:text-zinc-400 italic">
@@ -488,6 +492,10 @@ export default function OwnerStatementReviewStepper({
                   : 'Next Statement'}
               </Button>
             </div>
+            {/* Add informational text */}
+            <p className="text-center sm:text-right text-sm text-zinc-600 dark:text-zinc-400 mt-4 italic">
+              Statements can be edited after they have been created.
+            </p>
           </div>
         </main>
       </div>
