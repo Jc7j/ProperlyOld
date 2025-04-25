@@ -135,11 +135,17 @@ export default function OwnerStatementsPage() {
     const grouped: Record<string, any> = {}
     const unmatched: string[] = []
     for (const row of parsedData) {
-      const listing = (row.Listing || '').replace(/\s+/g, '').toLowerCase()
+      const rawListingName = row.Listing || ''
+      // Normalize the listing name by removing trailing (OLD) or (NEW), case-insensitive
+      const normalizedListingName = rawListingName.replace(
+        /\s*\((OLD|NEW)\)\s*$/i,
+        ''
+      )
+      const listing = normalizedListingName.replace(/\s+/g, '').toLowerCase()
       if (!listing) continue
       const property = propertyMap.get(listing)
       if (!property) {
-        if (!unmatched.includes(row.Listing)) unmatched.push(row.Listing)
+        if (!unmatched.includes(rawListingName)) unmatched.push(rawListingName) // Use original name for unmatched list
         continue
       }
       if (!grouped[property.id]) {
