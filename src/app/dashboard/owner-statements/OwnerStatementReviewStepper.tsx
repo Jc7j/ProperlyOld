@@ -86,15 +86,17 @@ export default function OwnerStatementReviewStepper({
     ? Math.round((reviewedCount / totalCount) * 100)
     : 0
 
-  // *** Update FUNCTION to apply extracted expenses map ***
   const applyExtractedExpenses = (
     expensesMap: ExtractedExpensesMapType,
     vendor: string,
     description: string
-  ) => {
-    let updatedCount = 0
+  ): number => {
+    let finalUpdatedCount = 0
+
     setOrderedDrafts((currentDrafts) => {
+      let updatedCount = 0
       const newDrafts = [...currentDrafts]
+      let changesMade = false
 
       Object.entries(expensesMap).forEach(
         ([propertyNameFromMap, expensesToAdd]) => {
@@ -107,6 +109,7 @@ export default function OwnerStatementReviewStepper({
 
           if (draftIndex !== -1 && expensesToAdd.length > 0) {
             updatedCount++
+            changesMade = true
             const targetDraft = { ...newDrafts[draftIndex] }
             targetDraft.expenses = targetDraft.expenses
               ? [...targetDraft.expenses]
@@ -126,19 +129,14 @@ export default function OwnerStatementReviewStepper({
         }
       )
 
-      return updatedCount > 0 ? newDrafts : currentDrafts
+      finalUpdatedCount = updatedCount
+
+      return changesMade ? newDrafts : currentDrafts
     })
 
-    if (updatedCount > 0) {
-      setInvoiceError(null)
-    } else {
-      setInvoiceError(
-        'Invoice processed, but no matching property statements currently being reviewed were found for the extracted expenses.'
-      )
-    }
+    return finalUpdatedCount
   }
 
-  // Right Panel: Review Table
   const handleDraftChange = (
     idx: number,
     section: string,
@@ -167,7 +165,6 @@ export default function OwnerStatementReviewStepper({
     })
   }
 
-  // tRPC Mutation Hook (Define callbacks here)
   const parseInvoiceMutation =
     api.ownerStatement.parseInvoiceExpenseWithGemini.useMutation({
       onSuccess: (extractedExpensesMap, variables) => {
@@ -175,12 +172,19 @@ export default function OwnerStatementReviewStepper({
           extractedExpensesMap &&
           Object.keys(extractedExpensesMap).length > 0
         ) {
-          applyExtractedExpenses(
+          const updatedCount = applyExtractedExpenses(
             extractedExpensesMap,
             variables.vendor,
             variables.description
           )
-          SuccessToast('Invoice expenses imported successfully.')
+          if (updatedCount > 0) {
+            setInvoiceError(null)
+            SuccessToast('Invoice expenses imported successfully.')
+          } else {
+            setInvoiceError(
+              'Invoice processed, but no matching property statements currently being reviewed were found for the extracted expenses.'
+            )
+          }
         }
         setIsParsingInvoice(false)
         setIsInvoiceDialogOpen(false)
@@ -194,11 +198,9 @@ export default function OwnerStatementReviewStepper({
       },
     })
 
-  // *** Add Create Mutation Hook ***
   const createMutation = api.ownerStatement.create.useMutation({
     onSuccess: (_data) => {
       SuccessToast(`Statement for ${current.propertyName} created!`)
-      // Mark as created on success
       setCreated((arr) => {
         const next = [...arr]
         next[step] = true
@@ -210,11 +212,9 @@ export default function OwnerStatementReviewStepper({
       ErrorToast(
         `Failed to create statement: ${error.message ?? 'Unknown error'}`
       )
-      // Potentially add specific error state if needed
     },
   })
 
-  // Function to handle creating the statement via API
   const handleCreateStatement = () => {
     // Revert back to non-async
     if (!current?.propertyId) {
@@ -222,7 +222,6 @@ export default function OwnerStatementReviewStepper({
       return
     }
 
-    // --- Data Preparation: statementMonth ---
     let statementMonthDate: Date | null = null
     if (current.statementMonth instanceof Date) {
       statementMonthDate = current.statementMonth
@@ -251,7 +250,6 @@ export default function OwnerStatementReviewStepper({
       ? current.adjustments
       : []
 
-    // --- Input Validation (Basic) ---
     if (incomes.length === 0) {
       ErrorToast(
         'Cannot create statement: At least one income item is required.'
@@ -295,7 +293,6 @@ export default function OwnerStatementReviewStepper({
     })
   }
 
-  // Function to handle submission from the Dialog
   const handleProcessInvoice = () => {
     if (!selectedPdfFile || !dialogVendor || !dialogDescription) {
       setInvoiceError('Missing vendor, description, or file.')
