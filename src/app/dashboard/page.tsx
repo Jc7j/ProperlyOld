@@ -16,24 +16,17 @@ export default function DashboardPage() {
     return dayjs(date).format('YYYY-MM')
   }, [date])
 
-  // Fetch properties, invoices, and owner statements for the selected month
-  const properties = api.property.getMany.useQuery(undefined, {
-    enabled: !!monthQuery,
-  })
-
-  const invoices = api.invoice.getMany.useQuery(
-    { month: monthQuery, limit: 100 },
-    { enabled: !!monthQuery }
-  )
-
-  const ownerStatements = api.ownerStatement.getMany.useQuery(
-    { month: monthQuery },
-    { enabled: !!monthQuery }
+  // Fetch combined data for the selected month using the new route
+  const monthlyOverviewData = api.property.getManyMonthlyOverview.useQuery(
+    { month: monthQuery! }, // Use non-null assertion as enabled is set
+    {
+      enabled: !!monthQuery, // Only run query when monthQuery is available
+      staleTime: 5 * 60 * 1000, // Optional: Cache for 5 minutes
+    }
   )
 
   // Check if data is still loading
-  const isLoading =
-    properties.isLoading || invoices.isLoading || ownerStatements.isLoading
+  const isLoading = monthlyOverviewData.isLoading
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -65,14 +58,13 @@ export default function DashboardPage() {
               />
             </div>
           </div>
-          {properties.data && invoices.data && ownerStatements.data ? (
+          {monthlyOverviewData.data ? (
             <MonthlyOverview
               date={date}
               monthQuery={monthQuery}
               isLoading={isLoading}
-              properties={properties.data}
-              invoices={invoices.data}
-              ownerStatements={ownerStatements.data}
+              // Pass the combined data directly
+              monthlyData={monthlyOverviewData.data}
             />
           ) : isLoading ? (
             <div className="flex justify-center py-8">

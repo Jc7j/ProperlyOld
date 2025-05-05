@@ -1,5 +1,12 @@
 'use client'
 
+import {
+  type Invoice,
+  type InvoiceItem,
+  type OwnerStatement,
+  type OwnerStatementIncome,
+  type Property,
+} from '@prisma/client'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { Printer } from 'lucide-react'
@@ -8,6 +15,20 @@ import 'react-datepicker/dist/react-datepicker.css'
 import { Button } from '~/components/ui'
 import dayjs from '~/lib/utils/day'
 import { formatCurrency } from '~/lib/utils/format'
+
+// Define the expected structure of the incoming data prop
+// This should match the return type of `getManyMonthlyOverview`
+type PropertyWithMonthlyData = Property & {
+  monthlyInvoices: (Invoice & { items: InvoiceItem[] })[]
+  monthlyOwnerStatement:
+    | (OwnerStatement & {
+        incomes: OwnerStatementIncome[]
+        // Include expenses and adjustments if they exist on OwnerStatement
+        // expenses: OwnerStatementExpense[];
+        // adjustments: OwnerStatementAdjustment[];
+      })
+    | null
+}
 
 // Type for property summaries
 interface PropertySummary {
@@ -24,41 +45,12 @@ interface PropertySummary {
   osTotalDays: number
 }
 
-// Type for invoice item
-interface InvoiceItem {
-  price: number
-  quantity?: number | null
-  customItemName?: string | null
-  managementGroupItemsId?: string | null
-}
-
-// Type for invoice
-interface Invoice {
-  propertyId: string | null
-  items?: InvoiceItem[]
-}
-
-// Type for owner statement with incomes
-interface OwnerStatementWithIncomes extends Record<string, any> {
-  incomes?: Array<{
-    grossRevenue?: number | null
-    hostFee?: number | null
-    platformFee?: number | null
-    days?: number | null
-  }>
-  totalIncome?: number | null
-  totalExpenses?: number | null
-  totalAdjustments?: number | null
-}
-
-// Interface for component props
+// Interface for component props - Updated
 interface MonthlyOverviewProps {
   date: Date | undefined
   monthQuery: string | undefined
   isLoading: boolean
-  properties: any[]
-  invoices: { invoices: Invoice[]; totalCount: number }
-  ownerStatements: any[]
+  monthlyData: PropertyWithMonthlyData[] // Use the new combined data prop
 }
 
 // Helper to format currency with dash for zero values
@@ -81,9 +73,7 @@ export default function MonthlyOverview({
   date,
   monthQuery,
   isLoading,
-  properties,
-  invoices,
-  ownerStatements,
+  monthlyData, // Use the new prop
 }: MonthlyOverviewProps) {
   const [summarizedData, setSummarizedData] = useState<PropertySummary[]>([])
 
@@ -101,50 +91,45 @@ export default function MonthlyOverview({
     return Object.values(vendorGroups)
   }, [])
 
-  // Calculate summary data
+  // Calculate summary data - Updated useEffect dependencies and logic
   useEffect(() => {
-    if (!properties || !invoices || !ownerStatements || !monthQuery) {
+    // Depend on monthlyData now
+    if (!monthlyData || !monthQuery) {
+      setSummarizedData([]) // Clear data if props are missing
       return
     }
 
-    // Map property data with summaries
-    const summaries: PropertySummary[] = properties.map((property) => {
-      // Get invoices for this property
-      const propertyInvoices =
-        invoices.invoices.filter(
-          (invoice) => invoice.propertyId === property.id
-        ) ?? []
+    // Map property data with summaries from the new structure
+    const summaries: PropertySummary[] = monthlyData.map((propertyData) => {
+      // Get invoices for this property from the new structure
+      const propertyInvoices = propertyData.monthlyInvoices ?? []
 
-      // Get owner statement for this property
-      const ownerStatement = ownerStatements.find(
-        (statement) => statement.propertyId === property.id
-      ) as OwnerStatementWithIncomes | undefined
+      // Get owner statement for this property from the new structure
+      const ownerStatement = propertyData.monthlyOwnerStatement
 
-      // Calculate invoice totals
+      // Calculate invoice totals (logic remains similar)
       let suppliesTotal = 0
       let maintenanceTotal = 0
       const taxRate = 0.08375 // 8.375% tax rate
 
-      propertyInvoices.forEach((invoice: Invoice) => {
-        ;(invoice.items ?? []).forEach((item: InvoiceItem) => {
-          const itemTotalCents = item.price * (item.quantity ?? 1)
+      propertyInvoices.forEach((invoice) => {
+        ;(invoice.items ?? []).forEach((item) => {
+          // Explicitly convert price to Number for calculation
+          const itemTotalCents = Number(item.price) * (item.quantity ?? 1)
           const itemTotalDollars = itemTotalCents / 100
 
           if (!item.customItemName && item.managementGroupItemsId) {
-            // Supply Item (taxable)
             const itemWithTax = itemTotalDollars * (1 + taxRate)
             suppliesTotal += itemWithTax
           } else if (item.customItemName === 'Supply Drop Fee') {
-            // Supply Drop Fee
             maintenanceTotal += itemTotalDollars
           } else {
-            // Regular maintenance item
             maintenanceTotal += itemTotalDollars
           }
         })
       })
 
-      // Calculate owner statement totals
+      // Calculate owner statement totals (logic remains similar, uses new statement structure)
       let osTotalIncome = 0
       let osTotalExpenses = 0
       let osTotalAdjustments = 0
@@ -154,11 +139,12 @@ export default function MonthlyOverview({
       let osTotalDays = 0
 
       if (ownerStatement) {
+        // Use fields directly from the ownerStatement object
         osTotalIncome = Number(ownerStatement.totalIncome ?? 0)
         osTotalExpenses = Number(ownerStatement.totalExpenses ?? 0)
         osTotalAdjustments = Number(ownerStatement.totalAdjustments ?? 0)
 
-        // Calculate totals from incomes
+        // Calculate totals from incomes relation
         ;(ownerStatement.incomes ?? []).forEach((income) => {
           osTotalGrossRevenue += Number(income.grossRevenue ?? 0)
           osTotalHostFee += Number(income.hostFee ?? 0)
@@ -168,8 +154,8 @@ export default function MonthlyOverview({
       }
 
       return {
-        propertyId: property.id,
-        propertyName: property.name,
+        propertyId: propertyData.id,
+        propertyName: propertyData.name,
         suppliesTotal,
         maintenanceTotal,
         osTotalIncome,
@@ -182,13 +168,13 @@ export default function MonthlyOverview({
       }
     })
 
-    // Sort properties alphabetically by name
+    // Sort properties alphabetically by name (remains the same)
     const sortedSummaries = [...summaries].sort((a, b) =>
       a.propertyName.localeCompare(b.propertyName)
     )
 
     setSummarizedData(sortedSummaries)
-  }, [properties, invoices, ownerStatements, monthQuery])
+  }, [monthlyData, monthQuery]) // Updated dependencies
 
   // Calculate column totals
   const totals = useMemo(() => {
@@ -436,7 +422,7 @@ export default function MonthlyOverview({
                       </td>
                     </tr>
                   ) : (
-                    summarizedData.slice(0, 30).map((item) => (
+                    summarizedData.map((item) => (
                       <tr
                         key={item.propertyId}
                         className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50"

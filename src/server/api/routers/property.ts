@@ -1,7 +1,16 @@
-import { type Property } from '@prisma/client'
+import {
+  type Invoice,
+  type InvoiceItem,
+  type OwnerStatement,
+  type OwnerStatementAdjustment,
+  type OwnerStatementExpense,
+  type OwnerStatementIncome,
+  type Property,
+} from '@prisma/client'
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 import { getUsersDisplayInfo } from '~/lib/utils/clerk'
+import dayjs from '~/lib/utils/day'
 
 import { createTRPCRouter, protectedProcedure } from '../trpc'
 import { type financialDetailsSchema } from './invoice'
@@ -57,6 +66,18 @@ export type ParsedProperty = Property & {
   }>
   totalInvoices: number
   latestInvoiceDate: Date | null
+}
+
+// Define the expected return type for the new route
+type PropertyWithMonthlyData = Property & {
+  monthlyInvoices: (Invoice & { items: InvoiceItem[] })[]
+  monthlyOwnerStatement:
+    | (OwnerStatement & {
+        incomes: OwnerStatementIncome[]
+        expenses: OwnerStatementExpense[]
+        adjustments: OwnerStatementAdjustment[]
+      })
+    | null
 }
 
 export const propertyRouter = createTRPCRouter({
@@ -178,6 +199,79 @@ export const propertyRouter = createTRPCRouter({
       _count: undefined,
     }))
   }),
+
+  getManyMonthlyOverview: protectedProcedure
+    .input(
+      z.object({
+        month: z.string().regex(/^\d{4}-\d{2}$/, 'Invalid month format'),
+      })
+    )
+    .query(async ({ ctx, input }): Promise<PropertyWithMonthlyData[]> => {
+      const { orgId } = ctx.auth
+      if (!orgId) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'No organization selected',
+        })
+      }
+
+      const startDate = dayjs.utc(input.month).startOf('month').toDate()
+      const endDate = dayjs.utc(input.month).endOf('month').toDate()
+
+      const properties = await ctx.db.property.findMany({
+        where: {
+          managementGroupId: orgId,
+          deletedAt: null,
+        },
+        include: {
+          invoices: {
+            where: {
+              invoiceDate: {
+                gte: startDate,
+                lte: endDate,
+              },
+              deletedAt: null,
+            },
+            include: {
+              items: true,
+            },
+          },
+          ownerStatements: {
+            where: {
+              statementMonth: {
+                gte: startDate,
+                lte: endDate,
+              },
+            },
+            include: {
+              incomes: true,
+              expenses: true,
+              adjustments: true,
+            },
+            take: 1,
+          },
+        },
+        orderBy: {
+          name: 'asc',
+        },
+      })
+
+      // Explicitly cast the result to the defined type before mapping
+      const typedProperties = properties as (Property & {
+        invoices: (Invoice & { items: InvoiceItem[] })[]
+        ownerStatements: (OwnerStatement & {
+          incomes: OwnerStatementIncome[]
+          expenses: OwnerStatementExpense[]
+          adjustments: OwnerStatementAdjustment[]
+        })[]
+      })[]
+
+      return typedProperties.map((property) => ({
+        ...property,
+        monthlyInvoices: property.invoices,
+        monthlyOwnerStatement: property.ownerStatements[0] ?? null,
+      }))
+    }),
 
   create: protectedProcedure.mutation(async ({ ctx }) => {
     const { orgId, userId } = ctx.auth
