@@ -10,22 +10,18 @@ import { api } from '~/trpc/react'
 export default function DashboardPage() {
   const [date, setDate] = useState<Date | undefined>(new Date())
 
-  // Format date as YYYY-MM for API queries
   const monthQuery = useMemo(() => {
     if (!date) return undefined
     return dayjs(date).format('YYYY-MM')
   }, [date])
 
-  // Fetch combined data for the selected month using the new route
   const monthlyOverviewData = api.property.getManyMonthlyOverview.useQuery(
-    { month: monthQuery! }, // Use non-null assertion as enabled is set
+    { month: monthQuery! },
     {
       enabled: !!monthQuery, // Only run query when monthQuery is available
-      staleTime: 5 * 60 * 1000, // Optional: Cache for 5 minutes
     }
   )
 
-  // Check if data is still loading
   const isLoading = monthlyOverviewData.isLoading
 
   return (

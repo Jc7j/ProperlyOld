@@ -68,6 +68,15 @@ export type ParsedProperty = Property & {
   latestInvoiceDate: Date | null
 }
 
+// Combined type for getMany output
+export type PropertyOverview = Property & {
+  locationInfo: z.infer<typeof locationInfoSchema> | null
+  owner: z.infer<typeof ownerSchema> | null
+  totalInvoicesCount: number
+  latestInvoiceDate: Date | null // Present when no month filter
+  monthlyInvoiceTotal: number // Present when month filter is applied (or 0)
+}
+
 // Define the expected return type for the new route
 type PropertyWithMonthlyData = Property & {
   monthlyInvoices: (Invoice & { items: InvoiceItem[] })[]
@@ -153,52 +162,105 @@ export const propertyRouter = createTRPCRouter({
       } as ParsedProperty
     }),
 
-  getMany: protectedProcedure.query(async ({ ctx }) => {
-    const { orgId } = ctx.auth
+  getMany: protectedProcedure
+    .input(
+      z
+        .object({
+          month: z
+            .string()
+            .regex(/^\d{4}-\d{2}$/, 'Invalid month format (YYYY-MM)')
+            .optional(),
+        })
+        .optional()
+    )
+    .query(async ({ ctx, input }): Promise<PropertyOverview[]> => {
+      const month = input?.month
+      const { orgId } = ctx.auth
 
-    if (!orgId) {
-      throw new TRPCError({
-        code: 'UNAUTHORIZED',
-        message: 'No organization selected',
-      })
-    }
+      if (!orgId) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'No organization selected',
+        })
+      }
 
-    const properties = await ctx.db.property.findMany({
-      where: {
-        managementGroupId: orgId,
-        deletedAt: null,
-      },
-      include: {
-        _count: {
-          select: {
-            invoices: {
-              where: { deletedAt: null },
+      const properties = await ctx.db.property.findMany({
+        where: {
+          managementGroupId: orgId,
+          deletedAt: null,
+        },
+        include: {
+          _count: {
+            select: {
+              invoices: {
+                where: { deletedAt: null },
+              },
             },
           },
-        },
-        invoices: {
-          where: { deletedAt: null },
-          orderBy: { invoiceDate: 'desc' },
-          take: 1,
-          select: {
-            invoiceDate: true,
+          // Always include invoices, but structure depends on month
+          invoices: {
+            where: month
+              ? {
+                  invoiceDate: {
+                    gte: dayjs.utc(month).startOf('month').toDate(),
+                    lte: dayjs.utc(month).endOf('month').toDate(),
+                  },
+                  deletedAt: null,
+                }
+              : { deletedAt: null },
+            select: {
+              invoiceDate: true,
+              // Only select financialDetails if month is provided
+              ...(month ? { financialDetails: true } : {}),
+            },
+            // Only take 1 and order if no month is specified
+            ...(!month ? { orderBy: { invoiceDate: 'desc' }, take: 1 } : {}),
           },
         },
-      },
-    })
+        orderBy: {
+          name: 'asc',
+        },
+      })
 
-    return properties.map((property) => ({
-      ...property,
-      locationInfo: property.locationInfo as z.infer<
-        typeof locationInfoSchema
-      > | null,
-      owner: property.owner as z.infer<typeof ownerSchema> | null,
-      totalInvoices: property._count.invoices,
-      latestInvoiceDate: property.invoices[0]?.invoiceDate ?? null,
-      invoices: undefined,
-      _count: undefined,
-    }))
-  }),
+      return properties.map((property) => {
+        let monthlyInvoiceTotal = 0
+        let latestInvoiceDate: Date | null = null
+
+        if (month && property.invoices) {
+          // Calculate total for the filtered invoices
+          monthlyInvoiceTotal = property.invoices.reduce((sum, inv) => {
+            const details = inv.financialDetails as {
+              totalAmount?: number
+            } | null
+            // Assuming totalAmount is in cents, convert to dollars for the sum
+            const amountInCents = Number(details?.totalAmount ?? 0)
+            const amountInDollars = amountInCents / 100
+            return sum + amountInDollars
+          }, 0)
+        } else if (
+          !month &&
+          property.invoices &&
+          property.invoices.length > 0
+        ) {
+          // Get latest date if no month filter
+          latestInvoiceDate = property.invoices[0]?.invoiceDate ?? null
+        }
+
+        return {
+          ...property,
+          locationInfo: property.locationInfo as z.infer<
+            typeof locationInfoSchema
+          > | null,
+          owner: property.owner as z.infer<typeof ownerSchema> | null,
+          totalInvoicesCount: property._count.invoices,
+          latestInvoiceDate: latestInvoiceDate,
+          monthlyInvoiceTotal: monthlyInvoiceTotal,
+          // Remove original relations from the returned object
+          invoices: undefined,
+          _count: undefined,
+        }
+      })
+    }),
 
   getManyMonthlyOverview: protectedProcedure
     .input(

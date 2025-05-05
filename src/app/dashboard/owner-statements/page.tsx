@@ -31,6 +31,14 @@ import { api } from '~/trpc/react'
 import ImportModal from './ImportModal'
 import OwnerStatementReviewStepper from './OwnerStatementReviewStepper'
 
+// Define the expected shape of property data from the updated getMany query
+type PropertyWithMonthlyTotal = {
+  id: string
+  name: string | null
+  monthlyInvoiceTotal: number // Added this field
+  // Add other fields from PropertyOverview if needed
+}
+
 type OwnerStatementData = {
   id: string
   property: {
@@ -65,8 +73,7 @@ export default function OwnerStatementsPage() {
   })
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
 
-  const { data: properties } = api.property.getMany.useQuery()
-
+  // Use queryParams for the property query as well
   const queryParams = useMemo(() => {
     const params: { month?: string } = {}
     if (date) {
@@ -74,6 +81,10 @@ export default function OwnerStatementsPage() {
     }
     return params
   }, [date])
+
+  const { data: propertiesData } = api.property.getMany.useQuery(queryParams)
+  // Cast the properties data to the expected type
+  const properties = propertiesData as PropertyWithMonthlyTotal[] | undefined
 
   const {
     data: ownerStatements,
@@ -92,11 +103,11 @@ export default function OwnerStatementsPage() {
       .filter((option) => option.label !== 'Unnamed Property')
   }, [properties])
 
+  const utils = api.useUtils() // Get tRPC utils
+
   useEffect(() => {
     if (selectedFile) {
-      if (!isParsing && !parsedData) {
-        void parseFile(selectedFile)
-      }
+      void parseFile(selectedFile)
     } else {
       setParsedData(null)
       setError(null)
@@ -127,10 +138,40 @@ export default function OwnerStatementsPage() {
     }
   }
 
-  const handleNextFromModal = () => {
-    if (!parsedData || !selectedMonth || !properties) return
+  const handleNextFromModal = async () => {
+    if (!parsedData || !selectedMonth) {
+      setError('Missing parsed data or selected month.')
+      return
+    }
+
+    setIsParsing(true)
+    setError(null)
+
+    let fetchedProperties: PropertyWithMonthlyTotal[] | undefined
+    try {
+      const formattedMonth = dayjs(selectedMonth).format('YYYY-MM')
+      // Fetch properties specifically for the selected month
+      fetchedProperties = await utils.property.getMany.fetch({
+        month: formattedMonth,
+      })
+
+      if (!fetchedProperties) {
+        throw new Error('Could not fetch property data for the selected month.')
+      }
+    } catch (err) {
+      console.error('Error fetching properties for month:', err)
+      setError(
+        `Failed to fetch property data. ${err instanceof Error ? err.message : 'Unknown error'}`
+      )
+      setIsParsing(false)
+      return
+    }
+
     const propertyMap = new Map(
-      properties.map((p: any) => [p.name.replace(/\s+/g, '').toLowerCase(), p])
+      fetchedProperties.map((p: any) => [
+        p.name?.replace(/\s+/g, '').toLowerCase() ?? '',
+        p,
+      ])
     )
     const grouped: Record<string, any> = {}
     const unmatched: string[] = []
@@ -173,15 +214,44 @@ export default function OwnerStatementsPage() {
           ? (Number(row['Payment Fees']) ?? 0)
           : (Number(row['Host Channel Fee']) ?? 0)
 
+      let checkInDateStr =
+        row['Check-in Date'] instanceof Date
+          ? dayjs(row['Check-in Date']).format('YYYY-MM-DD')
+          : String(row['Check-in Date'] ?? '')
+      if (
+        typeof row['Check-in Date'] === 'string' &&
+        /\d{1,2}\/\d{1,2}\/\d{2,4}/.test(row['Check-in Date'])
+      ) {
+        checkInDateStr = dayjs(row['Check-in Date'], [
+          'M/D/YY',
+          'MM/DD/YYYY',
+          'YYYY-MM-DD',
+        ]).format('YYYY-MM-DD')
+      }
+      let checkOutDateStr =
+        row['Check-out Date'] instanceof Date
+          ? dayjs(row['Check-out Date']).format('YYYY-MM-DD')
+          : String(row['Check-out Date'] ?? '')
+      if (
+        typeof row['Check-out Date'] === 'string' &&
+        /\d{1,2}\/\d{1,2}\/\d{2,4}/.test(row['Check-out Date'])
+      ) {
+        checkOutDateStr = dayjs(row['Check-out Date'], [
+          'M/D/YY',
+          'MM/DD/YYYY',
+          'YYYY-MM-DD',
+        ]).format('YYYY-MM-DD')
+      }
+
       grouped[property.id].incomes.push({
-        guest: row.Guest,
-        checkIn: row['Check-in Date'],
-        checkOut: row['Check-out Date'],
+        guest: String(row.Guest ?? ''),
+        checkIn: checkInDateStr,
+        checkOut: checkOutDateStr,
         days: Number(row.Nights) ?? 0,
-        platform: row.Channel,
-        grossRevenue,
-        hostFee,
-        platformFee,
+        platform: String(row.Channel ?? ''),
+        grossRevenue: grossRevenue,
+        hostFee: hostFee,
+        platformFee: platformFee,
         grossIncome: Math.round((totalPayout - hostFee) * 100) / 100,
       })
 
@@ -190,14 +260,55 @@ export default function OwnerStatementsPage() {
         grouped[property.id].adjustments.push({
           description: 'Airbnb Resolution',
           amount: resolutionSum,
-          checkIn: row['Check-in Date'] || null,
-          checkOut: row['Check-out Date'] || null,
+          checkIn: checkInDateStr || null, // Use formatted date string
+          checkOut: checkOutDateStr || null, // Use formatted date string
         })
       }
     }
+
+    // Add monthly invoice totals as expenses using fetchedProperties
+    if (fetchedProperties && selectedMonth) {
+      const expenseDate = dayjs(selectedMonth)
+        .endOf('month')
+        .format('YYYY-MM-DD')
+
+      fetchedProperties.forEach((prop) => {
+        const propInvoiceTotal = prop.monthlyInvoiceTotal ?? 0
+
+        if (propInvoiceTotal > 0) {
+          const expenseItem = {
+            date: expenseDate,
+            description: 'Supplies',
+            vendor: 'Avava',
+            amount: propInvoiceTotal,
+          }
+
+          if (grouped[prop.id]) {
+            // Add to existing draft
+            if (!grouped[prop.id].expenses) {
+              grouped[prop.id].expenses = []
+            }
+            grouped[prop.id].expenses.push(expenseItem)
+          } else {
+            // Create a new draft just for this invoice expense
+            grouped[prop.id] = {
+              propertyId: prop.id,
+              propertyName: prop.name ?? `Property ${prop.id}`,
+              statementMonth: selectedMonth,
+              incomes: [],
+              expenses: [expenseItem],
+              adjustments: [],
+              notes: 'Auto-generated for monthly invoice total.',
+            }
+          }
+        }
+      })
+    }
+
     setReviewDrafts(Object.values(grouped))
     setUnmatchedListings(unmatched)
     setIsModalOpen(false)
+    setIsParsing(false)
   }
 
   const handleOpenImportModal = () => {
