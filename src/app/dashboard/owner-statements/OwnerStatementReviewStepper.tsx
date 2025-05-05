@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle, Dot, FilePlus } from 'lucide-react'
+import { AlertTriangle, CheckCircle, Dot, FilePlus, Info } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Button,
@@ -49,6 +49,14 @@ export default function OwnerStatementReviewStepper({
   const [dialogDescription, setDialogDescription] = useState('')
   const [selectedPdfFile, setSelectedPdfFile] = useState<File | null>(null)
 
+  // NEW state for parsed invoice results
+  const [parsedInvoiceProperties, setParsedInvoiceProperties] = useState<
+    string[] | null
+  >(null)
+  const [parsingResultMessage, setParsingResultMessage] = useState<
+    string | null
+  >(null)
+
   useEffect(() => {
     const sorted = [...drafts].sort((a, b) =>
       a.propertyName.localeCompare(b.propertyName)
@@ -56,8 +64,9 @@ export default function OwnerStatementReviewStepper({
     setOrderedDrafts(sorted)
     setCreated(new Array(sorted.length).fill(false))
     setStep(0)
-
-    // All existence check logic has been removed.
+    // Reset parsing results when drafts change
+    setParsedInvoiceProperties(null)
+    setParsingResultMessage(null)
   }, [drafts]) // Only depends on drafts now
 
   const current = orderedDrafts[step] || {}
@@ -90,21 +99,28 @@ export default function OwnerStatementReviewStepper({
     expensesMap: ExtractedExpensesMapType,
     vendor: string,
     description: string
-  ): number => {
+  ): { updatedCount: number; unmatchedNames: string[] } => {
     let finalUpdatedCount = 0
+    const finalUnmatchedNames: string[] = []
 
     setOrderedDrafts((currentDrafts) => {
       let updatedCount = 0
+      const unmatchedNamesForThisUpdate = new Set<string>()
       const newDrafts = [...currentDrafts]
       let changesMade = false
 
       Object.entries(expensesMap).forEach(
         ([propertyNameFromMap, expensesToAdd]) => {
           const draftIndex = newDrafts.findIndex((draft) => {
-            const draftNameNorm = draft.propertyName.trim().toLowerCase()
-            const mapKeyNorm = propertyNameFromMap.trim().toLowerCase()
-            const isMatch = draftNameNorm === mapKeyNorm
-            return isMatch
+            // Normalize for comparison
+            const draftNameNorm = draft.propertyName?.trim().toLowerCase()
+            const mapKeyNorm = propertyNameFromMap?.trim().toLowerCase()
+            // Basic direct match
+            if (draftNameNorm && mapKeyNorm && draftNameNorm === mapKeyNorm) {
+              return true
+            }
+            // Add more sophisticated matching if needed (e.g., fuzzy)
+            return false
           })
 
           if (draftIndex !== -1 && expensesToAdd.length > 0) {
@@ -117,24 +133,33 @@ export default function OwnerStatementReviewStepper({
 
             expensesToAdd.forEach((expense) => {
               targetDraft.expenses.push({
-                date: expense.date,
-                description: description,
-                vendor: vendor,
-                amount: expense.amount,
+                date: expense.date, // Use extracted date
+                description: description, // Use dialog description
+                vendor: vendor, // Use dialog vendor
+                amount: expense.amount, // Use extracted amount
               })
             })
 
             newDrafts[draftIndex] = targetDraft
+          } else {
+            // If no match found or expensesToAdd is empty, mark as unmatched
+            unmatchedNamesForThisUpdate.add(propertyNameFromMap)
           }
         }
       )
 
       finalUpdatedCount = updatedCount
+      unmatchedNamesForThisUpdate.forEach((name) =>
+        finalUnmatchedNames.push(name)
+      ) // Add to final list after loop
 
       return changesMade ? newDrafts : currentDrafts
     })
 
-    return finalUpdatedCount
+    return {
+      updatedCount: finalUpdatedCount,
+      unmatchedNames: finalUnmatchedNames,
+    }
   }
 
   const handleDraftChange = (
@@ -168,33 +193,55 @@ export default function OwnerStatementReviewStepper({
   const parseInvoiceMutation =
     api.ownerStatement.parseInvoiceExpenseWithGemini.useMutation({
       onSuccess: (extractedExpensesMap, variables) => {
+        // Reset previous results/errors first
+        setInvoiceError(null)
+        setParsedInvoiceProperties(null)
+        setParsingResultMessage(null)
+
         if (
           extractedExpensesMap &&
           Object.keys(extractedExpensesMap).length > 0
         ) {
-          const updatedCount = applyExtractedExpenses(
+          const propertyNamesFound = Object.keys(extractedExpensesMap)
+          setParsedInvoiceProperties(propertyNamesFound)
+
+          // Call applyExtractedExpenses to update drafts in the background
+          // The UI feedback no longer depends directly on its return value.
+          applyExtractedExpenses(
             extractedExpensesMap,
             variables.vendor,
             variables.description
           )
-          if (updatedCount > 0) {
-            setInvoiceError(null)
-            SuccessToast('Invoice expenses imported successfully.')
-          } else {
-            setInvoiceError(
-              'Invoice processed, but no matching property statements currently being reviewed were found for the extracted expenses.'
-            )
-          }
+
+          // Construct the simplified informative message
+          const message = `Parsed expenses for the properties listed below. Please review and verify against the invoice.`
+          setParsingResultMessage(message)
+
+          // Optionally, show a simple success toast for the *action* completion
+          SuccessToast('Invoice processed.')
+        } else {
+          // Handle case where Gemini might return an empty map or structured incorrectly
+          setParsingResultMessage(
+            'Could not extract relevant expense data from the invoice.'
+          )
+          // Ensure properties list is cleared
+          setParsedInvoiceProperties(null)
         }
         setIsParsingInvoice(false)
-        setIsInvoiceDialogOpen(false)
+        setIsInvoiceDialogOpen(false) // Close dialog on success/handled info
       },
       onError: (error) => {
         console.error('Invoice parsing error:', error)
+        // Use invoiceError state for actual failures
         setInvoiceError(
           error.message || `Invoice import failed: An unknown error occurred.`
         )
+        // Clear any previous successful parse message
+        setParsingResultMessage(null)
+        setParsedInvoiceProperties(null)
         setIsParsingInvoice(false)
+        // Keep dialog open on error? Or close? Let's close it for now.
+        // setIsInvoiceDialogOpen(false);
       },
     })
 
@@ -340,6 +387,8 @@ export default function OwnerStatementReviewStepper({
     setDialogDescription('')
     setSelectedPdfFile(null)
     setInvoiceError(null)
+    // Don't clear parsingResultMessage/parsedInvoiceProperties here
+    // Let them persist until the next parse or component update
   }
 
   return (
@@ -369,15 +418,43 @@ export default function OwnerStatementReviewStepper({
             ) : (
               <>
                 <FilePlus className="w-4 h-4 mr-2" />
-                Import Vendor Invoice
+                Import Vendor PDF
               </>
             )}
           </Button>
-          {/* Display Error Message */}
-          {invoiceError && (
+          {/* Display GENUINE Error Message */}
+          {invoiceError && !parsingResultMessage && (
             <Card className="p-4 border-red-300 bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 text-sm">
-              <div className="font-medium mb-1">Import Error</div>
-              {invoiceError}
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-5 h-5 mt-0.5 text-red-600" />
+                <div>
+                  <div className="font-medium mb-1">Import Error</div>
+                  {invoiceError}
+                </div>
+              </div>
+            </Card>
+          )}
+          {/* NEW Parsed Invoice Details Card */}
+          {parsingResultMessage && (
+            <Card className="p-4 max-h-72 overflow-y-auto border-blue-300 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 text-sm">
+              <div className="flex items-start gap-3">
+                <Info className="w-5 h-5 mt-0.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                <div>
+                  <div className="font-semibold mb-1">
+                    Parsed Invoice Details
+                  </div>
+                  <p>{parsingResultMessage}</p>
+                  {/* Display parsed properties as a list */}
+                  {parsedInvoiceProperties &&
+                    parsedInvoiceProperties.length > 0 && (
+                      <ul className="mt-2 list-disc list-inside text-xs space-y-1">
+                        {parsedInvoiceProperties.map((p) => (
+                          <li key={p}>{p}</li>
+                        ))}
+                      </ul>
+                    )}
+                </div>
+              </div>
             </Card>
           )}
           {/* Progress Card */}
@@ -424,20 +501,16 @@ export default function OwnerStatementReviewStepper({
             </ul>
           </Card>
           {/* Unmatched Listings Card */}
-          <Card className="p-5 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800/50 shadow-sm">
-            <div className="flex flex-col  gap-2 mb-3 text-yellow-800 dark:text-yellow-200 font-semibold text-base">
-              <AlertTriangle className="w-5 h-5" />
-              Unmatched Listings
-              <p className="text-xs mb-2 font-normal">
-                Properties from imported data that couldn&apos;t be matched with
-                existing property names in the system.
-              </p>
-            </div>
-            {unmatchedListings.length === 0 ? (
-              <div className="text-sm text-zinc-600 dark:text-zinc-400 italic">
-                None found.
+          {unmatchedListings.length > 0 && (
+            <Card className="p-5 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800/50 shadow-sm">
+              <div className="flex flex-col  gap-2 mb-3 text-yellow-800 dark:text-yellow-200 font-semibold text-base">
+                <AlertTriangle className="w-5 h-5" />
+                Unmatched Listings
+                <p className="text-xs mb-2 font-normal">
+                  Properties from imported data that couldn&apos;t be matched
+                  with existing property names in the system.
+                </p>
               </div>
-            ) : (
               <ul className="text-sm text-yellow-800 dark:text-yellow-300 space-y-1.5 max-h-40 overflow-y-auto pl-1 -mr-2 pr-2">
                 {unmatchedListings.map((l, i) => (
                   <li key={i} className="truncate">
@@ -445,8 +518,8 @@ export default function OwnerStatementReviewStepper({
                   </li>
                 ))}
               </ul>
-            )}
-          </Card>
+            </Card>
+          )}
         </aside>
         {/* Right Panel: Review Table Area */}
         <main className="flex-1 flex flex-col overflow-y-auto p-6 md:p-8">
@@ -501,11 +574,13 @@ export default function OwnerStatementReviewStepper({
       <Dialog open={isInvoiceDialogOpen} onClose={closeInvoiceDialog} size="lg">
         <DialogTitle>Import Vendor Invoice Expenses</DialogTitle>
         <DialogBody className="space-y-4">
-          {invoiceError && (
-            <p className="text-sm text-red-600 dark:text-red-400">
-              Error: {invoiceError}
-            </p>
-          )}
+          {/* This error is for dialog validation or file reading issues, not post-parse */}
+          {invoiceError &&
+            !parsingResultMessage && ( // Only show if not overridden by parse result message
+              <p className="text-sm text-red-600 dark:text-red-400">
+                Error: {invoiceError}
+              </p>
+            )}
           <div>
             <Label htmlFor="dialogVendor">Vendor Name</Label>
             <Input
@@ -556,7 +631,8 @@ export default function OwnerStatementReviewStepper({
                             'Invalid file type. Please select a PDF.'
                           )
                       }
-                      e.target.value = ''
+                      // Clear the input value to allow re-selecting the same file
+                      if (e.target) e.target.value = ''
                     }}
                     disabled={isParsingInvoice}
                   />
@@ -567,8 +643,8 @@ export default function OwnerStatementReviewStepper({
                   </p>
                 ) : (
                   <p className="text-xs text-zinc-500 dark:text-zinc-500">
-                    PDF only, up to X MB
-                  </p>
+                    PDF only
+                  </p> // Simplified placeholder
                 )}
               </div>
             </div>

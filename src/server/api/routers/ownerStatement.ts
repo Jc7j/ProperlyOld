@@ -458,23 +458,26 @@ export const ownerStatementRouter = createTRPCRouter({
       const { pdfBase64, draftPropertyNames } = input
 
       // Construct the prompt for Gemini
-      const prompt = `
-You are an expert data extraction assistant for property management invoices.
-You will receive a PDF invoice file which may list expenses for one or multiple properties.
-You will also receive a list of known property names currently being reviewed:
+      const prompt = `You are an expert data extraction assistant specializing in property management invoices.
+You will receive a PDF invoice file. Invoices can vary significantly in format, including tables, lists, or less structured text.
+You will also receive a list of known property names relevant to this invoice context:
 KNOWN PROPERTY NAMES:
 ${draftPropertyNames.map((name) => `- ${name}`).join('\n')}
 
-Your goal is ONLY to extract the DATE and AMOUNT for expense line items found in the PDF and group them by the property they are associated with.
-Crucially, for each group of expenses, the key in the output JSON MUST be one of the names from the KNOWN PROPERTY NAMES list provided above. Find the closest match from the known list for the property mentioned in the invoice text.
+Your task is to extract expense line items from the PDF and associate them with the correct property from the KNOWN PROPERTY NAMES list.
 
-For each matched property from the known list, extract ONLY the following details for each expense:
-1.  "date": The date of the expense (format as YYYY-MM-DD if possible, otherwise use the format found).
-2.  "amount": The expense amount (as a number, no currency symbols).
+For each expense line item you can confidently match to a property in the KNOWN list, extract ONLY the following details:
+1.  "date": The date the expense occurred or was invoiced. Look for columns labeled 'Date', 'Service Date', or similar. Format as YYYY-MM-DD if possible, otherwise use the exact format found.
+2.  "amount": The cost of the specific line item. Look for columns labeled 'Amount', 'Cost', 'Price', 'Total', or similar. Provide this as a number, removing any currency symbols ($, £, etc.).
+
+Crucially:
+-   Identify the property associated with each expense. The property name or address might be in a dedicated column ('Property', 'Address', 'Location'), listed near the line item(s), or mentioned as a header for a section.
+-   Match the identified property name/address from the invoice to the *closest* name in the provided KNOWN PROPERTY NAMES list.
+-   The output JSON keys MUST be exact matches from the KNOWN PROPERTY NAMES list.
 
 Format your response STRICTLY as a JSON object where:
-- Each key is a property name exactly from the provided KNOWN PROPERTY NAMES list.
-- Each value is an array of expense objects for that property, containing ONLY date and amount: {"date": "...", "amount": ...}.
+- Each key is a property name taken *exactly* from the provided KNOWN PROPERTY NAMES list.
+- Each value is an array of expense objects for that property, containing ONLY the extracted "date" and "amount": {"date": "...", "amount": ...}.
 
 Example Output (assuming "123 Main St" and "456 Oak Ave Apt B" were in the known list):
 {
@@ -482,10 +485,12 @@ Example Output (assuming "123 Main St" and "456 Oak Ave Apt B" were in the known
   "456 Oak Ave Apt B": [{"date": "2024-05-10", "amount": 350.50}, {"date": "2024-05-18", "amount": 85.00}]
 }
 
-If an expense in the invoice cannot be confidently matched to any property in the KNOWN PROPERTY NAMES list, OMIT that expense entirely from the output.
-If no expenses can be matched to any known property, return an empty JSON object {}.
-Respond ONLY with the JSON object. Do not include explanations, apologies, or markdown formatting.
-      `
+Important Considerations:
+-   Some invoices might list multiple expenses under a single property header. Group these correctly.
+-   Some invoices might have line items that don't clearly belong to any property or don't match any name in the KNOWN PROPERTY NAMES list. OMIT these line items entirely from your output.
+-   If no expense line items can be successfully extracted and matched to any property in the KNOWN list, return an empty JSON object {}.
+-   Focus solely on extracting the requested 'date' and 'amount' per matched property. Do not extract descriptions, vendors, or other details into the JSON output.
+-   Respond ONLY with the raw JSON object. Do not include explanations, apologies, markdown formatting, or any text outside the JSON structure.`
 
       const pdfPart = {
         inlineData: {
@@ -505,7 +510,7 @@ Respond ONLY with the JSON object. Do not include explanations, apologies, or ma
         )
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
-          message: 'AI failed to generate content from invoice.',
+          message: 'Failed to generate content from invoice.',
           cause: generationResult.error,
         })
       }
@@ -528,15 +533,14 @@ Respond ONLY with the JSON object. Do not include explanations, apologies, or ma
         )
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
-          message: 'Failed to process AI response.',
+          message: 'Failed to process response.',
         })
       }
 
       if (Object.keys(parsedExpensesMap).length === 0) {
         throw new TRPCError({
           code: 'NOT_FOUND',
-          message:
-            'AI could not extract any property expenses from the invoice.',
+          message: 'Could not extract any property expenses from the invoice.',
         })
       }
 
