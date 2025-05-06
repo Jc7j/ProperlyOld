@@ -245,35 +245,48 @@ export default function OwnerStatementReviewStepper({
       },
     })
 
-  const createMutation = api.ownerStatement.create.useMutation({
-    onSuccess: (_data) => {
-      SuccessToast(`Statement for ${current.propertyName} created!`)
-      setCreated((arr) => {
-        const next = [...arr]
-        next[step] = true
-        return next
-      })
-    },
-    onError: (error) => {
-      console.error('Statement creation error:', error)
-      ErrorToast(
-        `Failed to create statement: ${error.message ?? 'Unknown error'}`
-      )
-    },
-  })
+  const { mutate: createMutation, isPending: isCreating } =
+    api.ownerStatement.create.useMutation({
+      onMutate: async () => {
+        // Capture context at the time of mutation
+        return {
+          originalStepIndex: step,
+          propertyNameForToast: current.propertyName,
+        }
+      },
+      onSuccess: (data, variables, context) => {
+        SuccessToast(
+          `Statement for ${context?.propertyNameForToast ?? 'selected property'} created!`
+        )
+        setCreated((arr) => {
+          const next = [...arr]
+          if (context?.originalStepIndex !== undefined) {
+            next[context.originalStepIndex] = true
+          }
+          return next
+        })
+      },
+      onError: (error, variables, context) => {
+        console.error('Statement creation error:', error)
+        ErrorToast(
+          `Failed to create statement for ${context?.propertyNameForToast ?? 'selected property'}: ${error.message ?? 'Unknown error'}`
+        )
+      },
+    })
 
   const handleCreateStatement = () => {
-    // Revert back to non-async
-    if (!current?.propertyId) {
+    const draftToProcess = current // Use current draft from component state
+
+    if (!draftToProcess?.propertyId) {
       ErrorToast('Cannot create statement: Missing property data.')
       return
     }
 
     let statementMonthDate: Date | null = null
-    if (current.statementMonth instanceof Date) {
-      statementMonthDate = current.statementMonth
-    } else if (typeof current.statementMonth === 'string') {
-      const parts = current.statementMonth.split('-')
+    if (draftToProcess.statementMonth instanceof Date) {
+      statementMonthDate = draftToProcess.statementMonth
+    } else if (typeof draftToProcess.statementMonth === 'string') {
+      const parts = draftToProcess.statementMonth.split('-')
       if (parts.length === 2) {
         const year = parseInt(parts[0], 10)
         const month = parseInt(parts[1], 10)
@@ -283,18 +296,20 @@ export default function OwnerStatementReviewStepper({
       }
     }
 
-    // Validate the resulting date
     if (!statementMonthDate || isNaN(statementMonthDate?.getTime())) {
-      console.error('Invalid statement month:', current.statementMonth)
+      console.error('Invalid statement month:', draftToProcess.statementMonth)
       ErrorToast('Invalid or missing statement month data.')
       return
     }
 
-    // Ensure incomes, expenses, adjustments are arrays (even if empty)
-    const incomes = Array.isArray(current.incomes) ? current.incomes : []
-    const expenses = Array.isArray(current.expenses) ? current.expenses : []
-    const adjustments = Array.isArray(current.adjustments)
-      ? current.adjustments
+    const incomes = Array.isArray(draftToProcess.incomes)
+      ? draftToProcess.incomes
+      : []
+    const expenses = Array.isArray(draftToProcess.expenses)
+      ? draftToProcess.expenses
+      : []
+    const adjustments = Array.isArray(draftToProcess.adjustments)
+      ? draftToProcess.adjustments
       : []
 
     if (incomes.length === 0) {
@@ -304,10 +319,8 @@ export default function OwnerStatementReviewStepper({
       return
     }
 
-    // Calculate summary totals precisely
     const totalIncome = incomes.reduce((sum: number, i: any) => {
       const income = Number(i.grossIncome) || 0
-      // Use toFixed and parseFloat to handle floating point precision issues
       return parseFloat((sum + income).toFixed(2))
     }, 0)
 
@@ -321,15 +334,14 @@ export default function OwnerStatementReviewStepper({
       return parseFloat((sum + adjustment).toFixed(2))
     }, 0)
 
-    // Calculate grand total with proper precision handling
     const grandTotal = parseFloat(
       (totalIncome - totalExpenses + totalAdjustments).toFixed(2)
     )
 
-    createMutation.mutate({
-      propertyId: current.propertyId,
+    createMutation({
+      propertyId: draftToProcess.propertyId,
       statementMonth: statementMonthDate,
-      notes: current.notes ?? '',
+      notes: draftToProcess.notes ?? '',
       incomes: incomes,
       expenses: expenses,
       adjustments: adjustments,
@@ -543,10 +555,10 @@ export default function OwnerStatementReviewStepper({
               <Button
                 variant="secondary"
                 onClick={handleCreateStatement}
-                disabled={created[step] ?? createMutation.isPending}
+                disabled={created[step] ?? isCreating}
                 className="w-full sm:w-auto"
               >
-                {createMutation.isPending
+                {isCreating
                   ? 'Creating...'
                   : created[step]
                     ? 'Statement Created'
@@ -555,6 +567,7 @@ export default function OwnerStatementReviewStepper({
               <Button
                 variant="default"
                 onClick={handleNext}
+                disabled={isCreating}
                 className="w-full sm:w-auto"
               >
                 {step === orderedDrafts.length - 1
