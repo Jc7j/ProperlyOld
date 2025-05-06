@@ -6,7 +6,6 @@ import { type CellHookData, type UserOptions } from 'jspdf-autotable'
 import dayjs from '~/lib/utils/day'
 import { formatCurrency } from '~/lib/utils/format'
 
-// Define the cell content type for jspdf-autotable
 type CellContent =
   | string
   | {
@@ -16,7 +15,6 @@ type CellContent =
       styles?: UserOptions['styles']
     }
 
-// Define interfaces based on OwnerStatementReviewTable usage
 interface IncomeItem {
   checkIn: string | null | Date
   checkOut: string | null | Date
@@ -54,7 +52,6 @@ export interface OwnerStatementData {
   grandTotal?: number | null
 }
 
-// Helper to safely get table Y position
 const getLastTableY = (doc: jsPDF): number => {
   return (doc as any).lastAutoTable?.finalY || 0
 }
@@ -172,7 +169,6 @@ export function addOwnerStatementToPdf(
       formatCurrency(item.grossIncome, 'USD', { centsToDollars: false }),
     ])
 
-    // Add total row
     incomeBody.push([
       {
         content: 'Total',
@@ -378,42 +374,41 @@ export function addOwnerStatementToPdf(
     currentY = getLastTableY(doc) + 8
   }
 
-  // --- Notes and Grand Total Section ---
-  // Check for page break
-  if (currentY + 40 > doc.internal.pageSize.height - 30) {
+  // --- Notes Section (Full Width) ---
+  if (currentY + 20 > doc.internal.pageSize.height - 30) {
+    // Check for page break
     doc.addPage()
     currentY = 20
   }
-
-  const summaryStartY = currentY
-  const notesWidth = usableWidth * 0.6
-  const totalsWidth = usableWidth * 0.35
-  const gap = usableWidth * 0.05
-
-  // Draw Notes Box
   doc.setFontSize(10)
   doc.setFont('helvetica', 'bold')
   doc.text('Notes', leftMargin, currentY)
   currentY += 4
   doc.setFontSize(9)
   doc.setFont('helvetica', 'normal')
-  const notesLines = doc.splitTextToSize(notes ?? 'No notes.', notesWidth)
-  const notesHeight = notesLines.length * doc.getLineHeight() * 0.4 + 8 // Estimate height + padding
+  const notesLines = doc.splitTextToSize(notes ?? 'No notes.', usableWidth)
+  // Calculate dynamic height based on lines and line height
+  const notesTextHeight =
+    notesLines.length * (doc.getLineHeight() / doc.internal.scaleFactor)
+  const notesPadding = 6 // Top/bottom padding inside the box
+  const notesBoxHeight = notesTextHeight + notesPadding * 2
   doc.setDrawColor(220)
-  doc.rect(leftMargin, currentY, notesWidth, notesHeight)
-  doc.text(notesLines, leftMargin + 3, currentY + 6)
+  doc.rect(leftMargin, currentY, usableWidth, notesBoxHeight)
+  doc.text(notesLines, leftMargin + 3, currentY + notesPadding)
+  currentY += notesBoxHeight + 8 // Add space after notes box
 
-  // Draw Grand Total Box
-  let totalsY = summaryStartY
-  const totalsX = leftMargin + notesWidth + gap
+  // --- Summary Section (Full Width) ---
+  if (currentY + 40 > doc.internal.pageSize.height - 30) {
+    // Check for page break
+    doc.addPage()
+    currentY = 20
+  }
   doc.setFontSize(10)
   doc.setFont('helvetica', 'bold')
-  doc.text('Summary', doc.internal.pageSize.width - rightMargin, totalsY, {
-    align: 'right',
-  })
-  totalsY += 6
+  doc.text('Summary', leftMargin, currentY) // Align title left
+  currentY += 6
 
-  // Summary Table (body already matches CellContent[][])
+  // Summary Table (using autoTable for better alignment)
   const summaryData: CellContent[][] = [
     [
       'Total Income:',
@@ -430,38 +425,37 @@ export function addOwnerStatementToPdf(
   ]
 
   autoTable(doc, {
-    startY: totalsY,
+    startY: currentY,
     body: summaryData,
     theme: 'plain',
-    tableWidth: totalsWidth,
-    margin: { left: totalsX },
+    tableWidth: usableWidth, // Use full usable width
+    margin: { left: leftMargin }, // Use standard left margin
     styles: { fontSize: 9, cellPadding: 0.5 },
     columnStyles: {
-      0: { halign: 'left', fontStyle: 'bold' },
+      0: { halign: 'left', fontStyle: 'bold', cellWidth: 'wrap' }, // Let label wrap if needed
       1: { halign: 'right' },
     },
   })
-  totalsY = getLastTableY(doc) + 2
+  currentY = getLastTableY(doc) + 2 // Update Y position after table
 
-  // Separator line
+  // Separator line (full width)
   doc.setDrawColor(150)
-  doc.line(totalsX, totalsY, totalsX + totalsWidth, totalsY)
-  totalsY += 4
+  doc.line(leftMargin, currentY, leftMargin + usableWidth, currentY)
+  currentY += 4
 
-  // Grand Total
+  // Grand Total (full width)
   doc.setFontSize(11)
   doc.setFont('helvetica', 'bold')
-  doc.text('Grand Total / Disbursement:', totalsX, totalsY, { align: 'left' })
+  doc.text('Grand Total / Disbursement:', leftMargin, currentY, {
+    align: 'left',
+  }) // Align label left
   doc.text(
     formatCurrency(grandTotal, 'USD', { centsToDollars: false }),
-    totalsX + totalsWidth,
-    totalsY,
+    leftMargin + usableWidth, // Align value right using full width
+    currentY,
     { align: 'right' }
   )
-  const totalsHeight = totalsY - summaryStartY + 4 // Calculate total height used
-
-  currentY =
-    Math.max(summaryStartY + notesHeight, summaryStartY + totalsHeight) + 10
+  currentY += 8 // Add some space after grand total
 
   return currentY // Return the final Y position
 }

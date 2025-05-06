@@ -16,7 +16,6 @@ import dayjs from '~/lib/utils/day'
 import { formatCurrency } from '~/lib/utils/format'
 import { api } from '~/trpc/react'
 
-// Define the cell content type for jspdf-autotable
 type CellContent =
   | string
   | {
@@ -26,10 +25,8 @@ type CellContent =
       styles?: UserOptions['styles']
     }
 
-// Helper to convert Prisma Decimal to number (if needed, adjust based on actual API return type)
 const safeToNumber = (value: any): number => {
   if (value === null || value === undefined) return 0
-  // Handle Prisma Decimal object or string representation
   const strValue =
     typeof value === 'object' &&
     value !== null &&
@@ -72,7 +69,6 @@ export default function ExportMonthlyStatements() {
       const monthStr = dayjs(selectedDate).format('MMMM YYYY')
       const filename = `MonthlyOwnerStatements-${dayjs(selectedDate).format('YYYY-MM')}.pdf`
 
-      // --- PDF Header ---
       doc.setFontSize(16)
       doc.setFont('helvetica', 'bold')
       doc.text(
@@ -83,14 +79,10 @@ export default function ExportMonthlyStatements() {
       )
       currentY += 10
 
-      // --- Define Table Columns (based on available summary data) ---
       const head = [
         ['Property', 'Income', 'Expenses', 'Adjustments', 'Grand Total'],
       ]
 
-      // --- Map Data to Table Body ---
-      // Ensure statements is an array and stmt exists before mapping
-      // Explicitly type body as CellContent[][]
       const body: CellContent[][] = statements.map((stmt) => {
         if (!stmt) return ['Error', 'Error', 'Error', 'Error', 'Error'] // Handle potential null/undefined in array
 
@@ -121,7 +113,6 @@ export default function ExportMonthlyStatements() {
         ]
       })
 
-      // --- Add Totals Row ---
       const totalIncomeAll = statements.reduce(
         (sum, s) => sum + safeToNumber(s?.totalIncome),
         0
@@ -139,7 +130,6 @@ export default function ExportMonthlyStatements() {
         0
       )
 
-      // The array being pushed now matches the CellContent type definition
       body.push([
         {
           content: 'Month Total',
@@ -172,7 +162,6 @@ export default function ExportMonthlyStatements() {
         },
       ])
 
-      // --- Generate Table ---
       autoTable(doc, {
         startY: currentY,
         head: head,
