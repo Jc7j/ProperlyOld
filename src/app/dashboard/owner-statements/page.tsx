@@ -28,8 +28,8 @@ import dayjs from '~/lib/utils/day'
 import { formatCurrency } from '~/lib/utils/format'
 import { api } from '~/trpc/react'
 
-import ImportModal from './ImportModal'
-import OwnerStatementReviewStepper from './OwnerStatementReviewStepper'
+import ImportModal from '../../../components/owner-statement/ImportModal'
+import OwnerStatementReviewStepper from '../../../components/owner-statement/OwnerStatementReviewStepper'
 
 // Define the expected shape of property data from the updated getMany query
 type PropertyWithMonthlyTotal = {
@@ -148,8 +148,8 @@ export default function OwnerStatementsPage() {
     setError(null)
 
     let fetchedProperties: PropertyWithMonthlyTotal[] | undefined
+    const formattedMonth = dayjs(selectedMonth).format('YYYY-MM')
     try {
-      const formattedMonth = dayjs(selectedMonth).format('YYYY-MM')
       // Fetch properties specifically for the selected month
       fetchedProperties = await utils.property.getMany.fetch({
         month: formattedMonth,
@@ -165,6 +165,20 @@ export default function OwnerStatementsPage() {
       )
       setIsParsing(false)
       return
+    }
+
+    // NEW: Determine properties with existing statements for the selected month
+    const propertiesWithExistingStatements = new Set<string>()
+    if (ownerStatements && ownerStatements.length > 0) {
+      ownerStatements.forEach((stmt) => {
+        // Ensure property and property.id exist, and month matches
+        if (
+          stmt.property &&
+          dayjs(stmt.statementMonth).format('YYYY-MM') === formattedMonth
+        ) {
+          propertiesWithExistingStatements.add(stmt.property.id)
+        }
+      })
     }
 
     const propertyMap = new Map(
@@ -198,6 +212,9 @@ export default function OwnerStatementsPage() {
           expenses: [],
           adjustments: [],
           notes: '',
+          hasExistingStatement: propertiesWithExistingStatements.has(
+            property.id
+          ),
         }
       }
       const rentalRevenue = Number(row['Rental Revenue']) ?? 0
@@ -299,6 +316,9 @@ export default function OwnerStatementsPage() {
               expenses: [expenseItem],
               adjustments: [],
               notes: 'Auto-generated for monthly invoice total.',
+              hasExistingStatement: propertiesWithExistingStatements.has(
+                prop.id
+              ),
             }
           }
         }

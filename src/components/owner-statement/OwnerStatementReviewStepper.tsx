@@ -9,6 +9,9 @@ import {
   DialogTitle,
   Input,
   Label,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
 } from '~/components/ui'
 import { ErrorToast, SuccessToast } from '~/components/ui/sonner'
 import { api } from '~/trpc/react'
@@ -78,6 +81,7 @@ export default function OwnerStatementReviewStepper({
         propertyName: d.propertyName,
         reviewed: created[idx],
         isCurrent: idx === step,
+        hasExistingStatement: d.hasExistingStatement ?? false,
       })),
     [orderedDrafts, created, step]
   )
@@ -508,6 +512,20 @@ export default function OwnerStatementReviewStepper({
                   <span className="truncate flex-1 text-sm">
                     {item.propertyName}
                   </span>
+                  {item.hasExistingStatement && !item.reviewed && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <AlertTriangle className="w-4 h-4 text-yellow-500 shrink-0 ml-auto" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>
+                          An owner statement for this property and month already
+                          exists.
+                        </p>
+                        <p>Proceeding will create an additional statement.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
                 </li>
               ))}
             </ul>

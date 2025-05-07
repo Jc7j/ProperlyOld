@@ -17,7 +17,7 @@ import { ErrorToast, SuccessToast } from '~/components/ui/sonner'
 import dayjs from '~/lib/utils/day'
 import { api } from '~/trpc/react'
 
-import OwnerStatementReviewTable from '../OwnerStatementReviewTable'
+import OwnerStatementReviewTable from '../../../../components/owner-statement/OwnerStatementReviewTable'
 
 export default function OwnerStatementDetailPage() {
   const params = useParams()
