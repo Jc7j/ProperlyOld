@@ -375,27 +375,30 @@ export function addOwnerStatementToPdf(
   }
 
   // --- Notes Section (Full Width) ---
-  if (currentY + 20 > doc.internal.pageSize.height - 30) {
-    // Check for page break
-    doc.addPage()
-    currentY = 20
+  if (notes && notes.trim() !== '') {
+    // Check if notes exist and are not just whitespace
+    if (currentY + 20 > doc.internal.pageSize.height - 30) {
+      // Check for page break
+      doc.addPage()
+      currentY = 20
+    }
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Notes', leftMargin, currentY)
+    currentY += 4
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'normal')
+    const notesLines = doc.splitTextToSize(notes, usableWidth) // Use notes directly
+    // Calculate dynamic height based on lines and line height
+    const notesTextHeight =
+      notesLines.length * (doc.getLineHeight() / doc.internal.scaleFactor)
+    const notesPadding = 6 // Top/bottom padding inside the box
+    const notesBoxHeight = notesTextHeight + notesPadding * 2
+    doc.setDrawColor(220)
+    doc.rect(leftMargin, currentY, usableWidth, notesBoxHeight)
+    doc.text(notesLines, leftMargin + 3, currentY + notesPadding)
+    currentY += notesBoxHeight + 8 // Add space after notes box
   }
-  doc.setFontSize(10)
-  doc.setFont('helvetica', 'bold')
-  doc.text('Notes', leftMargin, currentY)
-  currentY += 4
-  doc.setFontSize(9)
-  doc.setFont('helvetica', 'normal')
-  const notesLines = doc.splitTextToSize(notes ?? 'No notes.', usableWidth)
-  // Calculate dynamic height based on lines and line height
-  const notesTextHeight =
-    notesLines.length * (doc.getLineHeight() / doc.internal.scaleFactor)
-  const notesPadding = 6 // Top/bottom padding inside the box
-  const notesBoxHeight = notesTextHeight + notesPadding * 2
-  doc.setDrawColor(220)
-  doc.rect(leftMargin, currentY, usableWidth, notesBoxHeight)
-  doc.text(notesLines, leftMargin + 3, currentY + notesPadding)
-  currentY += notesBoxHeight + 8 // Add space after notes box
 
   // --- Summary Section (Full Width) ---
   if (currentY + 40 > doc.internal.pageSize.height - 30) {

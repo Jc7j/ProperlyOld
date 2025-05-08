@@ -17,6 +17,7 @@ import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import * as XLSX from 'xlsx'
 import DatePicker from '~/components/DatePicker'
+import ExportMonthlyIndividualStatements from '~/components/owner-statement/ExportMonthlyIndividualStatements'
 import ExportMonthlyStatements from '~/components/owner-statement/ExportMonthlyStatements'
 import { DataTable } from '~/components/table/data-table'
 import { DataTableColumnHeader } from '~/components/table/data-table-column-header'
@@ -500,6 +501,7 @@ export default function OwnerStatementsPage() {
             />
           </div>
           <ExportMonthlyStatements />
+          <ExportMonthlyIndividualStatements />
           <Button
             variant="default"
             onClick={handleOpenImportModal}

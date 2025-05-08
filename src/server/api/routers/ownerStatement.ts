@@ -76,6 +76,78 @@ export const ownerStatementRouter = createTRPCRouter({
       })
     }),
 
+  getManyWithDetails: protectedProcedure
+    .input(
+      z.object({
+        propertyId: z.string().optional(),
+        month: z.string().optional(), // YYYY-MM
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const { propertyId, month } = input
+      const { orgId } = ctx.auth
+      if (!orgId) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'No organization selected',
+        })
+      }
+
+      // Build where clause
+      const where: any = {
+        managementGroupId: orgId,
+        deletedAt: null,
+      }
+      if (propertyId) where.propertyId = propertyId
+      if (month) {
+        const [year, m] = month.split('-')
+        const start = new Date(Number(year), Number(m) - 1, 1)
+        const end = new Date(Number(year), Number(m), 0, 23, 59, 59, 999)
+        where.statementMonth = {
+          gte: start,
+          lte: end,
+        }
+      }
+
+      const statementsFromDb = await ctx.db.ownerStatement.findMany({
+        where,
+        include: {
+          property: true,
+          incomes: true,
+          expenses: true,
+          adjustments: true,
+        },
+        orderBy: [{ statementMonth: 'desc' }],
+      })
+
+      const statements = statementsFromDb.map((stmt) => ({
+        ...stmt,
+        totalIncome: stmt.totalIncome ? Number(stmt.totalIncome) : null,
+        totalExpenses: stmt.totalExpenses ? Number(stmt.totalExpenses) : null,
+        totalAdjustments: stmt.totalAdjustments
+          ? Number(stmt.totalAdjustments)
+          : null,
+        grandTotal: stmt.grandTotal ? Number(stmt.grandTotal) : null,
+        incomes: stmt.incomes.map((income) => ({
+          ...income,
+          grossRevenue: Number(income.grossRevenue),
+          hostFee: Number(income.hostFee),
+          platformFee: Number(income.platformFee),
+          grossIncome: Number(income.grossIncome),
+        })),
+        expenses: stmt.expenses.map((expense) => ({
+          ...expense,
+          amount: Number(expense.amount),
+        })),
+        adjustments: stmt.adjustments.map((adj) => ({
+          ...adj,
+          amount: Number(adj.amount),
+        })),
+      }))
+
+      return { statements } // Return as { statements: [...] }
+    }),
+
   getOne: protectedProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
