@@ -32,12 +32,10 @@ import { api } from '~/trpc/react'
 import ImportModal from '../../../components/owner-statement/ImportModal'
 import OwnerStatementReviewStepper from '../../../components/owner-statement/OwnerStatementReviewStepper'
 
-// Define the expected shape of property data from the updated getMany query
 type PropertyWithMonthlyTotal = {
   id: string
   name: string | null
   monthlyInvoiceTotal: number // Added this field
-  // Add other fields from PropertyOverview if needed
 }
 
 type OwnerStatementData = {
@@ -218,14 +216,25 @@ export default function OwnerStatementsPage() {
           ),
         }
       }
+
+      // 1. Gross Revenue = “Rental Revenue”
+      // yes BUT for homes that are located in Henderson I need to be able to take out the ‘Airbnb Transient Occupancy Tax’
+      // 2. Host Fee = gross revenue * 15%
+      // correct
+      // 3. platform fee = “Host Channel Fee”
+      // yes BUT for reservations from VRBO, the host fee is the ‘payment fee’ I would like to manually add
+      // 4. Gross Income = gross revenue - host fee - platform fee
+
       const rentalRevenue = Number(row['Rental Revenue']) ?? 0
       const airbnbTax = Number(row['Airbnb Transient Occupancy Tax']) ?? 0
+
       let grossRevenue = rentalRevenue
+
       if (airbnbTax > 0) {
         grossRevenue = rentalRevenue - airbnbTax
       }
+
       const hostFee = Math.round(grossRevenue * 0.15 * 100) / 100
-      const totalPayout = Number(row['Total Payout']) ?? 0
       const channel = (row.Channel || '').toLowerCase()
       const platformFee =
         channel === 'vrbo'
@@ -261,6 +270,8 @@ export default function OwnerStatementsPage() {
         ]).format('YYYY-MM-DD')
       }
 
+      // 4. Gross Income = gross revenue - host fee - platform fee
+
       grouped[property.id].incomes.push({
         guest: String(row.Guest ?? ''),
         checkIn: checkInDateStr,
@@ -270,7 +281,7 @@ export default function OwnerStatementsPage() {
         grossRevenue: grossRevenue,
         hostFee: hostFee,
         platformFee: platformFee,
-        grossIncome: Math.round((totalPayout - hostFee) * 100) / 100,
+        grossIncome: grossRevenue - hostFee - platformFee,
       })
 
       const resolutionSum = Number(row['Airbnb Closed Resolutions Sum']) ?? 0
