@@ -6,13 +6,33 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import { Plus, Trash2 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { DataTable } from '~/components/table/data-table'
 import { Button, Card, Input } from '~/components/ui'
+import { ErrorToast, SuccessToast } from '~/components/ui/sonner'
 import dayjs from '~/lib/utils/day'
 import { formatCurrency } from '~/lib/utils/format'
+import { api } from '~/trpc/react'
+
+export interface FullOwnerStatementType {
+  id: string
+  propertyId: string
+  propertyName: string
+  statementMonth: string | Date
+  notes: string | null
+  incomes: IncomeItem[]
+  expenses: ExpenseItem[]
+  adjustments: AdjustmentItem[]
+  totalIncome: number | null
+  totalExpenses: number | null
+  totalAdjustments: number | null
+  grandTotal: number | null
+  property?: { name: string; [key: string]: any }
+  [key: string]: any
+}
 
 interface IncomeItem {
+  id?: string
   checkIn: string | null | Date
   checkOut: string | null | Date
   days: number | null
@@ -22,7 +42,6 @@ interface IncomeItem {
   hostFee: number | null
   platformFee: number | null
   grossIncome: number | null
-  id?: string
 }
 
 interface ExpenseItem {
@@ -54,6 +73,8 @@ interface TableMeta {
   readOnly: boolean
   handleDelete: (section: string, index: number) => void
   section: 'incomes' | 'expenses' | 'adjustments'
+  statementId?: string
+  onItemUpdateSuccess?: (updatedStatement: FullOwnerStatementType) => void
 }
 
 function isValidDateInput(
@@ -80,22 +101,225 @@ const createEditableCell = <TData extends { id?: string }>(
     table: Table<TData>
   }> = ({ getValue, row, column, table }) => {
     const initialValue = getValue()
+
+    // ALL HOOKS AT THE VERY TOP before any potential early returns or conditional logic
+    const [editValue, setEditValue] = useState<string>('')
+
+    const updateIncomeItemMutation =
+      api.ownerStatement.updateIncomeItemField.useMutation({
+        onSuccess: (data) => {
+          SuccessToast('Income item updated')
+          const currentMeta = (table.options as any).meta as
+            | TableMeta
+            | undefined
+          if (currentMeta?.onItemUpdateSuccess) {
+            const updatedDataForFrontend: FullOwnerStatementType = {
+              ...data,
+              propertyName: data.property?.name ?? 'Unknown Property',
+              totalIncome: data.totalIncome ? Number(data.totalIncome) : null,
+              totalExpenses: data.totalExpenses
+                ? Number(data.totalExpenses)
+                : null,
+              totalAdjustments: data.totalAdjustments
+                ? Number(data.totalAdjustments)
+                : null,
+              grandTotal: data.grandTotal ? Number(data.grandTotal) : null,
+              incomes: (data.incomes ?? []).map((inc) => ({
+                ...inc,
+                id: inc.id,
+                checkIn: inc.checkIn,
+                checkOut: inc.checkOut,
+                days: inc.days,
+                platform: inc.platform,
+                guest: inc.guest,
+                grossRevenue: Number(inc.grossRevenue),
+                hostFee: Number(inc.hostFee),
+                platformFee: Number(inc.platformFee),
+                grossIncome: Number(inc.grossIncome),
+              })),
+              expenses: (data.expenses ?? []).map((exp) => ({
+                ...exp,
+                id: exp.id,
+                date: exp.date,
+                description: exp.description,
+                vendor: exp.vendor,
+                amount: Number(exp.amount),
+              })),
+              adjustments: (data.adjustments ?? []).map((adj) => ({
+                ...adj,
+                id: adj.id,
+                checkIn: adj.checkIn,
+                checkOut: adj.checkOut,
+                description: adj.description,
+                amount: Number(adj.amount),
+              })),
+            }
+            currentMeta.onItemUpdateSuccess(updatedDataForFrontend)
+          }
+        },
+        onError: (error) => {
+          ErrorToast(`Failed to update income item: ${error.message}`)
+        },
+      })
+
+    const updateExpenseItemMutation =
+      api.ownerStatement.updateExpenseItemField.useMutation({
+        onSuccess: (data) => {
+          SuccessToast('Expense item updated')
+          const currentMeta = (table.options as any).meta as
+            | TableMeta
+            | undefined
+          if (currentMeta?.onItemUpdateSuccess) {
+            const updatedDataForFrontend: FullOwnerStatementType = {
+              ...data,
+              propertyName: data.property?.name ?? 'Unknown Property',
+              totalIncome: data.totalIncome ? Number(data.totalIncome) : null,
+              totalExpenses: data.totalExpenses
+                ? Number(data.totalExpenses)
+                : null,
+              totalAdjustments: data.totalAdjustments
+                ? Number(data.totalAdjustments)
+                : null,
+              grandTotal: data.grandTotal ? Number(data.grandTotal) : null,
+              incomes: (data.incomes ?? []).map((inc) => ({
+                ...inc,
+                id: inc.id,
+                checkIn: inc.checkIn,
+                checkOut: inc.checkOut,
+                days: inc.days,
+                platform: inc.platform,
+                guest: inc.guest,
+                grossRevenue: Number(inc.grossRevenue),
+                hostFee: Number(inc.hostFee),
+                platformFee: Number(inc.platformFee),
+                grossIncome: Number(inc.grossIncome),
+              })),
+              expenses: (data.expenses ?? []).map((exp) => ({
+                ...exp,
+                id: exp.id,
+                date: exp.date,
+                description: exp.description,
+                vendor: exp.vendor,
+                amount: Number(exp.amount),
+              })),
+              adjustments: (data.adjustments ?? []).map((adj) => ({
+                ...adj,
+                id: adj.id,
+                checkIn: adj.checkIn,
+                checkOut: adj.checkOut,
+                description: adj.description,
+                amount: Number(adj.amount),
+              })),
+            }
+            currentMeta.onItemUpdateSuccess(updatedDataForFrontend)
+          }
+        },
+        onError: (error) => {
+          ErrorToast(`Failed to update expense item: ${error.message}`)
+        },
+      })
+
+    const updateAdjustmentItemMutation =
+      api.ownerStatement.updateAdjustmentItemField.useMutation({
+        onSuccess: (data) => {
+          SuccessToast('Adjustment item updated')
+          const currentMeta = (table.options as any).meta as
+            | TableMeta
+            | undefined
+          if (currentMeta?.onItemUpdateSuccess) {
+            const updatedDataForFrontend: FullOwnerStatementType = {
+              ...data,
+              propertyName: data.property?.name ?? 'Unknown Property',
+              totalIncome: data.totalIncome ? Number(data.totalIncome) : null,
+              totalExpenses: data.totalExpenses
+                ? Number(data.totalExpenses)
+                : null,
+              totalAdjustments: data.totalAdjustments
+                ? Number(data.totalAdjustments)
+                : null,
+              grandTotal: data.grandTotal ? Number(data.grandTotal) : null,
+              incomes: (data.incomes ?? []).map((inc) => ({
+                ...inc,
+                id: inc.id,
+                checkIn: inc.checkIn,
+                checkOut: inc.checkOut,
+                days: inc.days,
+                platform: inc.platform,
+                guest: inc.guest,
+                grossRevenue: Number(inc.grossRevenue),
+                hostFee: Number(inc.hostFee),
+                platformFee: Number(inc.platformFee),
+                grossIncome: Number(inc.grossIncome),
+              })),
+              expenses: (data.expenses ?? []).map((exp) => ({
+                ...exp,
+                id: exp.id,
+                date: exp.date,
+                description: exp.description,
+                vendor: exp.vendor,
+                amount: Number(exp.amount),
+              })),
+              adjustments: (data.adjustments ?? []).map((adj) => ({
+                ...adj,
+                id: adj.id,
+                checkIn: adj.checkIn,
+                checkOut: adj.checkOut,
+                description: adj.description,
+                amount: Number(adj.amount),
+              })),
+            }
+            currentMeta.onItemUpdateSuccess(updatedDataForFrontend)
+          }
+        },
+        onError: (error) => {
+          ErrorToast(`Failed to update adjustment item: ${error.message}`)
+        },
+      })
+
+    // This useEffect is also a hook and must be at the top level, unconditionally.
+    // Its internal logic can depend on 'isEditing', which is determined after 'meta' is checked.
+    // To make this work, we calculate 'isEditing' based on a snapshot of meta, and useEffect depends on that snapshot.
+    const metaForIsEditing = (table.options as any).meta as
+      | TableMeta
+      | undefined
+    let isEditingBasedOnMeta = false
+    if (metaForIsEditing) {
+      const currentField = column.id!
+      const currentRowIdx = row.index
+      isEditingBasedOnMeta =
+        !metaForIsEditing.readOnly &&
+        metaForIsEditing.editing?.section === metaForIsEditing.section &&
+        metaForIsEditing.editing?.rowIdx === currentRowIdx &&
+        metaForIsEditing.editing?.field === currentField
+    }
+
+    useEffect(() => {
+      if (isEditingBasedOnMeta) {
+        // Use the derived boolean
+        setEditValue(
+          typeof initialValue === 'object' && initialValue !== null
+            ? ''
+            : String(initialValue ?? '')
+        )
+      }
+    }, [isEditingBasedOnMeta, initialValue]) // Dependency on the derived boolean
+
+    // Now, get meta for the rest of the component logic (handlers, JSX).
     const meta = (table.options as any).meta as TableMeta | undefined
+
     if (!meta) {
-      console.error('Table meta is not defined!')
-      return <span>Error: Missing table meta</span>
+      console.error('Table meta is not defined for cell:', column.id, row.index)
+      return <span className="text-red-500 text-xs">Meta Error</span>
     }
 
-    if (typeof column.id !== 'string') {
-      console.error('Column ID is not a string:', column.id)
-      return <span>Error: Invalid column ID</span>
-    }
-
-    const field: string = column.id
-
-    const { editing, setEditing, onChange, readOnly, section } = meta
+    // Destructure meta for use in handlers and JSX. These are now safe.
+    const { editing, setEditing, onChange, readOnly, section, statementId } =
+      meta
+    const field: string = column.id!
     const rowIdx = row.index
 
+    // Recalculate isEditing with the definitive meta for use in JSX and handlers if needed
+    // (though isEditingBasedOnMeta might be sufficient for most conditional rendering if its calculation is correct)
     const isEditing =
       !readOnly &&
       editing?.section === section &&
@@ -104,20 +328,135 @@ const createEditableCell = <TData extends { id?: string }>(
 
     const handleBlur = () => {
       setEditing(null)
+      const item = row.original as TData & { id?: string }
+
+      const originalValueString =
+        typeof initialValue === 'object' && initialValue !== null
+          ? ''
+          : String(initialValue ?? '')
+      const changedDuringEdit = editValue !== originalValueString
+
+      let processedValueForOnChange: string | number | null
+      let processedValueForMutation: string | number | null
+
+      if (type === 'number') {
+        if (editValue.trim() === '') {
+          processedValueForOnChange = 0
+          processedValueForMutation = 0
+        } else {
+          const num = Number(editValue)
+          if (isNaN(num)) {
+            ErrorToast(`Invalid number: ${editValue}. Reverting.`)
+            onChange(section, rowIdx, field, initialValue)
+            return
+          }
+          processedValueForOnChange = num
+          processedValueForMutation = num
+        }
+      } else {
+        processedValueForOnChange = editValue
+        if (
+          section === 'adjustments' &&
+          (field === 'checkIn' || field === 'checkOut') &&
+          editValue.trim() === ''
+        ) {
+          processedValueForMutation = null
+        } else {
+          processedValueForMutation = editValue
+        }
+      }
+
+      onChange(section, rowIdx, field, processedValueForOnChange)
+
+      if (
+        statementId &&
+        item.id &&
+        item.id !== 'temp-id' &&
+        changedDuringEdit
+      ) {
+        if (section === 'incomes') {
+          if (
+            (field === 'days' ||
+              field === 'grossRevenue' ||
+              field === 'hostFee' ||
+              field === 'platformFee' ||
+              field === 'grossIncome') &&
+            typeof processedValueForMutation === 'number'
+          ) {
+            updateIncomeItemMutation.mutate({
+              id: item.id,
+              field: field as any,
+              value: processedValueForMutation,
+            })
+          } else if (
+            (field === 'checkIn' ||
+              field === 'checkOut' ||
+              field === 'platform' ||
+              field === 'guest') &&
+            typeof processedValueForMutation === 'string'
+          ) {
+            updateIncomeItemMutation.mutate({
+              id: item.id,
+              field: field as any,
+              value: processedValueForMutation,
+            })
+          }
+        } else if (section === 'expenses') {
+          if (
+            field === 'amount' &&
+            typeof processedValueForMutation === 'number'
+          ) {
+            updateExpenseItemMutation.mutate({
+              id: item.id,
+              field: field as any,
+              value: processedValueForMutation,
+            })
+          } else if (
+            (field === 'date' ||
+              field === 'description' ||
+              field === 'vendor') &&
+            typeof processedValueForMutation === 'string'
+          ) {
+            updateExpenseItemMutation.mutate({
+              id: item.id,
+              field: field as any,
+              value: processedValueForMutation,
+            })
+          }
+        } else if (section === 'adjustments') {
+          if (
+            field === 'amount' &&
+            typeof processedValueForMutation === 'number'
+          ) {
+            updateAdjustmentItemMutation.mutate({
+              id: item.id,
+              field: field as any,
+              value: processedValueForMutation,
+            })
+          } else if (
+            field === 'checkIn' ||
+            field === 'checkOut' ||
+            field === 'description'
+          ) {
+            if (
+              typeof processedValueForMutation === 'string' ||
+              processedValueForMutation === null
+            ) {
+              updateAdjustmentItemMutation.mutate({
+                id: item.id,
+                field: field as any,
+                value: processedValueForMutation,
+              })
+            }
+          }
+        }
+      }
     }
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key === 'Enter' || e.key === 'Escape') {
-        setEditing(null)
+        e.currentTarget.blur()
       }
-    }
-
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      let v: string | number | null = e.target.value
-      if (type === 'number') {
-        v = v === '' ? null : Number(v)
-      }
-      onChange(section, rowIdx, field, v)
     }
 
     const handleEditStart = () => {
@@ -136,14 +475,11 @@ const createEditableCell = <TData extends { id?: string }>(
       return (
         <Input
           autoFocus
+          id={`edit-${section}-${rowIdx}-${field}`}
           type={type === 'number' ? 'number' : 'text'}
-          value={
-            typeof initialValue === 'object' && initialValue !== null
-              ? ''
-              : String(initialValue ?? '')
-          }
+          value={editValue}
           className={`h-auto w-full border border-primary/40 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/70 ${alignRight ? 'text-right' : ''}`}
-          onChange={handleChange}
+          onChange={(e) => setEditValue(e.target.value)}
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
         />
@@ -214,10 +550,14 @@ export default function OwnerStatementReviewTable({
   statementDraft,
   onChange,
   readOnly = false,
+  statementId,
+  onItemUpdateSuccess,
 }: {
   statementDraft: any
   onChange: (section: string, rowIdx: number, key: string, value: any) => void
   readOnly?: boolean
+  statementId?: string
+  onItemUpdateSuccess?: (updatedStatement: FullOwnerStatementType) => void
 }) {
   const {
     propertyName,
@@ -280,8 +620,10 @@ export default function OwnerStatementReviewTable({
       onChange,
       readOnly,
       handleDelete,
+      statementId,
+      onItemUpdateSuccess,
     }),
-    [editing, onChange, readOnly]
+    [editing, onChange, readOnly, statementId, onItemUpdateSuccess]
   )
 
   const incomeColumns = useMemo<ColumnDef<IncomeItem>[]>(

@@ -4,6 +4,7 @@ import { ArrowLeft, FileDown } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { exportSingleOwnerStatement } from '~/components/owner-statement/ExportOwnerStatement'
+import type { FullOwnerStatementType } from '~/components/owner-statement/OwnerStatementReviewTable'
 import {
   Button,
   Card,
@@ -104,7 +105,9 @@ export default function OwnerStatementDetailPage() {
         ? Number(value.toString())
         : typeof value === 'string'
           ? Number(value)
-          : value
+          : typeof value === 'number'
+            ? value
+            : 0
     }
 
     // Process incomes array
@@ -146,9 +149,13 @@ export default function OwnerStatementDetailPage() {
       })
     )
 
+    // Calculate grand total if not present
+    const propertyName = data.property?.name || 'Unknown Property'
+
     return {
+      id: data.id,
       propertyId: data.propertyId,
-      propertyName: data.property?.name || 'Unknown Property',
+      propertyName: propertyName,
       statementMonth: data.statementMonth,
       incomes: processedIncomes,
       expenses: processedExpenses,
@@ -351,6 +358,27 @@ export default function OwnerStatementDetailPage() {
     exportSingleOwnerStatement(statementData)
   }
 
+  // Handler for successful individual item field updates from OwnerStatementReviewTable
+  function handleItemUpdateSuccess(updatedStatement: FullOwnerStatementType) {
+    SuccessToast('Statement item saved successfully')
+    setChangedSections({
+      incomes: false,
+      expenses: false,
+      adjustments: false,
+      notes: false,
+    })
+
+    // The updatedStatement from the mutation is already in a good format (FullOwnerStatementType).
+    // We might still want to run it through formatStatementForEdit if it performs any other crucial formatting
+    // or rely on the structure returned by the mutation if it's already frontend-ready.
+    // For now, let's assume updatedStatement is largely compatible but format it for consistency.
+    const formattedData = formatStatementForEdit(updatedStatement)
+    setStatementData(formattedData)
+    setOriginalData(JSON.parse(JSON.stringify(formattedData)))
+
+    // No explicit refetch() here as the mutation already returned the updated data.
+  }
+
   if (isLoading) {
     return (
       <div className="mx-auto max-w-7xl px-3 py-4 sm:px-4 lg:px-6">
@@ -447,6 +475,8 @@ export default function OwnerStatementDetailPage() {
         statementDraft={statementData}
         onChange={handleStatementChange}
         readOnly={false}
+        statementId={statement.id}
+        onItemUpdateSuccess={handleItemUpdateSuccess}
       />
 
       {/* Status Message */}

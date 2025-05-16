@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client'
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 import { geminiFlashModel } from '~/lib/gemini/gemini'
@@ -31,6 +32,215 @@ const adjustmentSchema = z.object({
   description: z.string(),
   amount: z.number(),
 })
+
+// Schemas for individual field updates
+const incomeFieldEnum = z.enum([
+  'checkIn',
+  'checkOut',
+  'days',
+  'platform',
+  'guest',
+  'grossRevenue',
+  'hostFee',
+  'platformFee',
+  'grossIncome',
+])
+const updateIncomeItemFieldInput = z.object({
+  id: z.string(), // ID of the OwnerStatementIncome item
+  field: incomeFieldEnum,
+  value: z.union([z.string(), z.number()]),
+})
+
+const expenseFieldEnum = z.enum(['date', 'description', 'vendor', 'amount'])
+const updateExpenseItemFieldInput = z.object({
+  id: z.string(), // ID of the OwnerStatementExpense item
+  field: expenseFieldEnum,
+  value: z.union([z.string(), z.number()]),
+})
+
+const adjustmentFieldEnum = z.enum([
+  'checkIn',
+  'checkOut',
+  'description',
+  'amount',
+])
+const updateAdjustmentItemFieldInput = z.object({
+  id: z.string(), // ID of the OwnerStatementAdjustment item
+  field: adjustmentFieldEnum,
+  value: z.union([z.string(), z.number(), z.null()]), // checkIn/checkOut can be null
+})
+
+// Helper function to recalculate and save owner statement totals
+async function recalculateAndSaveOwnerStatementTotals(
+  tx: Prisma.TransactionClient,
+  ownerStatementId: string,
+  userId: string
+) {
+  const allIncomes = await tx.ownerStatementIncome.findMany({
+    where: { ownerStatementId },
+  })
+  const allExpenses = await tx.ownerStatementExpense.findMany({
+    where: { ownerStatementId },
+  })
+  const allAdjustments = await tx.ownerStatementAdjustment.findMany({
+    where: { ownerStatementId },
+  })
+
+  const totalIncome = allIncomes.reduce(
+    (sum, i) => sum + Number(i.grossIncome ?? 0),
+    0
+  )
+  const totalExpenses = allExpenses.reduce(
+    (sum, e) => sum + Number(e.amount ?? 0),
+    0
+  )
+  const totalAdjustments = allAdjustments.reduce(
+    (sum, a) => sum + Number(a.amount ?? 0),
+    0
+  )
+
+  // Consistent rounding for financial calculations
+  const finalTotalIncome = parseFloat(totalIncome.toFixed(2))
+  const finalTotalExpenses = parseFloat(totalExpenses.toFixed(2))
+  const finalTotalAdjustments = parseFloat(totalAdjustments.toFixed(2))
+  const grandTotal = parseFloat(
+    (finalTotalIncome - finalTotalExpenses + finalTotalAdjustments).toFixed(2)
+  )
+
+  return tx.ownerStatement.update({
+    where: { id: ownerStatementId },
+    data: {
+      totalIncome: finalTotalIncome,
+      totalExpenses: finalTotalExpenses,
+      totalAdjustments: finalTotalAdjustments,
+      grandTotal: grandTotal,
+      updatedAt: new Date(),
+      updatedBy: userId,
+    },
+    include: {
+      property: true,
+      incomes: true,
+      expenses: true,
+      adjustments: true,
+    },
+  })
+}
+
+// Helper to prepare update data for Income item
+function prepareIncomeItemUpdateData(
+  field: z.infer<typeof incomeFieldEnum>,
+  value: string | number
+): Prisma.OwnerStatementIncomeUpdateInput {
+  switch (field) {
+    case 'checkIn':
+    case 'checkOut':
+    case 'platform':
+    case 'guest':
+      if (typeof value !== 'string') {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: `Value for ${field} must be a string. Received: ${typeof value}`,
+        })
+      }
+      return { [field]: value }
+    case 'days':
+      if (typeof value !== 'number' || !Number.isInteger(value)) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: `Value for ${field} must be an integer. Received: ${value}`,
+        })
+      }
+      return { [field]: value }
+    case 'grossRevenue':
+    case 'hostFee':
+    case 'platformFee':
+    case 'grossIncome':
+      if (typeof value !== 'number') {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: `Value for ${field} must be a number. Received: ${typeof value}`,
+        })
+      }
+      return { [field]: value } // Prisma handles Decimal conversion
+    default:
+      // Should not happen due to Zod enum validation
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'Invalid field for income item.',
+      })
+  }
+}
+
+// Helper to prepare update data for Expense item
+function prepareExpenseItemUpdateData(
+  field: z.infer<typeof expenseFieldEnum>,
+  value: string | number
+): Prisma.OwnerStatementExpenseUpdateInput {
+  switch (field) {
+    case 'date':
+    case 'description':
+    case 'vendor':
+      if (typeof value !== 'string') {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: `Value for ${field} must be a string. Received: ${typeof value}`,
+        })
+      }
+      return { [field]: value }
+    case 'amount':
+      if (typeof value !== 'number') {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: `Value for ${field} must be a number. Received: ${typeof value}`,
+        })
+      }
+      return { [field]: value } // Prisma handles Decimal conversion
+    default:
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'Invalid field for expense item.',
+      })
+  }
+}
+
+// Helper to prepare update data for Adjustment item
+function prepareAdjustmentItemUpdateData(
+  field: z.infer<typeof adjustmentFieldEnum>,
+  value: string | number | null
+): Prisma.OwnerStatementAdjustmentUpdateInput {
+  switch (field) {
+    case 'checkIn':
+    case 'checkOut':
+      if (value !== null && typeof value !== 'string') {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: `Value for ${field} must be a string or null. Received: ${typeof value}`,
+        })
+      }
+      return { [field]: value }
+    case 'description':
+      if (typeof value !== 'string') {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: `Value for ${field} must be a string. Received: ${typeof value}`,
+        })
+      }
+      return { [field]: value }
+    case 'amount':
+      if (typeof value !== 'number') {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: `Value for ${field} must be a number. Received: ${typeof value}`,
+        })
+      }
+      return { [field]: value } // Prisma handles Decimal conversion
+    default:
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'Invalid field for adjustment item.',
+      })
+  }
+}
 
 export const ownerStatementRouter = createTRPCRouter({
   getMany: protectedProcedure
@@ -617,6 +827,160 @@ Important Considerations:
       }
 
       return parsedExpensesMap
+    }),
+
+  updateIncomeItemField: protectedProcedure
+    .input(updateIncomeItemFieldInput)
+    .mutation(async ({ ctx, input }) => {
+      const { orgId, userId } = ctx.auth
+      if (!orgId || !userId) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'No organization/user selected.',
+        })
+      }
+
+      return ctx.db.$transaction(async (tx) => {
+        const incomeItem = await tx.ownerStatementIncome.findUnique({
+          where: { id: input.id },
+          include: {
+            ownerStatement: {
+              select: { managementGroupId: true, id: true },
+            },
+          },
+        })
+
+        if (!incomeItem) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: `Income item with ID ${input.id} not found.`,
+          })
+        }
+        if (incomeItem.ownerStatement.managementGroupId !== orgId) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'You do not have permission to update this income item.',
+          })
+        }
+
+        const dataToUpdate = prepareIncomeItemUpdateData(
+          input.field,
+          input.value
+        )
+        await tx.ownerStatementIncome.update({
+          where: { id: input.id },
+          data: dataToUpdate,
+        })
+
+        return recalculateAndSaveOwnerStatementTotals(
+          tx,
+          incomeItem.ownerStatement.id,
+          userId
+        )
+      })
+    }),
+
+  updateExpenseItemField: protectedProcedure
+    .input(updateExpenseItemFieldInput)
+    .mutation(async ({ ctx, input }) => {
+      const { orgId, userId } = ctx.auth
+      if (!orgId || !userId) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'No organization/user selected.',
+        })
+      }
+
+      return ctx.db.$transaction(async (tx) => {
+        const expenseItem = await tx.ownerStatementExpense.findUnique({
+          where: { id: input.id },
+          include: {
+            ownerStatement: {
+              select: { managementGroupId: true, id: true },
+            },
+          },
+        })
+
+        if (!expenseItem) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: `Expense item with ID ${input.id} not found.`,
+          })
+        }
+        if (expenseItem.ownerStatement.managementGroupId !== orgId) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'You do not have permission to update this expense item.',
+          })
+        }
+
+        const dataToUpdate = prepareExpenseItemUpdateData(
+          input.field,
+          input.value
+        )
+        await tx.ownerStatementExpense.update({
+          where: { id: input.id },
+          data: dataToUpdate,
+        })
+
+        return recalculateAndSaveOwnerStatementTotals(
+          tx,
+          expenseItem.ownerStatement.id,
+          userId
+        )
+      })
+    }),
+
+  updateAdjustmentItemField: protectedProcedure
+    .input(updateAdjustmentItemFieldInput)
+    .mutation(async ({ ctx, input }) => {
+      const { orgId, userId } = ctx.auth
+      if (!orgId || !userId) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'No organization/user selected.',
+        })
+      }
+
+      return ctx.db.$transaction(async (tx) => {
+        const adjustmentItem = await tx.ownerStatementAdjustment.findUnique({
+          where: { id: input.id },
+          include: {
+            ownerStatement: {
+              select: { managementGroupId: true, id: true },
+            },
+          },
+        })
+
+        if (!adjustmentItem) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: `Adjustment item with ID ${input.id} not found.`,
+          })
+        }
+        if (adjustmentItem.ownerStatement.managementGroupId !== orgId) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message:
+              'You do not have permission to update this adjustment item.',
+          })
+        }
+
+        const dataToUpdate = prepareAdjustmentItemUpdateData(
+          input.field,
+          input.value
+        )
+        await tx.ownerStatementAdjustment.update({
+          where: { id: input.id },
+          data: dataToUpdate,
+        })
+
+        return recalculateAndSaveOwnerStatementTotals(
+          tx,
+          adjustmentItem.ownerStatement.id,
+          userId
+        )
+      })
     }),
 
   delete: protectedProcedure
