@@ -2,7 +2,7 @@
 
 import jsPDF from 'jspdf'
 import autoTable, { type CellHookData, type UserOptions } from 'jspdf-autotable'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import DatePicker from '~/components/DatePicker'
 import {
   Button,
@@ -37,10 +37,35 @@ const safeToNumber = (value: any): number => {
   return isNaN(num) ? 0 : num
 }
 
-export default function ExportMonthlyStatements() {
-  const [isOpen, setIsOpen] = useState(false)
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+interface ExportMonthlyStatementsProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  initialMonth: Date | null
+}
+
+export default function ExportMonthlyStatements({
+  open,
+  onOpenChange,
+  initialMonth,
+}: ExportMonthlyStatementsProps) {
+  const [selectedDate, setSelectedDate] = useState<Date | null>(initialMonth)
   const [isExporting, setIsExporting] = useState(false)
+
+  useEffect(() => {
+    // If the dialog is opened and initialMonth is different from selectedDate, update selectedDate
+    // This handles cases where the initialMonth might change while the dialog is closed.
+    if (
+      open &&
+      initialMonth &&
+      (!selectedDate ||
+        dayjs(initialMonth).format('YYYY-MM') !==
+          dayjs(selectedDate).format('YYYY-MM'))
+    ) {
+      setSelectedDate(initialMonth)
+    }
+    // If the dialog is closed, we might want to reset selectedDate or leave it.
+    // For now, let's reset it if it's not aligned with a potential new initialMonth when reopened.
+  }, [open, initialMonth, selectedDate])
 
   const { data: statements, isLoading: isLoadingStatements } =
     api.ownerStatement.getMany.useQuery(
@@ -48,7 +73,7 @@ export default function ExportMonthlyStatements() {
         month: selectedDate ? dayjs(selectedDate).format('YYYY-MM') : undefined,
       },
       {
-        enabled: !!selectedDate && isOpen, // Only fetch when dialog is open and date selected
+        enabled: !!selectedDate && open, // Only fetch when dialog is open and date selected
         staleTime: 5 * 60 * 1000, // Cache for 5 minutes
       }
     )
@@ -230,26 +255,18 @@ export default function ExportMonthlyStatements() {
       ErrorToast('Failed to export statement summary. Please check console.')
     } finally {
       setIsExporting(false)
-      setIsOpen(false)
-      setSelectedDate(null) // Reset date after export
+      onOpenChange(false) // Close dialog via prop
+      // setSelectedDate(null) // Reset date after export - consider if this should be linked to initialMonth
     }
   }
 
-  const handleOpen = () => {
-    setIsOpen(true)
-  }
-
   const handleClose = () => {
-    setIsOpen(false)
+    onOpenChange(false)
   }
 
   return (
     <>
-      <Button variant="default" onClick={handleOpen}>
-        Export
-      </Button>
-
-      <Dialog open={isOpen} onClose={handleClose}>
+      <Dialog open={open} onClose={handleClose}>
         <DialogTitle>Export Monthly Statement Summary</DialogTitle>
         <DialogBody>
           <div className="space-y-4">

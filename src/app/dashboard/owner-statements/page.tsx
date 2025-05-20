@@ -25,6 +25,12 @@ import { DataTableFacetedFilter } from '~/components/table/data-table-faceted-fi
 import { DataTablePagination } from '~/components/table/data-table-pagination'
 import { DataTableToolbar } from '~/components/table/data-table-toolbar'
 import { Button, Heading } from '~/components/ui'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '~/components/ui/dropdown-menu'
 import dayjs from '~/lib/utils/day'
 import { formatCurrency } from '~/lib/utils/format'
 import { api } from '~/trpc/react'
@@ -62,6 +68,11 @@ export default function OwnerStatementsPage() {
   const [selectedMonth, setSelectedMonth] = useState<Date | null>(null)
   const [reviewDrafts, setReviewDrafts] = useState<any[] | null>(null)
   const [unmatchedListings, setUnmatchedListings] = useState<string[]>([])
+
+  const [isExportSummaryDialogOpen, setIsExportSummaryDialogOpen] =
+    useState(false)
+  const [isExportAllIndividualDialogOpen, setIsExportAllIndividualDialogOpen] =
+    useState(false)
 
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'statementMonth', desc: true },
@@ -217,12 +228,12 @@ export default function OwnerStatementsPage() {
         }
       }
 
-      // 1. Gross Revenue = “Rental Revenue”
-      // yes BUT for homes that are located in Henderson I need to be able to take out the ‘Airbnb Transient Occupancy Tax’
+      // 1. Gross Revenue = "Rental Revenue"
+      // yes BUT for homes that are located in Henderson I need to be able to take out the 'Airbnb Transient Occupancy Tax'
       // 2. Host Fee = gross revenue * 15%
       // correct
-      // 3. platform fee = “Host Channel Fee”
-      // yes BUT for reservations from VRBO, the host fee is the ‘payment fee’ I would like to manually add
+      // 3. platform fee = "Host Channel Fee"
+      // yes BUT for reservations from VRBO, the host fee is the 'payment fee' I would like to manually add
       // 4. Gross Income = gross revenue - host fee - platform fee
 
       const rentalRevenue = Number(row['Rental Revenue']) ?? 0
@@ -507,18 +518,38 @@ export default function OwnerStatementsPage() {
                 setDate(selectedDate ?? undefined)
               }}
               showMonthYearPicker
-              placeholderText="All Months"
+              placeholderText="View statements"
               isClearable
             />
           </div>
-          <ExportMonthlyStatements />
-          <ExportMonthlyIndividualStatements />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className="px-4 py-2 rounded-md w-full sm:w-auto"
+              >
+                Export Options
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={() => setIsExportSummaryDialogOpen(true)}
+              >
+                Monthly Summary
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setIsExportAllIndividualDialogOpen(true)}
+              >
+                Statements
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             variant="default"
             onClick={handleOpenImportModal}
             className="px-4 py-2 rounded-md w-full sm:w-auto"
           >
-            Import
+            Create new statements
           </Button>
         </div>
       </div>
@@ -571,6 +602,18 @@ export default function OwnerStatementsPage() {
         setError={setError}
         month={selectedMonth}
         setMonth={setSelectedMonth}
+      />
+
+      <ExportMonthlyStatements
+        open={isExportSummaryDialogOpen}
+        onOpenChange={setIsExportSummaryDialogOpen}
+        initialMonth={date ?? null}
+      />
+
+      <ExportMonthlyIndividualStatements
+        open={isExportAllIndividualDialogOpen}
+        onOpenChange={setIsExportAllIndividualDialogOpen}
+        initialMonth={date ?? null}
       />
 
       {reviewDrafts && (

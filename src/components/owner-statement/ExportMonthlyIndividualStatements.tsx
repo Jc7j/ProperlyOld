@@ -1,7 +1,7 @@
 'use client'
 
 import jsPDF from 'jspdf'
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import DatePicker from '~/components/DatePicker'
 import {
   type OwnerStatementData as DetailedOwnerStatementData,
@@ -9,55 +9,130 @@ import {
 } from '~/components/owner-statement/ExportOwnerStatement'
 import {
   Button,
+  Checkbox,
   Dialog,
   DialogActions,
   DialogBody,
   DialogTitle,
+  Label,
 } from '~/components/ui'
 import { ErrorToast, SuccessToast } from '~/components/ui/sonner'
 import dayjs from '~/lib/utils/day'
 import { api } from '~/trpc/react'
 
-export default function ExportMonthlyIndividualStatements() {
-  const [isOpen, setIsOpen] = useState(false)
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
-  const [isExporting, setIsExporting] = useState(false)
+interface ExportMonthlyIndividualStatementsProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  initialMonth: Date | null
+}
 
-  // IMPORTANT ASSUMPTION:
-  // We are assuming a tRPC query 'api.ownerStatement.getManyWithDetails' exists and
-  // returns an array of ApiFetchedDetailedStatement.
-  // If it doesn't, this part needs to be adjusted to use the correct query
-  // or the backend needs to be updated.
+type PropertyForSelection = {
+  id: string
+  name: string
+}
+
+export default function ExportMonthlyIndividualStatements({
+  open,
+  onOpenChange,
+  initialMonth,
+}: ExportMonthlyIndividualStatementsProps) {
+  const [selectedDate, setSelectedDate] = useState<Date | null>(initialMonth)
+  const [isExporting, setIsExporting] = useState(false)
+  const [selectedPropertyIds, setSelectedPropertyIds] = useState<string[]>([])
+  const [availableProperties, setAvailableProperties] = useState<
+    PropertyForSelection[]
+  >([])
+
+  useEffect(() => {
+    if (
+      open &&
+      initialMonth &&
+      (!selectedDate ||
+        dayjs(initialMonth).format('YYYY-MM') !==
+          dayjs(selectedDate).format('YYYY-MM'))
+    ) {
+      setSelectedDate(initialMonth)
+      setSelectedPropertyIds([])
+    }
+    if (!open) {
+      setSelectedPropertyIds([])
+      setAvailableProperties([])
+    }
+  }, [open, initialMonth, selectedDate])
+
   const { data: statementsQueryResult, isLoading: isLoadingStatements } =
     api.ownerStatement.getManyWithDetails.useQuery(
       {
         month: selectedDate ? dayjs(selectedDate).format('YYYY-MM') : undefined,
       },
       {
-        enabled: !!selectedDate && isOpen,
-        staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+        enabled: !!selectedDate && open,
+        staleTime: 1 * 60 * 1000,
       }
     )
 
-  const detailedStatements = statementsQueryResult?.statements // Assuming the query result has a 'statements' field
+  const detailedStatements = statementsQueryResult?.statements
+
+  useEffect(() => {
+    if (open && detailedStatements) {
+      const uniquePropertiesMap = new Map<string, PropertyForSelection>()
+      detailedStatements.forEach((stmt) => {
+        if (stmt.property && !uniquePropertiesMap.has(stmt.property.id)) {
+          uniquePropertiesMap.set(stmt.property.id, {
+            id: stmt.property.id,
+            name: stmt.property.name ?? `Property ${stmt.property.id}`,
+          })
+        }
+      })
+      const sortedProperties = Array.from(uniquePropertiesMap.values()).sort(
+        (a, b) => a.name.localeCompare(b.name)
+      )
+      setAvailableProperties(sortedProperties)
+    } else if (!open) {
+      setAvailableProperties([])
+    }
+  }, [detailedStatements, open])
+
+  const handleTogglePropertySelection = (propertyId: string) => {
+    setSelectedPropertyIds((prevSelected) =>
+      prevSelected.includes(propertyId)
+        ? prevSelected.filter((id) => id !== propertyId)
+        : [...prevSelected, propertyId]
+    )
+  }
+
+  const handleSelectAllProperties = (isChecked: boolean) => {
+    if (isChecked) {
+      setSelectedPropertyIds(availableProperties.map((p) => p.id))
+    } else {
+      setSelectedPropertyIds([])
+    }
+  }
+
+  const statementsToExport = useMemo(() => {
+    if (!detailedStatements || selectedPropertyIds.length === 0) return []
+    return detailedStatements.filter(
+      (stmt) => stmt.property && selectedPropertyIds.includes(stmt.property.id)
+    )
+  }, [detailedStatements, selectedPropertyIds])
 
   async function handleExport() {
-    if (
-      !selectedDate ||
-      !detailedStatements ||
-      detailedStatements.length === 0
-    ) {
-      ErrorToast('No detailed statements found for the selected month.')
+    if (!selectedDate || statementsToExport.length === 0) {
+      ErrorToast(
+        selectedPropertyIds.length === 0
+          ? 'Please select at least one property to export.'
+          : 'No statements found for the selected properties and month.'
+      )
       return
     }
 
     setIsExporting(true)
     const doc = new jsPDF()
-    let currentY = 20 // Initial Y position for the first statement
+    let currentY = 20
 
     try {
-      for (let i = 0; i < detailedStatements.length; i++) {
-        const statement = detailedStatements[i]
+      for (let i = 0; i < statementsToExport.length; i++) {
+        const statement = statementsToExport[i]
 
         if (!statement) {
           console.warn(`Skipping invalid statement data at index ${i}`)
@@ -66,10 +141,9 @@ export default function ExportMonthlyIndividualStatements() {
 
         if (i > 0) {
           doc.addPage()
-          currentY = 20 // Reset Y for new page
+          currentY = 20
         }
 
-        // Map API data to the structure expected by addOwnerStatementToPdf
         const statementDataForPdf: DetailedOwnerStatementData = {
           propertyName: statement.property?.name ?? 'N/A',
           statementMonth: statement.statementMonth,
@@ -79,8 +153,6 @@ export default function ExportMonthlyIndividualStatements() {
           notes: statement.notes,
           grandTotal: statement.grandTotal,
         }
-
-        // addOwnerStatementToPdf is synchronous and mutates the doc
         addOwnerStatementToPdf(doc, statementDataForPdf, currentY)
       }
 
@@ -98,39 +170,43 @@ export default function ExportMonthlyIndividualStatements() {
       }
 
       const monthStr = dayjs(selectedDate).format('YYYY-MM')
-      doc.save(`AllOwnerStatements-${monthStr}.pdf`)
+      doc.save(`SelectedOwnerStatements-${monthStr}.pdf`)
       SuccessToast(
-        `Exported ${detailedStatements.length} statement(s) for ${dayjs(selectedDate).format('MMMM YYYY')}`
+        `Exported ${statementsToExport.length} statement(s) for ${dayjs(selectedDate).format('MMMM YYYY')}`
       )
     } catch (error) {
-      console.error('Failed to export monthly individual statements:', error)
+      console.error(
+        'Failed to export selected monthly individual statements:',
+        error
+      )
       ErrorToast('An error occurred during PDF export. Check console.')
     } finally {
       setIsExporting(false)
-      setIsOpen(false)
-      setSelectedDate(null)
+      onOpenChange(false)
     }
   }
 
+  const allSelected =
+    availableProperties.length > 0 &&
+    selectedPropertyIds.length === availableProperties.length
+
   return (
     <>
-      <Button variant="default" onClick={() => setIsOpen(true)}>
-        Export All Statements
-      </Button>
-
-      <Dialog open={isOpen} onClose={() => setIsOpen(false)}>
-        <DialogTitle>Export All Individual Statements</DialogTitle>
+      <Dialog open={open} onClose={() => onOpenChange(false)}>
+        <DialogTitle>Export Individual Statements by Property</DialogTitle>
         <DialogBody>
           <div className="space-y-4">
             <p className="text-sm text-zinc-600 dark:text-zinc-400">
-              Select a month to export all individual owner statements from that
-              period into a single PDF file. Each statement will be on a new
-              page.
+              Select a month, then choose the properties for which you want to
+              export individual statements.
             </p>
 
             <DatePicker
               selected={selectedDate ?? undefined}
-              onChange={(date: Date | null) => setSelectedDate(date)}
+              onChange={(date: Date | null) => {
+                setSelectedDate(date)
+                setSelectedPropertyIds([])
+              }}
               showMonthYearPicker
               placeholderText="Select a month"
             />
@@ -141,20 +217,74 @@ export default function ExportMonthlyIndividualStatements() {
                 ...
               </p>
             )}
-            {selectedDate && !isLoadingStatements && detailedStatements && (
-              <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                {detailedStatements.length} statement
-                {detailedStatements.length !== 1 ? 's' : ''} found for{' '}
-                {dayjs(selectedDate).format('MMMM YYYY')}.
-              </p>
-            )}
+
             {selectedDate &&
               !isLoadingStatements &&
-              (!detailedStatements || detailedStatements.length === 0) && (
+              !detailedStatements?.length && (
                 <p className="text-sm text-yellow-600 dark:text-yellow-500">
-                  No detailed statements found for{' '}
+                  No statements found for{' '}
                   {dayjs(selectedDate).format('MMMM YYYY')}.
                 </p>
+              )}
+
+            {selectedDate &&
+              !isLoadingStatements &&
+              detailedStatements &&
+              detailedStatements.length > 0 && (
+                <div className="space-y-2 pt-2">
+                  <h3 className="text-md font-medium text-zinc-800 dark:text-zinc-200">
+                    Select Properties to Export:
+                  </h3>
+                  {availableProperties.length > 0 ? (
+                    <>
+                      <div className="flex items-center space-x-2 py-2">
+                        <Checkbox
+                          id="select-all-properties"
+                          checked={allSelected}
+                          onCheckedChange={(checked) => {
+                            handleSelectAllProperties(
+                              checked === true || checked === 'indeterminate'
+                            )
+                          }}
+                        />
+                        <Label
+                          htmlFor="select-all-properties"
+                          className="font-medium"
+                        >
+                          {allSelected ? 'Deselect All' : 'Select All'} (
+                          {availableProperties.length} Properties)
+                        </Label>
+                      </div>
+                      <div className="max-h-60 overflow-y-auto space-y-1 rounded-md border p-2">
+                        {availableProperties.map((prop) => (
+                          <div
+                            key={prop.id}
+                            className="flex items-center space-x-2 p-1 hover:bg-accent rounded-md"
+                          >
+                            <Checkbox
+                              id={`prop-${prop.id}`}
+                              checked={selectedPropertyIds.includes(prop.id)}
+                              onCheckedChange={() =>
+                                handleTogglePropertySelection(prop.id)
+                              }
+                            />
+                            <Label
+                              htmlFor={`prop-${prop.id}`}
+                              className="text-sm font-normal w-full cursor-pointer"
+                            >
+                              {prop.name}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                      No properties with statements found for the selected
+                      month.
+                    </p>
+                  )}
+                </div>
               )}
           </div>
         </DialogBody>
@@ -162,7 +292,7 @@ export default function ExportMonthlyIndividualStatements() {
           <Button
             type="button"
             variant="outline"
-            onClick={() => setIsOpen(false)}
+            onClick={() => onOpenChange(false)}
           >
             Cancel
           </Button>
@@ -171,16 +301,14 @@ export default function ExportMonthlyIndividualStatements() {
             disabled={
               !selectedDate ||
               isLoadingStatements ||
-              !detailedStatements?.length ||
+              statementsToExport.length === 0 ||
               isExporting
             }
             onClick={handleExport}
           >
             {isExporting
               ? 'Exporting...'
-              : `Export ${detailedStatements?.length ?? 0} Statement${
-                  (detailedStatements?.length ?? 0) !== 1 ? 's' : ''
-                }`}
+              : `Export ${statementsToExport.length} Statement${statementsToExport.length !== 1 ? 's' : ''}`}
           </Button>
         </DialogActions>
       </Dialog>
