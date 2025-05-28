@@ -77,6 +77,15 @@ interface TableMeta {
   onItemUpdateSuccess?: (updatedStatement: FullOwnerStatementType) => void
 }
 
+interface OwnerStatementReviewTableProps {
+  statementDraft: any
+  readOnly?: boolean
+  statementId?: string
+  onItemUpdateSuccess?: (updatedStatement: FullOwnerStatementType) => void
+  onSave?: (updatedData: any) => void
+  isUpdating?: boolean
+}
+
 function isValidDateInput(
   value: any
 ): value is string | number | Date | dayjs.Dayjs | null | undefined {
@@ -101,225 +110,59 @@ const createEditableCell = <TData extends { id?: string }>(
     table: Table<TData>
   }> = ({ getValue, row, column, table }) => {
     const initialValue = getValue()
-
-    // ALL HOOKS AT THE VERY TOP before any potential early returns or conditional logic
     const [editValue, setEditValue] = useState<string>('')
 
-    const updateIncomeItemMutation =
-      api.ownerStatement.updateIncomeItemField.useMutation({
-        onSuccess: (data) => {
-          SuccessToast('Income item updated')
-          const currentMeta = (table.options as any).meta as
-            | TableMeta
-            | undefined
-          if (currentMeta?.onItemUpdateSuccess) {
-            const updatedDataForFrontend: FullOwnerStatementType = {
-              ...data,
-              propertyName: data.property?.name ?? 'Unknown Property',
-              totalIncome: data.totalIncome ? Number(data.totalIncome) : null,
-              totalExpenses: data.totalExpenses
-                ? Number(data.totalExpenses)
-                : null,
-              totalAdjustments: data.totalAdjustments
-                ? Number(data.totalAdjustments)
-                : null,
-              grandTotal: data.grandTotal ? Number(data.grandTotal) : null,
-              incomes: (data.incomes ?? []).map((inc) => ({
-                ...inc,
-                id: inc.id,
-                checkIn: inc.checkIn,
-                checkOut: inc.checkOut,
-                days: inc.days,
-                platform: inc.platform,
-                guest: inc.guest,
-                grossRevenue: Number(inc.grossRevenue),
-                hostFee: Number(inc.hostFee),
-                platformFee: Number(inc.platformFee),
-                grossIncome: Number(inc.grossIncome),
-              })),
-              expenses: (data.expenses ?? []).map((exp) => ({
-                ...exp,
-                id: exp.id,
-                date: exp.date,
-                description: exp.description,
-                vendor: exp.vendor,
-                amount: Number(exp.amount),
-              })),
-              adjustments: (data.adjustments ?? []).map((adj) => ({
-                ...adj,
-                id: adj.id,
-                checkIn: adj.checkIn,
-                checkOut: adj.checkOut,
-                description: adj.description,
-                amount: Number(adj.amount),
-              })),
-            }
-            currentMeta.onItemUpdateSuccess(updatedDataForFrontend)
+    const updateItemMutation = api.ownerStatement.updateItemField.useMutation({
+      onSuccess: (data) => {
+        SuccessToast('Item updated successfully')
+        const currentMeta = (table.options as any).meta as TableMeta | undefined
+        if (currentMeta?.onItemUpdateSuccess) {
+          const updatedDataForFrontend: FullOwnerStatementType = {
+            ...data,
+            propertyName: data.property?.name ?? 'Unknown Property',
+            totalIncome: data.totalIncome ? Number(data.totalIncome) : null,
+            totalExpenses: data.totalExpenses
+              ? Number(data.totalExpenses)
+              : null,
+            totalAdjustments: data.totalAdjustments
+              ? Number(data.totalAdjustments)
+              : null,
+            grandTotal: data.grandTotal ? Number(data.grandTotal) : null,
+            incomes: (data.incomes ?? []).map((inc) => ({
+              ...inc,
+              grossRevenue: Number(inc.grossRevenue),
+              hostFee: Number(inc.hostFee),
+              platformFee: Number(inc.platformFee),
+              grossIncome: Number(inc.grossIncome),
+            })),
+            expenses: (data.expenses ?? []).map((exp) => ({
+              ...exp,
+              amount: Number(exp.amount),
+            })),
+            adjustments: (data.adjustments ?? []).map((adj) => ({
+              ...adj,
+              amount: Number(adj.amount),
+            })),
           }
-        },
-        onError: (error) => {
-          ErrorToast(`Failed to update income item: ${error.message}`)
-        },
-      })
+          currentMeta.onItemUpdateSuccess(updatedDataForFrontend)
+        }
+      },
+      onError: (error) => {
+        ErrorToast(`Failed to update item: ${error.message}`)
+      },
+    })
 
-    const updateExpenseItemMutation =
-      api.ownerStatement.updateExpenseItemField.useMutation({
-        onSuccess: (data) => {
-          SuccessToast('Expense item updated')
-          const currentMeta = (table.options as any).meta as
-            | TableMeta
-            | undefined
-          if (currentMeta?.onItemUpdateSuccess) {
-            const updatedDataForFrontend: FullOwnerStatementType = {
-              ...data,
-              propertyName: data.property?.name ?? 'Unknown Property',
-              totalIncome: data.totalIncome ? Number(data.totalIncome) : null,
-              totalExpenses: data.totalExpenses
-                ? Number(data.totalExpenses)
-                : null,
-              totalAdjustments: data.totalAdjustments
-                ? Number(data.totalAdjustments)
-                : null,
-              grandTotal: data.grandTotal ? Number(data.grandTotal) : null,
-              incomes: (data.incomes ?? []).map((inc) => ({
-                ...inc,
-                id: inc.id,
-                checkIn: inc.checkIn,
-                checkOut: inc.checkOut,
-                days: inc.days,
-                platform: inc.platform,
-                guest: inc.guest,
-                grossRevenue: Number(inc.grossRevenue),
-                hostFee: Number(inc.hostFee),
-                platformFee: Number(inc.platformFee),
-                grossIncome: Number(inc.grossIncome),
-              })),
-              expenses: (data.expenses ?? []).map((exp) => ({
-                ...exp,
-                id: exp.id,
-                date: exp.date,
-                description: exp.description,
-                vendor: exp.vendor,
-                amount: Number(exp.amount),
-              })),
-              adjustments: (data.adjustments ?? []).map((adj) => ({
-                ...adj,
-                id: adj.id,
-                checkIn: adj.checkIn,
-                checkOut: adj.checkOut,
-                description: adj.description,
-                amount: Number(adj.amount),
-              })),
-            }
-            currentMeta.onItemUpdateSuccess(updatedDataForFrontend)
-          }
-        },
-        onError: (error) => {
-          ErrorToast(`Failed to update expense item: ${error.message}`)
-        },
-      })
-
-    const updateAdjustmentItemMutation =
-      api.ownerStatement.updateAdjustmentItemField.useMutation({
-        onSuccess: (data) => {
-          SuccessToast('Adjustment item updated')
-          const currentMeta = (table.options as any).meta as
-            | TableMeta
-            | undefined
-          if (currentMeta?.onItemUpdateSuccess) {
-            const updatedDataForFrontend: FullOwnerStatementType = {
-              ...data,
-              propertyName: data.property?.name ?? 'Unknown Property',
-              totalIncome: data.totalIncome ? Number(data.totalIncome) : null,
-              totalExpenses: data.totalExpenses
-                ? Number(data.totalExpenses)
-                : null,
-              totalAdjustments: data.totalAdjustments
-                ? Number(data.totalAdjustments)
-                : null,
-              grandTotal: data.grandTotal ? Number(data.grandTotal) : null,
-              incomes: (data.incomes ?? []).map((inc) => ({
-                ...inc,
-                id: inc.id,
-                checkIn: inc.checkIn,
-                checkOut: inc.checkOut,
-                days: inc.days,
-                platform: inc.platform,
-                guest: inc.guest,
-                grossRevenue: Number(inc.grossRevenue),
-                hostFee: Number(inc.hostFee),
-                platformFee: Number(inc.platformFee),
-                grossIncome: Number(inc.grossIncome),
-              })),
-              expenses: (data.expenses ?? []).map((exp) => ({
-                ...exp,
-                id: exp.id,
-                date: exp.date,
-                description: exp.description,
-                vendor: exp.vendor,
-                amount: Number(exp.amount),
-              })),
-              adjustments: (data.adjustments ?? []).map((adj) => ({
-                ...adj,
-                id: adj.id,
-                checkIn: adj.checkIn,
-                checkOut: adj.checkOut,
-                description: adj.description,
-                amount: Number(adj.amount),
-              })),
-            }
-            currentMeta.onItemUpdateSuccess(updatedDataForFrontend)
-          }
-        },
-        onError: (error) => {
-          ErrorToast(`Failed to update adjustment item: ${error.message}`)
-        },
-      })
-
-    // This useEffect is also a hook and must be at the top level, unconditionally.
-    // Its internal logic can depend on 'isEditing', which is determined after 'meta' is checked.
-    // To make this work, we calculate 'isEditing' based on a snapshot of meta, and useEffect depends on that snapshot.
-    const metaForIsEditing = (table.options as any).meta as
-      | TableMeta
-      | undefined
-    let isEditingBasedOnMeta = false
-    if (metaForIsEditing) {
-      const currentField = column.id!
-      const currentRowIdx = row.index
-      isEditingBasedOnMeta =
-        !metaForIsEditing.readOnly &&
-        metaForIsEditing.editing?.section === metaForIsEditing.section &&
-        metaForIsEditing.editing?.rowIdx === currentRowIdx &&
-        metaForIsEditing.editing?.field === currentField
-    }
-
-    useEffect(() => {
-      if (isEditingBasedOnMeta) {
-        // Use the derived boolean
-        setEditValue(
-          typeof initialValue === 'object' && initialValue !== null
-            ? ''
-            : String(initialValue ?? '')
-        )
-      }
-    }, [isEditingBasedOnMeta, initialValue]) // Dependency on the derived boolean
-
-    // Now, get meta for the rest of the component logic (handlers, JSX).
     const meta = (table.options as any).meta as TableMeta | undefined
 
     if (!meta) {
-      console.error('Table meta is not defined for cell:', column.id, row.index)
       return <span className="text-red-500 text-xs">Meta Error</span>
     }
 
-    // Destructure meta for use in handlers and JSX. These are now safe.
     const { editing, setEditing, onChange, readOnly, section, statementId } =
       meta
     const field: string = column.id!
     const rowIdx = row.index
 
-    // Recalculate isEditing with the definitive meta for use in JSX and handlers if needed
-    // (though isEditingBasedOnMeta might be sufficient for most conditional rendering if its calculation is correct)
     const isEditing =
       !readOnly &&
       editing?.section === section &&
@@ -336,13 +179,11 @@ const createEditableCell = <TData extends { id?: string }>(
           : String(initialValue ?? '')
       const changedDuringEdit = editValue !== originalValueString
 
-      let processedValueForOnChange: string | number | null
-      let processedValueForMutation: string | number | null
+      let processedValue: string | number | null
 
       if (type === 'number') {
         if (editValue.trim() === '') {
-          processedValueForOnChange = 0
-          processedValueForMutation = 0
+          processedValue = 0
         } else {
           const num = Number(editValue)
           if (isNaN(num)) {
@@ -350,23 +191,21 @@ const createEditableCell = <TData extends { id?: string }>(
             onChange(section, rowIdx, field, initialValue)
             return
           }
-          processedValueForOnChange = num
-          processedValueForMutation = num
+          processedValue = num
         }
       } else {
-        processedValueForOnChange = editValue
         if (
           section === 'adjustments' &&
           (field === 'checkIn' || field === 'checkOut') &&
           editValue.trim() === ''
         ) {
-          processedValueForMutation = null
+          processedValue = null
         } else {
-          processedValueForMutation = editValue
+          processedValue = editValue
         }
       }
 
-      onChange(section, rowIdx, field, processedValueForOnChange)
+      onChange(section, rowIdx, field, processedValue)
 
       if (
         statementId &&
@@ -374,82 +213,12 @@ const createEditableCell = <TData extends { id?: string }>(
         item.id !== 'temp-id' &&
         changedDuringEdit
       ) {
-        if (section === 'incomes') {
-          if (
-            (field === 'days' ||
-              field === 'grossRevenue' ||
-              field === 'hostFee' ||
-              field === 'platformFee' ||
-              field === 'grossIncome') &&
-            typeof processedValueForMutation === 'number'
-          ) {
-            updateIncomeItemMutation.mutate({
-              id: item.id,
-              field: field as any,
-              value: processedValueForMutation,
-            })
-          } else if (
-            (field === 'checkIn' ||
-              field === 'checkOut' ||
-              field === 'platform' ||
-              field === 'guest') &&
-            typeof processedValueForMutation === 'string'
-          ) {
-            updateIncomeItemMutation.mutate({
-              id: item.id,
-              field: field as any,
-              value: processedValueForMutation,
-            })
-          }
-        } else if (section === 'expenses') {
-          if (
-            field === 'amount' &&
-            typeof processedValueForMutation === 'number'
-          ) {
-            updateExpenseItemMutation.mutate({
-              id: item.id,
-              field: field as any,
-              value: processedValueForMutation,
-            })
-          } else if (
-            (field === 'date' ||
-              field === 'description' ||
-              field === 'vendor') &&
-            typeof processedValueForMutation === 'string'
-          ) {
-            updateExpenseItemMutation.mutate({
-              id: item.id,
-              field: field as any,
-              value: processedValueForMutation,
-            })
-          }
-        } else if (section === 'adjustments') {
-          if (
-            field === 'amount' &&
-            typeof processedValueForMutation === 'number'
-          ) {
-            updateAdjustmentItemMutation.mutate({
-              id: item.id,
-              field: field as any,
-              value: processedValueForMutation,
-            })
-          } else if (
-            field === 'checkIn' ||
-            field === 'checkOut' ||
-            field === 'description'
-          ) {
-            if (
-              typeof processedValueForMutation === 'string' ||
-              processedValueForMutation === null
-            ) {
-              updateAdjustmentItemMutation.mutate({
-                id: item.id,
-                field: field as any,
-                value: processedValueForMutation,
-              })
-            }
-          }
-        }
+        updateItemMutation.mutate({
+          id: item.id,
+          section: section,
+          field: field,
+          value: processedValue,
+        })
       }
     }
 
@@ -462,6 +231,11 @@ const createEditableCell = <TData extends { id?: string }>(
     const handleEditStart = () => {
       if (!readOnly) {
         setEditing({ section, rowIdx, field })
+        setEditValue(
+          typeof initialValue === 'object' && initialValue !== null
+            ? ''
+            : String(initialValue ?? '')
+        )
       }
     }
 
@@ -548,27 +322,31 @@ const createEditableCell = <TData extends { id?: string }>(
 
 export default function OwnerStatementReviewTable({
   statementDraft,
-  onChange,
   readOnly = false,
   statementId,
   onItemUpdateSuccess,
-}: {
-  statementDraft: any
-  onChange: (section: string, rowIdx: number, key: string, value: any) => void
-  readOnly?: boolean
-  statementId?: string
-  onItemUpdateSuccess?: (updatedStatement: FullOwnerStatementType) => void
-}) {
+  onSave,
+  isUpdating = false,
+}: OwnerStatementReviewTableProps) {
+  const [localData, setLocalData] = useState(statementDraft)
+
+  // Sync localData when statementDraft changes (e.g., after save or refresh)
+  useEffect(() => {
+    setLocalData(statementDraft)
+  }, [statementDraft])
+
   const {
-    propertyName,
-    statementMonth: rawStatementMonth,
     incomes = [],
     expenses = [],
     adjustments = [],
     notes,
-    grandTotal,
-  } = statementDraft
+  } = localData || {}
 
+  // Derive hasChanges by comparing with original data
+  const hasChanges =
+    JSON.stringify(localData) !== JSON.stringify(statementDraft)
+
+  // Calculate totals
   const totalIncome = incomes.reduce(
     (sum: number, i: any) => sum + (Number(i.grossIncome) || 0),
     0
@@ -597,8 +375,7 @@ export default function OwnerStatementReviewTable({
     (sum: number, a: any) => sum + (Number(a.amount) || 0),
     0
   )
-  const grandTotalDisbursement =
-    grandTotal ?? totalIncome - totalExpenses + totalAdjustments
+  const grandTotalDisbursement = totalIncome - totalExpenses + totalAdjustments
 
   const [editing, setEditing] = useState<{
     section: string
@@ -606,24 +383,61 @@ export default function OwnerStatementReviewTable({
     field: string
   } | null>(null)
 
-  const handleDelete = (section: string, idx: number) => {
-    onChange(section, idx, '__delete', undefined)
+  const handleLocalChange = (
+    section: string,
+    rowIdx: number,
+    key: string,
+    value: any
+  ) => {
+    setLocalData((prevData: any) => {
+      if (!prevData) return prevData
+
+      const newData = { ...prevData }
+
+      if (section === 'notes') {
+        newData.notes = value
+      } else if (key === '__delete') {
+        const arr = [...prevData[section]]
+        arr.splice(rowIdx, 1)
+        newData[section] = arr
+      } else if (key === '__add') {
+        newData[section] = [...prevData[section], value]
+      } else {
+        const arr = [...prevData[section]]
+        arr[rowIdx] = { ...arr[rowIdx], [key]: value }
+        newData[section] = arr
+      }
+
+      return newData
+    })
   }
+
+  const handleDelete = (section: string, idx: number) => {
+    handleLocalChange(section, idx, '__delete', undefined)
+  }
+
   const handleAdd = (field: string, template: any) => {
-    onChange(field, -1, '__add', template)
+    handleLocalChange(field, -1, '__add', template)
+  }
+
+  const handleSave = () => {
+    if (onSave && localData) {
+      onSave(localData)
+      // localData will be reset when statementDraft updates via useEffect
+    }
   }
 
   const tableMeta = useMemo(
     () => ({
       editing,
       setEditing,
-      onChange,
+      onChange: handleLocalChange,
       readOnly,
       handleDelete,
       statementId,
       onItemUpdateSuccess,
     }),
-    [editing, onChange, readOnly, statementId, onItemUpdateSuccess]
+    [editing, readOnly, statementId, onItemUpdateSuccess]
   )
 
   const incomeColumns = useMemo<ColumnDef<IncomeItem>[]>(
@@ -861,7 +675,7 @@ export default function OwnerStatementReviewTable({
   }
 
   const handleNotesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onChange('notes', 0, 'notes', e.target.value)
+    handleLocalChange('notes', 0, 'notes', e.target.value)
   }
 
   const handleNotesKeyDownDiv = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -872,17 +686,27 @@ export default function OwnerStatementReviewTable({
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center mb-3">
-        <div className="text-base font-bold">Owner Statement</div>
-        <div className="text-right">
-          <div className="font-semibold text-sm">{propertyName}</div>
-          <div className="text-xs text-zinc-500 dark:text-zinc-400">
-            {dayjs(rawStatementMonth).isValid()
-              ? dayjs(rawStatementMonth).format('MMMM YYYY')
-              : 'Invalid Date'}
-          </div>
+      {/* Save button */}
+      {!readOnly && onSave && (
+        <div className="flex justify-end">
+          <Button
+            variant="default"
+            onClick={handleSave}
+            disabled={!hasChanges || isUpdating}
+            className="text-xs py-1 h-7"
+          >
+            {isUpdating ? 'Saving...' : 'Save Changes'}
+          </Button>
         </div>
-      </div>
+      )}
+
+      {/* Change indicator */}
+      {hasChanges && !readOnly && (
+        <div className="p-2 bg-yellow-50 border border-yellow-300 text-yellow-800 rounded-md text-xs">
+          You have unsaved changes. Click the save button to update the
+          statement.
+        </div>
+      )}
 
       <Card>
         <div className="p-4 space-y-2">

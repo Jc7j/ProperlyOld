@@ -1,636 +1,369 @@
 'use client'
 
-import {
-  type ColumnDef,
-  type ColumnFiltersState,
-  type PaginationState,
-  type SortingState,
-  getCoreRowModel,
-  getFacetedRowModel,
-  getFacetedUniqueValues,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useReactTable,
-} from '@tanstack/react-table'
-import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import * as XLSX from 'xlsx'
 import DatePicker from '~/components/DatePicker'
 import ExportMonthlyIndividualStatements from '~/components/owner-statement/ExportMonthlyIndividualStatements'
 import ExportMonthlyStatements from '~/components/owner-statement/ExportMonthlyStatements'
-import { DataTable } from '~/components/table/data-table'
-import { DataTableColumnHeader } from '~/components/table/data-table-column-header'
-import { DataTableFacetedFilter } from '~/components/table/data-table-faceted-filter'
-import { DataTablePagination } from '~/components/table/data-table-pagination'
-import { DataTableToolbar } from '~/components/table/data-table-toolbar'
-import { Button, Heading } from '~/components/ui'
+import MonthlyImportModal from '~/components/owner-statement/MonthlyImportModal'
+import OwnerStatementContent from '~/components/owner-statement/OwnerStatementContent'
+import { Button, Heading, Input } from '~/components/ui'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '~/components/ui/dropdown-menu'
+import { cn } from '~/lib/utils/cn'
 import dayjs from '~/lib/utils/day'
 import { formatCurrency } from '~/lib/utils/format'
 import { api } from '~/trpc/react'
 
-import ImportModal from '../../../components/owner-statement/ImportModal'
-import OwnerStatementReviewStepper from '../../../components/owner-statement/OwnerStatementReviewStepper'
-
-type PropertyWithMonthlyTotal = {
-  id: string
-  name: string | null
-  monthlyInvoiceTotal: number // Added this field
-}
-
-type OwnerStatementData = {
-  id: string
-  property: {
-    id: string
-    name?: string | null
-  } | null
-  statementMonth: Date
-  totalIncome: number | null
-  totalExpenses: number | null
-  totalAdjustments: number | null
-  grandTotal: number | null
-  notes: string | null
-}
-
 export default function OwnerStatementsPage() {
-  const [date, setDate] = useState<Date | undefined>(undefined)
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [isParsing, setIsParsing] = useState(false)
-  const [parsedData, setParsedData] = useState<any>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [selectedMonth, setSelectedMonth] = useState<Date | null>(null)
-  const [reviewDrafts, setReviewDrafts] = useState<any[] | null>(null)
-  const [unmatchedListings, setUnmatchedListings] = useState<string[]>([])
+  const router = useRouter()
+  const searchParams = useSearchParams()
 
+  // Get selected date from URL or default to current date
+  const monthParam = searchParams.get('month')
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(() => {
+    return monthParam ? new Date(`${monthParam}-01`) : new Date()
+  })
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('')
+
+  // Calculate month query from selected date
+  const monthQuery = useMemo(() => {
+    if (!selectedDate) return undefined
+    return dayjs(selectedDate).format('YYYY-MM')
+  }, [selectedDate])
+
+  const [isModalOpen, setIsModalOpen] = useState(false)
   const [isExportSummaryDialogOpen, setIsExportSummaryDialogOpen] =
     useState(false)
   const [isExportAllIndividualDialogOpen, setIsExportAllIndividualDialogOpen] =
     useState(false)
+  const [selectedStatementId, setSelectedStatementId] = useState<string | null>(
+    null
+  )
 
-  const [sorting, setSorting] = useState<SortingState>([
-    { id: 'statementMonth', desc: true },
-  ])
-  const [pagination, setPagination] = useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: 15,
-  })
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
-
-  // Use queryParams for the property query as well
-  const queryParams = useMemo(() => {
-    const params: { month?: string } = {}
-    if (date) {
-      params.month = dayjs(date).format('YYYY-MM')
+  useEffect(() => {
+    const statementId = searchParams.get('statement')
+    if (statementId) {
+      setSelectedStatementId(statementId)
     }
-    return params
-  }, [date])
+  }, [searchParams])
 
-  const { data: propertiesData } = api.property.getMany.useQuery(queryParams)
-  // Cast the properties data to the expected type
-  const properties = propertiesData as PropertyWithMonthlyTotal[] | undefined
+  // Update URL when statement is selected
+  const handleSelectStatement = (statementId: string | null) => {
+    setSelectedStatementId(statementId)
+    const params = new URLSearchParams(searchParams.toString())
 
+    if (statementId) {
+      params.set('statement', statementId)
+    } else {
+      params.delete('statement')
+    }
+
+    router.push(`/dashboard/owner-statements?${params.toString()}`)
+  }
+
+  // Update URL and state when month changes
+  const handleMonthChange = (date: Date | null) => {
+    setSelectedDate(date ?? undefined)
+
+    const params = new URLSearchParams(searchParams.toString())
+
+    if (date) {
+      params.set('month', dayjs(date).format('YYYY-MM'))
+    } else {
+      params.delete('month')
+    }
+
+    // Clear selected statement when changing months
+    params.delete('statement')
+    setSelectedStatementId(null)
+
+    router.push(`/dashboard/owner-statements?${params.toString()}`)
+  }
+
+  // Use the month query for the API call
   const {
     data: ownerStatements,
     isLoading,
     isError,
     error: queryError,
-  } = api.ownerStatement.getMany.useQuery(queryParams)
+    refetch,
+  } = api.ownerStatement.getMany.useQuery(
+    { month: monthQuery! },
+    { enabled: !!monthQuery }
+  )
 
-  const propertyOptions = useMemo(() => {
-    if (!properties) return []
-    return properties
-      .map((p: any) => ({
-        label: p.name ?? 'Unnamed Property',
-        value: p.name ?? 'Unnamed Property',
-      }))
-      .filter((option) => option.label !== 'Unnamed Property')
-  }, [properties])
-
-  const utils = api.useUtils() // Get tRPC utils
-
-  useEffect(() => {
-    if (selectedFile) {
-      void parseFile(selectedFile)
-    } else {
-      setParsedData(null)
-      setError(null)
-    }
-  }, [selectedFile])
-
-  async function parseFile(file: File) {
-    setIsParsing(true)
-    setError(null)
-    try {
-      const data = await file.arrayBuffer()
-      const workbook = XLSX.read(data, { type: 'array' })
-      const sheetName = workbook.SheetNames[0]
-      if (!sheetName) throw new Error('No sheet found')
-      const worksheet = workbook.Sheets[sheetName]
-      if (!worksheet) throw new Error('No worksheet found')
-      const json = XLSX.utils.sheet_to_json(worksheet, { defval: '' })
-      setParsedData(json)
-    } catch (err) {
-      setError(
-        `Failed to parse Excel file. Please check your file format. ${
-          err instanceof Error ? err.message : 'Unknown error'
-        }`
-      )
-      setParsedData(null)
-    } finally {
-      setIsParsing(false)
-    }
-  }
-
-  const handleNextFromModal = async () => {
-    if (!parsedData || !selectedMonth) {
-      setError('Missing parsed data or selected month.')
-      return
+  // Filter statements based on search query
+  const filteredStatements = useMemo(() => {
+    if (!ownerStatements || !searchQuery.trim()) {
+      return ownerStatements ?? []
     }
 
-    setIsParsing(true)
-    setError(null)
-
-    let fetchedProperties: PropertyWithMonthlyTotal[] | undefined
-    const formattedMonth = dayjs(selectedMonth).format('YYYY-MM')
-    try {
-      // Fetch properties specifically for the selected month
-      fetchedProperties = await utils.property.getMany.fetch({
-        month: formattedMonth,
-      })
-
-      if (!fetchedProperties) {
-        throw new Error('Could not fetch property data for the selected month.')
-      }
-    } catch (err) {
-      console.error('Error fetching properties for month:', err)
-      setError(
-        `Failed to fetch property data. ${err instanceof Error ? err.message : 'Unknown error'}`
-      )
-      setIsParsing(false)
-      return
-    }
-
-    // NEW: Determine properties with existing statements for the selected month
-    const propertiesWithExistingStatements = new Set<string>()
-    if (ownerStatements && ownerStatements.length > 0) {
-      ownerStatements.forEach((stmt) => {
-        // Ensure property and property.id exist, and month matches
-        if (
-          stmt.property &&
-          dayjs(stmt.statementMonth).format('YYYY-MM') === formattedMonth
-        ) {
-          propertiesWithExistingStatements.add(stmt.property.id)
-        }
-      })
-    }
-
-    const propertyMap = new Map(
-      fetchedProperties.map((p: any) => [
-        p.name?.replace(/\s+/g, '').toLowerCase() ?? '',
-        p,
-      ])
+    const query = searchQuery.toLowerCase().trim()
+    return ownerStatements.filter((statement) =>
+      statement.property?.name?.toLowerCase().includes(query)
     )
-    const grouped: Record<string, any> = {}
-    const unmatched: string[] = []
-    for (const row of parsedData) {
-      const rawListingName = row.Listing || ''
-      // Normalize the listing name by removing trailing (OLD) or (NEW), case-insensitive
-      const normalizedListingName = rawListingName.replace(
-        /\s*\((OLD|NEW)\)\s*$/i,
-        ''
-      )
-      const listing = normalizedListingName.replace(/\s+/g, '').toLowerCase()
-      if (!listing) continue
-      const property = propertyMap.get(listing)
-      if (!property) {
-        if (!unmatched.includes(rawListingName)) unmatched.push(rawListingName) // Use original name for unmatched list
-        continue
-      }
-      if (!grouped[property.id]) {
-        grouped[property.id] = {
-          propertyId: property.id,
-          propertyName: property.name,
-          statementMonth: selectedMonth,
-          incomes: [],
-          expenses: [],
-          adjustments: [],
-          notes: '',
-          hasExistingStatement: propertiesWithExistingStatements.has(
-            property.id
-          ),
-        }
-      }
-
-      // 1. Gross Revenue = "Rental Revenue"
-      // yes BUT for homes that are located in Henderson I need to be able to take out the 'Airbnb Transient Occupancy Tax'
-      // 2. Host Fee = gross revenue * 15%
-      // correct
-      // 3. platform fee = "Host Channel Fee"
-      // yes BUT for reservations from VRBO, the host fee is the 'payment fee' I would like to manually add
-      // 4. Gross Income = gross revenue - host fee - platform fee
-
-      const rentalRevenue = Number(row['Rental Revenue']) ?? 0
-      const airbnbTax = Number(row['Airbnb Transient Occupancy Tax']) ?? 0
-
-      let grossRevenue = rentalRevenue
-
-      if (airbnbTax > 0) {
-        grossRevenue = rentalRevenue - airbnbTax
-      }
-
-      const hostFee = Math.round(grossRevenue * 0.15 * 100) / 100
-      const channel = (row.Channel || '').toLowerCase()
-      const platformFee =
-        channel === 'vrbo'
-          ? (Number(row['Payment Fees']) ?? 0)
-          : (Number(row['Host Channel Fee']) ?? 0)
-
-      let checkInDateStr =
-        row['Check-in Date'] instanceof Date
-          ? dayjs(row['Check-in Date']).format('YYYY-MM-DD')
-          : String(row['Check-in Date'] ?? '')
-      if (
-        typeof row['Check-in Date'] === 'string' &&
-        /\d{1,2}\/\d{1,2}\/\d{2,4}/.test(row['Check-in Date'])
-      ) {
-        checkInDateStr = dayjs(row['Check-in Date'], [
-          'M/D/YY',
-          'MM/DD/YYYY',
-          'YYYY-MM-DD',
-        ]).format('YYYY-MM-DD')
-      }
-      let checkOutDateStr =
-        row['Check-out Date'] instanceof Date
-          ? dayjs(row['Check-out Date']).format('YYYY-MM-DD')
-          : String(row['Check-out Date'] ?? '')
-      if (
-        typeof row['Check-out Date'] === 'string' &&
-        /\d{1,2}\/\d{1,2}\/\d{2,4}/.test(row['Check-out Date'])
-      ) {
-        checkOutDateStr = dayjs(row['Check-out Date'], [
-          'M/D/YY',
-          'MM/DD/YYYY',
-          'YYYY-MM-DD',
-        ]).format('YYYY-MM-DD')
-      }
-
-      // 4. Gross Income = gross revenue - host fee - platform fee
-
-      grouped[property.id].incomes.push({
-        guest: String(row.Guest ?? ''),
-        checkIn: checkInDateStr,
-        checkOut: checkOutDateStr,
-        days: Number(row.Nights) ?? 0,
-        platform: String(row.Channel ?? ''),
-        grossRevenue: grossRevenue,
-        hostFee: hostFee,
-        platformFee: platformFee,
-        grossIncome: grossRevenue - hostFee - platformFee,
-      })
-
-      const resolutionSum = Number(row['Airbnb Closed Resolutions Sum']) ?? 0
-      if (resolutionSum !== 0) {
-        grouped[property.id].adjustments.push({
-          description: 'Airbnb Resolution',
-          amount: resolutionSum,
-          checkIn: checkInDateStr || null, // Use formatted date string
-          checkOut: checkOutDateStr || null, // Use formatted date string
-        })
-      }
-    }
-
-    // Add monthly invoice totals as expenses using fetchedProperties
-    if (fetchedProperties && selectedMonth) {
-      const expenseDate = dayjs(selectedMonth)
-        .endOf('month')
-        .format('YYYY-MM-DD')
-
-      fetchedProperties.forEach((prop) => {
-        const propInvoiceTotal = prop.monthlyInvoiceTotal ?? 0
-
-        if (propInvoiceTotal > 0) {
-          const expenseItem = {
-            date: expenseDate,
-            description: 'Supplies',
-            vendor: 'Avava',
-            amount: propInvoiceTotal,
-          }
-
-          if (grouped[prop.id]) {
-            // Add to existing draft
-            if (!grouped[prop.id].expenses) {
-              grouped[prop.id].expenses = []
-            }
-            grouped[prop.id].expenses.push(expenseItem)
-          } else {
-            // Create a new draft just for this invoice expense
-            grouped[prop.id] = {
-              propertyId: prop.id,
-              propertyName: prop.name ?? `Property ${prop.id}`,
-              statementMonth: selectedMonth,
-              incomes: [],
-              expenses: [expenseItem],
-              adjustments: [],
-              notes: 'Auto-generated for monthly invoice total.',
-              hasExistingStatement: propertiesWithExistingStatements.has(
-                prop.id
-              ),
-            }
-          }
-        }
-      })
-    }
-
-    setReviewDrafts(Object.values(grouped))
-    setUnmatchedListings(unmatched)
-    setIsModalOpen(false)
-    setIsParsing(false)
-  }
+  }, [ownerStatements, searchQuery])
 
   const handleOpenImportModal = () => {
-    setSelectedMonth(date ?? null)
     setIsModalOpen(true)
   }
 
-  const columns = useMemo<ColumnDef<OwnerStatementData>[]>(
-    () => [
-      {
-        id: 'property.name',
-        accessorKey: 'property.name',
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Property" />
-        ),
-        cell: ({ row }) => <div>{row.original.property?.name ?? '-'}</div>,
-        enableSorting: true,
-        enableColumnFilter: true,
-        filterFn: (row, id, value) => {
-          const propertyName = row.original.property?.name
-          return value.includes(propertyName)
-        },
-      },
-      {
-        accessorKey: 'statementMonth',
-        header: ({ column }) => (
-          <DataTableColumnHeader
-            column={column}
-            title="Month"
-            className="justify-end text-right"
-          />
-        ),
-        cell: ({ row }) => (
-          <div className="text-right">
-            {dayjs(row.original.statementMonth).format('MMM YYYY')}
-          </div>
-        ),
-        enableSorting: true,
-      },
-      {
-        accessorKey: 'totalIncome',
-        header: ({ column }) => (
-          <DataTableColumnHeader
-            column={column}
-            title="Income"
-            className="justify-end text-right"
-          />
-        ),
-        cell: ({ row }) => (
-          <div className="text-right tabular-nums">
-            {formatCurrency(row.original.totalIncome, 'USD', {
-              centsToDollars: false,
-            })}
-          </div>
-        ),
-        enableSorting: true,
-      },
-      {
-        accessorKey: 'totalExpenses',
-        header: ({ column }) => (
-          <DataTableColumnHeader
-            column={column}
-            title="Expenses"
-            className="justify-end text-right"
-          />
-        ),
-        cell: ({ row }) => (
-          <div className="text-right tabular-nums">
-            {formatCurrency(row.original.totalExpenses, 'USD', {
-              centsToDollars: false,
-            })}
-          </div>
-        ),
-        enableSorting: true,
-      },
-      {
-        accessorKey: 'totalAdjustments',
-        header: ({ column }) => (
-          <DataTableColumnHeader
-            column={column}
-            title="Adjustments"
-            className="justify-end text-right"
-          />
-        ),
-        cell: ({ row }) => (
-          <div className="text-right tabular-nums">
-            {formatCurrency(row.original.totalAdjustments, 'USD', {
-              centsToDollars: false,
-            })}
-          </div>
-        ),
-        enableSorting: true,
-      },
-      {
-        accessorKey: 'grandTotal',
-        header: ({ column }) => (
-          <DataTableColumnHeader
-            column={column}
-            title="Total"
-            className="justify-end text-right"
-          />
-        ),
-        cell: ({ row }) => (
-          <div className="text-right tabular-nums font-medium">
-            {formatCurrency(row.original.grandTotal, 'USD', {
-              centsToDollars: false,
-            })}
-          </div>
-        ),
-        enableSorting: true,
-      },
-      {
-        id: 'actions',
-        header: () => <div className="text-right">Actions</div>,
-        cell: ({ row }) => (
-          <div className="text-right">
-            <Button asChild variant="ghost" size="sm">
-              <Link href={`/dashboard/owner-statements/${row.original.id}`}>
-                View
-              </Link>
-            </Button>
-          </div>
-        ),
-        enableSorting: false,
-        enableColumnFilter: false,
-      },
-    ],
-    []
-  )
-
-  const table = useReactTable({
-    data: (ownerStatements as OwnerStatementData[]) ?? [],
-    columns,
-    state: {
-      sorting,
-      pagination,
-      columnFilters,
-    },
-    onSortingChange: setSorting,
-    onPaginationChange: setPagination,
-    onColumnFiltersChange: setColumnFilters,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getFacetedRowModel: getFacetedRowModel(),
-    getFacetedUniqueValues: getFacetedUniqueValues(),
-    manualPagination: false,
-    manualSorting: false,
-    manualFiltering: false,
-  })
+  const handleCloseImportModal = () => {
+    setIsModalOpen(false)
+    void refetch()
+  }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
-        <Heading level={1} className="text-2xl font-bold">
-          Owner Statements
-        </Heading>
-        <div className="flex flex-col sm:flex-row gap-3 items-center mt-3 sm:mt-0">
-          <div className="w-full sm:w-48">
-            <DatePicker
-              selected={date}
-              onChange={(selectedDate: Date | null) => {
-                setDate(selectedDate ?? undefined)
-              }}
-              showMonthYearPicker
-              placeholderText="View statements"
-              isClearable
-            />
+    <div className="h-[calc(100vh-4rem)] flex">
+      {/* Left Sidebar - Statement List */}
+      <div
+        className={cn(
+          'w-full md:w-96 border-r border-zinc-200 dark:border-zinc-800 flex flex-col h-full overflow-hidden',
+          selectedStatementId && 'hidden md:flex'
+        )}
+      >
+        {/* Header */}
+        <div className="p-4 border-b border-zinc-200 dark:border-zinc-800">
+          <div className="flex items-center justify-between mb-4">
+            <Heading level={2} className="text-lg font-semibold">
+              Owner Statements
+            </Heading>
+            {selectedDate && (
+              <div className="text-sm font-medium text-primary bg-primary/10 px-2 py-1 rounded">
+                {dayjs(selectedDate).format('MMM YYYY')}
+              </div>
+            )}
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+
+          {/* Controls */}
+          <div className="space-y-3">
+            <DatePicker
+              selected={selectedDate}
+              onChange={handleMonthChange}
+              showMonthYearPicker
+              placeholderText="Filter by month"
+              isClearable
+              className="w-full"
+            />
+
+            {/* Search Input */}
+            <Input
+              type="text"
+              placeholder="Search by property name..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full text-sm"
+            />
+
+            <div className="flex gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="flex-1 text-xs">
+                    Export
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={() => setIsExportSummaryDialogOpen(true)}
+                  >
+                    Monthly Summary
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setIsExportAllIndividualDialogOpen(true)}
+                  >
+                    All Statements
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
               <Button
-                variant="outline"
-                className="px-4 py-2 rounded-md w-full sm:w-auto"
+                variant="default"
+                onClick={handleOpenImportModal}
+                className="flex-1 text-xs"
               >
-                Export Options
+                Create New
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onClick={() => setIsExportSummaryDialogOpen(true)}
-              >
-                Monthly Summary
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => setIsExportAllIndividualDialogOpen(true)}
-              >
-                Statements
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button
-            variant="default"
-            onClick={handleOpenImportModal}
-            className="px-4 py-2 rounded-md w-full sm:w-auto"
-          >
-            Create new statements
-          </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Statement List */}
+        <div className="flex-1 overflow-y-auto">
+          {isError && (
+            <div className="p-4 text-sm text-red-600">
+              Error: {queryError?.message ?? 'Unknown error'}
+            </div>
+          )}
+
+          {isLoading && !isError && (
+            <div className="p-4 text-sm text-muted-foreground">
+              Loading statements...
+            </div>
+          )}
+
+          {!isLoading && !isError && !filteredStatements?.length && (
+            <div className="p-4 text-sm text-muted-foreground">
+              {searchQuery.trim()
+                ? `No statements found matching "${searchQuery}"`
+                : 'No statements found.'}
+            </div>
+          )}
+
+          {!isLoading &&
+            !isError &&
+            filteredStatements &&
+            filteredStatements.length > 0 && (
+              <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                {filteredStatements.map((statement) => (
+                  <div
+                    key={statement.id}
+                    className={cn(
+                      'p-4 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors',
+                      selectedStatementId === statement.id &&
+                        'bg-blue-50 dark:bg-blue-900/20 border-r-2 border-blue-500'
+                    )}
+                    onClick={() => handleSelectStatement(statement.id)}
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <h3 className="font-semibold text-sm">
+                        {statement.property?.name ?? 'Unknown Property'}
+                      </h3>
+                      <div className="text-xs text-muted-foreground bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded">
+                        {dayjs(statement.statementMonth).format('MMM YYYY')}
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>Income</span>
+                        <span>
+                          {formatCurrency(statement.totalIncome, 'USD', {
+                            centsToDollars: false,
+                          })}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>Expenses</span>
+                        <span>
+                          {formatCurrency(statement.totalExpenses, 'USD', {
+                            centsToDollars: false,
+                          })}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>Adjustments</span>
+                        <span>
+                          {formatCurrency(statement.totalAdjustments, 'USD', {
+                            centsToDollars: false,
+                          })}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm font-medium pt-1 border-t border-zinc-200 dark:border-zinc-700">
+                        <span>Net Total</span>
+                        <span
+                          className={cn(
+                            (statement.grandTotal
+                              ? Number(statement.grandTotal)
+                              : 0) >= 0
+                              ? 'text-green-600 dark:text-green-400'
+                              : 'text-red-600 dark:text-red-400'
+                          )}
+                        >
+                          {formatCurrency(statement.grandTotal, 'USD', {
+                            centsToDollars: false,
+                          })}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+          {/* Search Results Summary */}
+          {!isLoading && !isError && searchQuery.trim() && (
+            <div className="p-4 border-t border-zinc-200 dark:border-zinc-800">
+              <div className="text-xs text-muted-foreground">
+                {filteredStatements.length > 0
+                  ? `Showing ${filteredStatements.length} of ${ownerStatements?.length ?? 0} statements`
+                  : `No results for "${searchQuery}"`}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="space-y-4">
-        <DataTableToolbar table={table}>
-          {table.getColumn('property.name') && (
-            <DataTableFacetedFilter
-              column={table.getColumn('property.name')}
-              title="Property"
-              options={propertyOptions}
-            />
-          )}
-        </DataTableToolbar>
-
-        {isError && (
-          <div className="text-center py-10 text-red-600">
-            Error loading statements: {queryError?.message ?? 'Unknown error'}
+      {/* Right Content - Statement Details */}
+      <div
+        className={cn(
+          'flex-1 overflow-hidden',
+          !selectedStatementId && 'hidden md:block'
+        )}
+      >
+        {selectedStatementId ? (
+          <OwnerStatementContent
+            statementId={selectedStatementId}
+            onClose={() => handleSelectStatement(null)}
+            onRefresh={() => void refetch()}
+          />
+        ) : (
+          <div className="h-full flex items-center justify-center text-muted-foreground">
+            <div className="text-center max-w-md">
+              <div className="mb-4">
+                <svg
+                  className="mx-auto h-12 w-12 text-zinc-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1}
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                  />
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-zinc-900 dark:text-zinc-100 mb-2">
+                Select a Statement
+              </h3>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
+                Choose an owner statement from the list to view and edit its
+                details, or create a new one to get started.
+              </p>
+              <Button
+                variant="default"
+                onClick={handleOpenImportModal}
+                className="text-sm"
+              >
+                Create New Statement
+              </Button>
+            </div>
           </div>
         )}
-
-        {isLoading && !isError && (
-          <div className="text-center py-10 text-muted-foreground">
-            Loading statements...
-          </div>
-        )}
-
-        {!isLoading && !isError && !table.getRowModel().rows.length && (
-          <div className="text-center py-10 text-muted-foreground">
-            No owner statements found matching your filters.
-          </div>
-        )}
-
-        {!isLoading && !isError && table.getRowModel().rows.length > 0 && (
-          <DataTable table={table} />
-        )}
-
-        <DataTablePagination table={table} />
       </div>
 
-      <ImportModal
-        open={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onNext={handleNextFromModal}
-        loading={isParsing}
-        error={error}
-        parsedData={parsedData}
-        selectedFile={selectedFile}
-        setSelectedFile={setSelectedFile}
-        setError={setError}
-        month={selectedMonth}
-        setMonth={setSelectedMonth}
-      />
+      {/* Modals */}
+      <MonthlyImportModal open={isModalOpen} onClose={handleCloseImportModal} />
 
       <ExportMonthlyStatements
         open={isExportSummaryDialogOpen}
         onOpenChange={setIsExportSummaryDialogOpen}
-        initialMonth={date ?? null}
+        initialMonth={selectedDate ?? null}
       />
 
       <ExportMonthlyIndividualStatements
         open={isExportAllIndividualDialogOpen}
         onOpenChange={setIsExportAllIndividualDialogOpen}
-        initialMonth={date ?? null}
+        initialMonth={selectedDate ?? null}
       />
-
-      {reviewDrafts && (
-        <OwnerStatementReviewStepper
-          drafts={reviewDrafts}
-          unmatchedListings={unmatchedListings}
-          onDone={() => {
-            if (selectedMonth) {
-              setDate(selectedMonth)
-            }
-            setReviewDrafts(null)
-            setParsedData(null)
-            setSelectedFile(null)
-            setSelectedMonth(null)
-          }}
-        />
-      )}
     </div>
   )
 }

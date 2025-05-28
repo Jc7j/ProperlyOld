@@ -60,7 +60,7 @@ export default function ExportMonthlyIndividualStatements({
     }
   }, [open, initialMonth, selectedDate])
 
-  const { data: statementsQueryResult, isLoading: isLoadingStatements } =
+  const { data: detailedStatements, isLoading: isLoadingStatements } =
     api.ownerStatement.getManyWithDetails.useQuery(
       {
         month: selectedDate ? dayjs(selectedDate).format('YYYY-MM') : undefined,
@@ -71,12 +71,10 @@ export default function ExportMonthlyIndividualStatements({
       }
     )
 
-  const detailedStatements = statementsQueryResult?.statements
-
   useEffect(() => {
     if (open && detailedStatements) {
       const uniquePropertiesMap = new Map<string, PropertyForSelection>()
-      detailedStatements.forEach((stmt) => {
+      detailedStatements.forEach((stmt: any) => {
         if (stmt.property && !uniquePropertiesMap.has(stmt.property.id)) {
           uniquePropertiesMap.set(stmt.property.id, {
             id: stmt.property.id,
@@ -147,11 +145,28 @@ export default function ExportMonthlyIndividualStatements({
         const statementDataForPdf: DetailedOwnerStatementData = {
           propertyName: statement.property?.name ?? 'N/A',
           statementMonth: statement.statementMonth,
-          incomes: statement.incomes,
-          expenses: statement.expenses,
-          adjustments: statement.adjustments,
+          incomes:
+            statement.incomes?.map((income: any) => ({
+              ...income,
+              grossRevenue: Number(income.grossRevenue),
+              hostFee: Number(income.hostFee),
+              platformFee: Number(income.platformFee),
+              grossIncome: Number(income.grossIncome),
+            })) ?? [],
+          expenses:
+            statement.expenses?.map((expense: any) => ({
+              ...expense,
+              amount: Number(expense.amount),
+            })) ?? [],
+          adjustments:
+            statement.adjustments?.map((adjustment: any) => ({
+              ...adjustment,
+              amount: Number(adjustment.amount),
+            })) ?? [],
           notes: statement.notes,
-          grandTotal: statement.grandTotal,
+          grandTotal: statement.grandTotal
+            ? Number(statement.grandTotal)
+            : null,
         }
         addOwnerStatementToPdf(doc, statementDataForPdf, currentY)
       }
