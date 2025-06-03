@@ -42,6 +42,143 @@ interface ParsedHostawayData {
   notes: string
 }
 
+// Consolidated state interface
+interface ImportState {
+  month: Date | null
+  hostawayFile: File | null
+  vendorFiles: File[]
+  isParsing: boolean
+  error: string | null
+  userChoice: 'skip' | 'replace' | null
+}
+
+/**
+ * Safely parse a number from Excel data, returning 0 for invalid values
+ */
+function safeParseNumber(value: any): number {
+  if (value === null || value === undefined || value === "") {
+    return 0
+  }
+  const parsed = Number(value)
+  return isNaN(parsed) ? 0 : parsed
+}
+
+/**
+ * Parse dates from Excel with multiple format support
+ */
+function parseExcelDate(dateValue: any): string {
+  if (!dateValue) return ""
+  
+  if (dateValue instanceof Date) {
+    return dayjs(dateValue).format('YYYY-MM-DD')
+  }
+  
+  const dateStr = String(dateValue)
+  if (/\d{1,2}\/\d{1,2}\/\d{2,4}/.test(dateStr)) {
+    return dayjs(dateStr, ['M/D/YY', 'MM/DD/YYYY', 'YYYY-MM-DD']).format('YYYY-MM-DD')
+  }
+  
+  return dateStr
+}
+
+/**
+ * Create property lookup map with name normalization
+ */
+function createPropertyMap(properties: any[]) {
+  return new Map(
+    properties.map((p: any) => [
+      p.name?.replace(/\s+/g, '').toLowerCase() ?? '',
+      p,
+    ])
+  )
+}
+
+/**
+ * Normalize property name for matching
+ */
+function normalizePropertyName(name: string): string {
+  return name.replace(/\s*\((OLD|NEW)\)\s*$/i, '').replace(/\s+/g, '').toLowerCase()
+}
+
+/**
+ * Process a single income row from Excel
+ */
+function processIncomeRow(row: any): {
+  checkIn: string
+  checkOut: string
+  days: number
+  platform: string
+  guest: string
+  grossRevenue: number
+  hostFee: number
+  platformFee: number
+  grossIncome: number
+} {
+  const rentalRevenue = safeParseNumber(row['Rental Revenue'])
+  const airbnbTax = safeParseNumber(row['Airbnb Transient Occupancy Tax'])
+  let grossRevenue = rentalRevenue
+  if (airbnbTax > 0) {
+    grossRevenue = rentalRevenue - airbnbTax
+  }
+
+  const hostFee = Math.round(grossRevenue * 0.15 * 100) / 100
+  const channel = (row.Channel || '').toLowerCase()
+  const platformFee =
+    channel === 'vrbo'
+      ? safeParseNumber(row['Payment Fees'])
+      : safeParseNumber(row['Host Channel Fee'])
+
+  return {
+    guest: String(row.Guest ?? ''),
+    checkIn: parseExcelDate(row['Check-in Date']),
+    checkOut: parseExcelDate(row['Check-out Date']),
+    days: safeParseNumber(row.Nights),
+    platform: String(row.Channel ?? ''),
+    grossRevenue,
+    hostFee,
+    platformFee,
+    grossIncome: grossRevenue - hostFee - platformFee,
+  }
+}
+
+/**
+ * Validate parsed statement data
+ */
+function validateStatementData(statements: ParsedHostawayData[]): void {
+  for (const statement of statements) {
+    // Check incomes
+    for (const income of statement.incomes) {
+      if ([income.grossRevenue, income.hostFee, income.platformFee, income.grossIncome].some(isNaN)) {
+        throw new Error(`Invalid numeric data found for property "${statement.propertyName}". Please check the Excel file.`)
+      }
+    }
+    // Check expenses and adjustments
+    for (const expense of statement.expenses) {
+      if (isNaN(expense.amount)) {
+        throw new Error(`Invalid expense amount for property "${statement.propertyName}".`)
+      }
+    }
+    for (const adjustment of statement.adjustments) {
+      if (isNaN(adjustment.amount)) {
+        throw new Error(`Invalid adjustment amount for property "${statement.propertyName}".`)
+      }
+    }
+  }
+}
+
+/**
+ * Parse Excel file and return raw data
+ */
+async function parseExcelFile(file: File): Promise<any[]> {
+  const data = await file.arrayBuffer()
+  const workbook = XLSX.read(data, { type: 'array' })
+  const sheetName = workbook.SheetNames[0]
+  if (!sheetName) throw new Error('No sheet found')
+  const worksheet = workbook.Sheets[sheetName]
+  if (!worksheet) throw new Error('No worksheet found')
+  return XLSX.utils.sheet_to_json(worksheet, { defval: '' })
+}
+
 export default function MonthlyImportModal({
   open,
   onClose,
@@ -53,81 +190,69 @@ export default function MonthlyImportModal({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const vendorFileInputRef = useRef<HTMLInputElement>(null)
 
-  const [month, setMonth] = useState<Date | null>(null)
-  const [hostawayFile, setHostawayFile] = useState<File | null>(null)
-  const [vendorFiles, setVendorFiles] = useState<File[]>([])
-  const [isParsing, setIsParsing] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [userChoice, setUserChoice] = useState<'skip' | 'replace' | null>(null)
+  // Consolidated state
+  const [state, setState] = useState<ImportState>({
+    month: null,
+    hostawayFile: null,
+    vendorFiles: [],
+    isParsing: false,
+    error: null,
+    userChoice: null,
+  })
 
   const utils = api.useUtils()
 
-  // Check for existing statements - this is our source of truth
+  // Check for existing statements
   const { data: existingStatements, isLoading: isCheckingExisting } =
     api.ownerStatement.getMany.useQuery(
-      { month: month ? dayjs(month).format('YYYY-MM') : undefined },
-      { enabled: !!month }
+      { month: state.month ? dayjs(state.month).format('YYYY-MM') : undefined },
+      { enabled: !!state.month }
     )
 
-  // Derived state - no useState needed
-  const hasExistingStatements =
-    existingStatements && existingStatements.length > 0
-  const needsUserChoice = hasExistingStatements && userChoice === null
-  const canProceed = month && hostawayFile && !needsUserChoice
+  // Derived state
+  const hasExistingStatements = existingStatements && existingStatements.length > 0
+  const needsUserChoice = hasExistingStatements && state.userChoice === null
+  const canProceed = state.month && state.hostawayFile && !needsUserChoice
 
   // Create batch mutation
-  const createBatchMutation = api.ownerStatement.createMonthlyBatch.useMutation(
-    {
-      onSuccess: async (data) => {
-        if (data.createdCount === 0) {
-          ErrorToast(
-            'No new statements were created. All properties already have statements for this month.'
-          )
-          return
-        }
+  const createBatchMutation = api.ownerStatement.createMonthlyBatch.useMutation({
+    onSuccess: async (data) => {
+      if (data.createdCount === 0) {
+        ErrorToast('No new statements were created. All properties already have statements for this month.')
+        return
+      }
 
-        let message = `Created ${data.createdCount} owner statement${data.createdCount !== 1 ? 's' : ''} successfully!`
+      let message = `Created ${data.createdCount} owner statement${data.createdCount !== 1 ? 's' : ''} successfully!`
+      if (data.existingCount > 0) message += ` (Skipped ${data.existingCount} existing)`
+      if (data.replacedCount > 0) message += ` (Replaced ${data.replacedCount} existing)`
 
-        if (data.existingCount > 0) {
-          message += ` (Skipped ${data.existingCount} existing)`
-        }
+      SuccessToast(message)
 
-        if (data.replacedCount > 0) {
-          message += ` (Replaced ${data.replacedCount} existing)`
-        }
+      if (data.firstStatementId) {
+        router.push(`/dashboard/owner-statements?statement=${data.firstStatementId}`)
+      }
+      onClose()
+    },
+    onError: (error) => {
+      ErrorToast(`Failed to create statements: ${error.message}`)
+    },
+  })
 
-        SuccessToast(message)
-
-        if (data.firstStatementId) {
-          router.push(
-            `/dashboard/owner-statements?statement=${data.firstStatementId}`
-          )
-        }
-        onClose()
-      },
-      onError: (error) => {
-        ErrorToast(`Failed to create statements: ${error.message}`)
-      },
-    }
-  )
-
-  // Reset user choice when month changes
+  // Event handlers
   const handleMonthChange = (newMonth: Date | null) => {
-    setMonth(newMonth)
-    setUserChoice(null)
+    setState(prev => ({ ...prev, month: newMonth, userChoice: null }))
   }
 
   const handleUserChoice = (choice: 'skip' | 'replace') => {
     if (choice === 'replace') {
       const confirmOverwrite = window.confirm(
-        `This will REPLACE all existing statements for ${dayjs(month).format('MMMM YYYY')}. This action cannot be undone. Are you sure?`
+        `This will REPLACE all existing statements for ${dayjs(state.month).format('MMMM YYYY')}. This action cannot be undone. Are you sure?`
       )
       if (!confirmOverwrite) return
     }
-    setUserChoice(choice)
+    setState(prev => ({ ...prev, userChoice: choice }))
   }
 
-  // Handle file operations
   const handleHostawayDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
     const file = e.dataTransfer.files[0]
@@ -138,10 +263,9 @@ export default function MonthlyImportModal({
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
       file.name.endsWith('.xlsx')
     ) {
-      setHostawayFile(file)
-      setError(null)
+      setState(prev => ({ ...prev, hostawayFile: file, error: null }))
     } else {
-      setError('Please upload a valid .xlsx file.')
+      setState(prev => ({ ...prev, error: 'Please upload a valid .xlsx file.' }))
     }
   }
 
@@ -149,74 +273,49 @@ export default function MonthlyImportModal({
     const files = Array.from(e.target.files ?? [])
     const pdfFiles = files.filter((f) => f.type === 'application/pdf')
     if (pdfFiles.length !== files.length) {
-      setError('Please only select PDF files for vendor invoices.')
+      setState(prev => ({ ...prev, error: 'Please only select PDF files for vendor invoices.' }))
     } else {
-      setVendorFiles((prev) => [...prev, ...pdfFiles])
-      setError(null)
+      setState(prev => ({ ...prev, vendorFiles: [...prev.vendorFiles, ...pdfFiles], error: null }))
     }
   }
 
   const removeVendorFile = (index: number) => {
-    setVendorFiles((prev) => prev.filter((_, i) => i !== index))
+    setState(prev => ({ 
+      ...prev, 
+      vendorFiles: prev.vendorFiles.filter((_, i) => i !== index) 
+    }))
   }
 
-  // Parse Hostaway Excel file
-  async function parseHostawayFile(file: File): Promise<any[]> {
-    const data = await file.arrayBuffer()
-    const workbook = XLSX.read(data, { type: 'array' })
-    const sheetName = workbook.SheetNames[0]
-    if (!sheetName) throw new Error('No sheet found')
-    const worksheet = workbook.Sheets[sheetName]
-    if (!worksheet) throw new Error('No worksheet found')
-    return XLSX.utils.sheet_to_json(worksheet, { defval: '' })
-  }
-
-  // Main processing function
+  // Main processing function - now much simpler
   async function handleProcessAndCreate() {
     if (!canProceed) return
 
-    setIsParsing(true)
-    setError(null)
+    setState(prev => ({ ...prev, isParsing: true, error: null }))
 
     try {
-      const rawData = await parseHostawayFile(hostawayFile)
-      const formattedMonth = dayjs(month).format('YYYY-MM')
-      const properties = await utils.property.getMany.fetch({
-        month: formattedMonth,
-      })
+      // Parse Excel file
+      const rawData = await parseExcelFile(state.hostawayFile!)
+      console.log("Excel columns found:", rawData.length > 0 ? Object.keys(rawData[0]) : [])
 
+      // Get properties
+      const formattedMonth = dayjs(state.month).format('YYYY-MM')
+      const properties = await utils.property.getMany.fetch({ month: formattedMonth })
       if (!properties || properties.length === 0) {
         throw new Error('No properties found for the selected month.')
       }
 
-      // Create property map for matching
-      const propertyMap = new Map(
-        properties.map((p: any) => [
-          p.name?.replace(/\s+/g, '').toLowerCase() ?? '',
-          p,
-        ])
-      )
-
-      // Group data by property
+      // Process data
+      const propertyMap = createPropertyMap(properties)
       const grouped: Record<string, ParsedHostawayData> = {}
-      const unmatched: string[] = []
 
+      // Process each row
       for (const row of rawData) {
         const rawListingName = row.Listing || ''
-        const normalizedListingName = rawListingName.replace(
-          /\s*\((OLD|NEW)\)\s*$/i,
-          ''
-        )
-        const listing = normalizedListingName.replace(/\s+/g, '').toLowerCase()
+        const normalizedName = normalizePropertyName(rawListingName)
+        if (!normalizedName) continue
 
-        if (!listing) continue
-
-        const property = propertyMap.get(listing)
-        if (!property) {
-          if (!unmatched.includes(rawListingName))
-            unmatched.push(rawListingName)
-          continue
-        }
+        const property = propertyMap.get(normalizedName)
+        if (!property) continue
 
         if (!grouped[property.id]) {
           grouped[property.id] = {
@@ -229,82 +328,26 @@ export default function MonthlyImportModal({
           }
         }
 
-        // Process income data
-        const rentalRevenue = Number(row['Rental Revenue']) ?? 0
-        const airbnbTax = Number(row['Airbnb Transient Occupancy Tax']) ?? 0
-        let grossRevenue = rentalRevenue
-        if (airbnbTax > 0) {
-          grossRevenue = rentalRevenue - airbnbTax
-        }
-
-        const hostFee = Math.round(grossRevenue * 0.15 * 100) / 100
-        const channel = (row.Channel || '').toLowerCase()
-        const platformFee =
-          channel === 'vrbo'
-            ? (Number(row['Payment Fees']) ?? 0)
-            : (Number(row['Host Channel Fee']) ?? 0)
-
-        // Parse dates
-        let checkInDateStr =
-          row['Check-in Date'] instanceof Date
-            ? dayjs(row['Check-in Date']).format('YYYY-MM-DD')
-            : String(row['Check-in Date'] ?? '')
-
-        if (
-          typeof row['Check-in Date'] === 'string' &&
-          /\d{1,2}\/\d{1,2}\/\d{2,4}/.test(row['Check-in Date'])
-        ) {
-          checkInDateStr = dayjs(row['Check-in Date'], [
-            'M/D/YY',
-            'MM/DD/YYYY',
-            'YYYY-MM-DD',
-          ]).format('YYYY-MM-DD')
-        }
-
-        let checkOutDateStr =
-          row['Check-out Date'] instanceof Date
-            ? dayjs(row['Check-out Date']).format('YYYY-MM-DD')
-            : String(row['Check-out Date'] ?? '')
-
-        if (
-          typeof row['Check-out Date'] === 'string' &&
-          /\d{1,2}\/\d{1,2}\/\d{2,4}/.test(row['Check-out Date'])
-        ) {
-          checkOutDateStr = dayjs(row['Check-out Date'], [
-            'M/D/YY',
-            'MM/DD/YYYY',
-            'YYYY-MM-DD',
-          ]).format('YYYY-MM-DD')
-        }
-
-        grouped[property.id]?.incomes.push({
-          guest: String(row.Guest ?? ''),
-          checkIn: checkInDateStr,
-          checkOut: checkOutDateStr,
-          days: Number(row.Nights) ?? 0,
-          platform: String(row.Channel ?? ''),
-          grossRevenue: grossRevenue,
-          hostFee: hostFee,
-          platformFee: platformFee,
-          grossIncome: grossRevenue - hostFee - platformFee,
-        })
+        // Process income
+        const income = processIncomeRow(row)
+        grouped[property.id]?.incomes.push(income)
 
         // Process adjustments
-        const resolutionSum = Number(row['Airbnb Closed Resolutions Sum']) ?? 0
+        const resolutionSum = safeParseNumber(row['Airbnb Closed Resolutions Sum'])
         if (resolutionSum !== 0) {
           grouped[property.id]?.adjustments.push({
             description: 'Airbnb Resolution',
             amount: resolutionSum,
-            checkIn: checkInDateStr || undefined,
-            checkOut: checkOutDateStr || undefined,
+            checkIn: income.checkIn || undefined,
+            checkOut: income.checkOut || undefined,
           })
         }
       }
 
       // Add monthly invoice totals as expenses
-      const expenseDate = dayjs(month).endOf('month').format('YYYY-MM-DD')
+      const expenseDate = dayjs(state.month).endOf('month').format('YYYY-MM-DD')
       properties.forEach((prop: any) => {
-        const propInvoiceTotal = prop.monthlyInvoiceTotal ?? 0
+        const propInvoiceTotal = safeParseNumber(prop.monthlyInvoiceTotal)
         if (propInvoiceTotal > 0) {
           if (grouped[prop.id]) {
             grouped[prop.id]?.expenses.push({
@@ -318,14 +361,7 @@ export default function MonthlyImportModal({
               propertyId: prop.id,
               propertyName: prop.name ?? `Property ${prop.id}`,
               incomes: [],
-              expenses: [
-                {
-                  date: expenseDate,
-                  description: 'Supplies',
-                  vendor: 'Avava',
-                  amount: propInvoiceTotal,
-                },
-              ],
+              expenses: [{ date: expenseDate, description: 'Supplies', vendor: 'Avava', amount: propInvoiceTotal }],
               adjustments: [],
               notes: 'Auto-generated for monthly invoice total.',
             }
@@ -334,18 +370,22 @@ export default function MonthlyImportModal({
       })
 
       const parsedStatements = Object.values(grouped)
+      validateStatementData(parsedStatements)
 
-      // Create all statements
+      // Create statements
       createBatchMutation.mutate({
-        statementMonth: month,
+        statementMonth: state.month!,
         hostawayData: parsedStatements,
-        skipExisting: userChoice === 'skip',
+        skipExisting: state.userChoice === 'skip',
       })
     } catch (err) {
       console.error('Error processing files:', err)
-      setError(err instanceof Error ? err.message : 'Failed to process files')
+      setState(prev => ({ 
+        ...prev, 
+        error: err instanceof Error ? err.message : 'Failed to process files' 
+      }))
     } finally {
-      setIsParsing(false)
+      setState(prev => ({ ...prev, isParsing: false }))
     }
   }
 
@@ -360,13 +400,13 @@ export default function MonthlyImportModal({
               Statement Month
             </label>
             <DatePicker
-              selected={month ?? undefined}
+              selected={state.month ?? undefined}
               onChange={handleMonthChange}
               showMonthYearPicker
               placeholderText="Select a month"
               className="w-full"
             />
-            {isCheckingExisting && month && (
+            {isCheckingExisting && state.month && (
               <div className="text-xs text-blue-600 mt-1">
                 Checking for existing statements...
               </div>
@@ -374,7 +414,7 @@ export default function MonthlyImportModal({
           </div>
 
           {/* Existing Statements Warning */}
-          {hasExistingStatements && userChoice === null && (
+          {hasExistingStatements && state.userChoice === null && (
             <div className="border border-yellow-300 bg-yellow-50 rounded-lg p-4">
               <div className="flex items-start">
                 <div className="flex-shrink-0">
@@ -398,7 +438,7 @@ export default function MonthlyImportModal({
                     <p>
                       Found {existingStatements.length} existing owner statement
                       {existingStatements.length !== 1 ? 's' : ''} for{' '}
-                      {dayjs(month).format('MMMM YYYY')}:
+                      {dayjs(state.month).format('MMMM YYYY')}:
                     </p>
                     <ul className="mt-1 list-disc list-inside">
                       {existingStatements.slice(0, 5).map((stmt) => (
@@ -433,7 +473,7 @@ export default function MonthlyImportModal({
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => setMonth(null)}
+                      onClick={() => setState(prev => ({ ...prev, month: null }))}
                       className="text-xs"
                     >
                       Choose Different Month
@@ -445,18 +485,18 @@ export default function MonthlyImportModal({
           )}
 
           {/* User Choice Confirmation */}
-          {hasExistingStatements && userChoice && (
+          {hasExistingStatements && state.userChoice && (
             <div className="border border-green-300 bg-green-50 rounded-lg p-3">
               <div className="text-sm text-green-800">
                 ✓ You chose to{' '}
                 <strong>
-                  {userChoice === 'skip'
+                  {state.userChoice === 'skip'
                     ? 'skip existing properties'
                     : 'replace all statements'}
                 </strong>{' '}
-                for {dayjs(month).format('MMMM YYYY')}.
+                for {dayjs(state.month).format('MMMM YYYY')}.
                 <button
-                  onClick={() => setUserChoice(null)}
+                  onClick={() => setState(prev => ({ ...prev, userChoice: null }))}
                   className="ml-2 text-green-600 underline hover:no-underline"
                 >
                   Change choice
@@ -484,17 +524,16 @@ export default function MonthlyImportModal({
                 onChange={(e) => {
                   const file = e.target.files?.[0]
                   if (file) {
-                    setHostawayFile(file)
-                    setError(null)
+                    setState(prev => ({ ...prev, hostawayFile: file, error: null }))
                   }
                 }}
               />
               <div className="text-zinc-500 mb-2">
                 Drag and drop your Hostaway Excel file here, or click to select
               </div>
-              {hostawayFile && (
+              {state.hostawayFile && (
                 <div className="text-zinc-700 font-medium">
-                  {hostawayFile.name}
+                  {state.hostawayFile.name}
                 </div>
               )}
             </div>
@@ -521,9 +560,9 @@ export default function MonthlyImportModal({
                 className="hidden"
                 onChange={handleVendorFileSelect}
               />
-              {vendorFiles.length > 0 && (
+              {state.vendorFiles.length > 0 && (
                 <div className="space-y-1">
-                  {vendorFiles.map((file, idx) => (
+                  {state.vendorFiles.map((file, idx) => (
                     <div
                       key={idx}
                       className="flex items-center justify-between p-2 bg-zinc-50 rounded"
@@ -544,10 +583,10 @@ export default function MonthlyImportModal({
           </div>
 
           {/* Status Messages */}
-          {isParsing && (
+          {state.isParsing && (
             <div className="text-blue-600 text-sm">Processing files...</div>
           )}
-          {error && <div className="text-red-600 text-sm">{error}</div>}
+          {state.error && <div className="text-red-600 text-sm">{state.error}</div>}
         </div>
       </DialogBody>
       <DialogActions>
@@ -558,7 +597,7 @@ export default function MonthlyImportModal({
           variant="default"
           disabled={
             !canProceed ||
-            isParsing ||
+            state.isParsing ||
             createBatchMutation.isPending ||
             isCheckingExisting
           }
