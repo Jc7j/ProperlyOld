@@ -59,10 +59,25 @@ function calculateTotals(
   expenses: z.infer<typeof expenseSchema>[],
   adjustments: z.infer<typeof adjustmentSchema>[]
 ) {
-  const totalIncome = incomes.reduce((sum, i) => sum + (i.grossIncome ?? 0), 0)
-  const totalExpenses = expenses.reduce((sum, e) => sum + (e.amount ?? 0), 0)
+  // Ensure all values are properly converted to numbers, handling Decimal objects
+  const safeParseDecimal = (value: any): number => {
+    if (value === null || value === undefined) return 0
+    if (typeof value === 'object' && value.toString) {
+      return parseFloat(value.toString()) || 0
+    }
+    return parseFloat(String(value)) || 0
+  }
+
+  const totalIncome = incomes.reduce(
+    (sum, i) => sum + safeParseDecimal(i.grossIncome),
+    0
+  )
+  const totalExpenses = expenses.reduce(
+    (sum, e) => sum + safeParseDecimal(e.amount),
+    0
+  )
   const totalAdjustments = adjustments.reduce(
-    (sum, a) => sum + (a.amount ?? 0),
+    (sum, a) => sum + safeParseDecimal(a.amount),
     0
   )
 
@@ -139,6 +154,15 @@ async function recalculateStatementTotals(
     }),
   ])
 
+  // Use the same safe decimal parsing as in calculateTotals
+  const safeParseDecimal = (value: any): number => {
+    if (value === null || value === undefined) return 0
+    if (typeof value === 'object' && value.toString) {
+      return parseFloat(value.toString()) || 0
+    }
+    return parseFloat(String(value)) || 0
+  }
+
   const totals = calculateTotals(
     incomes.map((i) => ({
       checkIn: i.checkIn,
@@ -146,22 +170,22 @@ async function recalculateStatementTotals(
       days: i.days,
       platform: i.platform,
       guest: i.guest,
-      grossRevenue: Number(i.grossRevenue),
-      hostFee: Number(i.hostFee),
-      platformFee: Number(i.platformFee),
-      grossIncome: Number(i.grossIncome),
+      grossRevenue: safeParseDecimal(i.grossRevenue),
+      hostFee: safeParseDecimal(i.hostFee),
+      platformFee: safeParseDecimal(i.platformFee),
+      grossIncome: safeParseDecimal(i.grossIncome),
     })),
     expenses.map((e) => ({
       date: e.date,
       description: e.description,
       vendor: e.vendor,
-      amount: Number(e.amount),
+      amount: safeParseDecimal(e.amount),
     })),
     adjustments.map((a) => ({
       checkIn: a.checkIn ?? undefined,
       checkOut: a.checkOut ?? undefined,
       description: a.description,
-      amount: Number(a.amount),
+      amount: safeParseDecimal(a.amount),
     }))
   )
 
@@ -935,18 +959,33 @@ export const ownerStatementRouter = createTRPCRouter({
         },
       })
 
-      // Create a map of property names to statement IDs
+      // Create a map of property names to statement IDs with normalization
       const propertyNameToStatementId = new Map<string, string>()
+      const normalizePropertyName = (name: string): string => {
+        return name
+          .replace(/\s*\((OLD|NEW)\)\s*$/i, '')
+          .replace(/\s+/g, '')
+          .toLowerCase()
+      }
+
       monthStatements.forEach((statement) => {
         if (statement.property?.name) {
-          propertyNameToStatementId.set(statement.property.name, statement.id)
+          // Store both normalized and original names for flexible matching
+          const normalizedName = normalizePropertyName(statement.property.name)
+          propertyNameToStatementId.set(statement.property.name, statement.id) // Original
+          propertyNameToStatementId.set(normalizedName, statement.id) // Normalized
         }
       })
 
-      // Validate that all properties in the Excel exist
+      // Validate that all properties in the Excel exist (try both original and normalized names)
       const unknownProperties = input.expenses
         .map((expense) => expense.property)
-        .filter((property) => !propertyNameToStatementId.has(property))
+        .filter((property) => {
+          // Try exact match first, then normalized match
+          if (propertyNameToStatementId.has(property)) return false
+          const normalizedProperty = normalizePropertyName(property)
+          return !propertyNameToStatementId.has(normalizedProperty)
+        })
         .filter((property, index, arr) => arr.indexOf(property) === index) // Remove duplicates
 
       if (unknownProperties.length > 0) {
@@ -973,6 +1012,27 @@ export const ownerStatementRouter = createTRPCRouter({
             .join(
               ', '
             )}${invalidDates.length > 5 ? ` and ${invalidDates.length - 5} more` : ''}. Please use YYYY-MM-DD format.`,
+        })
+      }
+
+      // Basic duplicate detection - check for exact matches in the same batch
+      const expenseKeys = new Set<string>()
+      const duplicates: string[] = []
+
+      input.expenses.forEach((expense, index) => {
+        // Create a unique key for each expense
+        const key = `${expense.property}|${expense.date}|${expense.description}|${expense.vendor}|${expense.amount}`
+        if (expenseKeys.has(key)) {
+          duplicates.push(`Row ${index + 1}: Duplicate expense found`)
+        } else {
+          expenseKeys.add(key)
+        }
+      })
+
+      if (duplicates.length > 0) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: `Found ${duplicates.length} duplicate expenses in the Excel file. Please remove duplicates and try again.`,
         })
       }
 
@@ -1007,9 +1067,14 @@ export const ownerStatementRouter = createTRPCRouter({
             const expensesByStatementId = new Map<string, typeof chunk>()
 
             for (const expense of chunk) {
-              const statementId = propertyNameToStatementId.get(
-                expense.property
-              )
+              // Try exact match first, then normalized match
+              let statementId = propertyNameToStatementId.get(expense.property)
+              if (!statementId) {
+                const normalizedProperty = normalizePropertyName(
+                  expense.property
+                )
+                statementId = propertyNameToStatementId.get(normalizedProperty)
+              }
               if (!statementId) continue // This should not happen due to validation above
 
               if (!expensesByStatementId.has(statementId)) {

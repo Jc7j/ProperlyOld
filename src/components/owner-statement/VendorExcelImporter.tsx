@@ -81,20 +81,65 @@ const parseExpenseRow = (
     return { error: `Row ${rowIndex}: Missing required information` }
   }
 
-  // Parse amount
-  const amount = parseFloat(amountStr.replace(/[^0-9.-]/g, ''))
-  if (isNaN(amount)) {
+  // Parse amount with improved logic
+  let cleanAmountStr = amountStr.trim()
+  
+  // Remove currency symbols and spaces
+  cleanAmountStr = cleanAmountStr.replace(/[$£€¥₹,\s]/g, '')
+  
+  // Handle parentheses for negative amounts (accounting format)
+  if (cleanAmountStr.startsWith('(') && cleanAmountStr.endsWith(')')) {
+    cleanAmountStr = '-' + cleanAmountStr.slice(1, -1)
+  }
+  
+  // Ensure only one decimal point and one negative sign
+  const decimalCount = (cleanAmountStr.match(/\./g) ?? []).length
+  const negativeCount = (cleanAmountStr.match(/-/g) ?? []).length
+  
+  if (decimalCount > 1 || negativeCount > 1) {
+    return { error: `Row ${rowIndex}: Invalid amount format "${amountStr}"` }
+  }
+  
+  // Final validation - should only contain digits, one decimal point, and/or one negative sign
+  if (!/^-?\d*\.?\d*$/.test(cleanAmountStr)) {
+    return { error: `Row ${rowIndex}: Invalid amount format "${amountStr}"` }
+  }
+  
+  const amount = parseFloat(cleanAmountStr)
+  if (isNaN(amount) || !isFinite(amount)) {
     return { error: `Row ${rowIndex}: Invalid amount "${amountStr}"` }
   }
 
-  // Format date
-  let formattedDate = date
+  // Format date - handle multiple common formats
+  let formattedDate = date.trim()
+  
+  // Handle MM/DD/YYYY or M/D/YYYY format
   if (date.includes('/')) {
     const parts = date.split('/')
     if (parts.length === 3) {
       const [month, day, year] = parts
       if (month && day && year) {
-        formattedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+        // Handle 2-digit or 4-digit years
+        const fullYear = year.length === 2 ? `20${year}` : year
+        formattedDate = `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+      }
+    }
+  }
+  // Handle MM-DD-YYYY or YYYY-MM-DD formats
+  else if (date.includes('-')) {
+    const parts = date.split('-')
+    if (parts.length === 3) {
+      const [first, second, third] = parts
+      if (first && second && third) {
+        // If first part is 4 digits, assume YYYY-MM-DD
+        if (first.length === 4) {
+          formattedDate = `${first}-${second.padStart(2, '0')}-${third.padStart(2, '0')}`
+        }
+        // Otherwise assume MM-DD-YYYY
+        else {
+          const fullYear = third.length === 2 ? `20${third}` : third
+          formattedDate = `${fullYear}-${first.padStart(2, '0')}-${second.padStart(2, '0')}`
+        }
       }
     }
   }

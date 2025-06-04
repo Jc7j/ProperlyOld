@@ -46,7 +46,6 @@ interface ParsedHostawayData {
 interface ImportState {
   month: Date | null
   hostawayFile: File | null
-  vendorFiles: File[]
   isParsing: boolean
   error: string | null
   userChoice: 'skip' | 'replace' | null
@@ -188,13 +187,11 @@ export default function MonthlyImportModal({
 }) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const vendorFileInputRef = useRef<HTMLInputElement>(null)
 
   // Consolidated state
   const [state, setState] = useState<ImportState>({
     month: null,
     hostawayFile: null,
-    vendorFiles: [],
     isParsing: false,
     error: null,
     userChoice: null,
@@ -269,22 +266,7 @@ export default function MonthlyImportModal({
     }
   }
 
-  const handleVendorFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? [])
-    const pdfFiles = files.filter((f) => f.type === 'application/pdf')
-    if (pdfFiles.length !== files.length) {
-      setState(prev => ({ ...prev, error: 'Please only select PDF files for vendor invoices.' }))
-    } else {
-      setState(prev => ({ ...prev, vendorFiles: [...prev.vendorFiles, ...pdfFiles], error: null }))
-    }
-  }
 
-  const removeVendorFile = (index: number) => {
-    setState(prev => ({ 
-      ...prev, 
-      vendorFiles: prev.vendorFiles.filter((_, i) => i !== index) 
-    }))
-  }
 
   // Main processing function - now much simpler
   async function handleProcessAndCreate() {
@@ -343,31 +325,6 @@ export default function MonthlyImportModal({
           })
         }
       }
-
-      // Add monthly invoice totals as expenses
-      const expenseDate = dayjs(state.month).endOf('month').format('YYYY-MM-DD')
-      properties.forEach((prop: any) => {
-        const propInvoiceTotal = safeParseNumber(prop.monthlyInvoiceTotal)
-        if (propInvoiceTotal > 0) {
-          if (grouped[prop.id]) {
-            grouped[prop.id]?.expenses.push({
-              date: expenseDate,
-              description: 'Supplies',
-              vendor: 'Avava',
-              amount: propInvoiceTotal,
-            })
-          } else {
-            grouped[prop.id] = {
-              propertyId: prop.id,
-              propertyName: prop.name ?? `Property ${prop.id}`,
-              incomes: [],
-              expenses: [{ date: expenseDate, description: 'Supplies', vendor: 'Avava', amount: propInvoiceTotal }],
-              adjustments: [],
-              notes: 'Auto-generated for monthly invoice total.',
-            }
-          }
-        }
-      })
 
       const parsedStatements = Object.values(grouped)
       validateStatementData(parsedStatements)
@@ -539,48 +496,7 @@ export default function MonthlyImportModal({
             </div>
           </div>
 
-          {/* Vendor PDFs */}
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Vendor Invoices (PDFs) - Optional
-            </label>
-            <div className="space-y-2">
-              <Button
-                variant="outline"
-                onClick={() => vendorFileInputRef.current?.click()}
-                className="w-full"
-              >
-                Add Vendor PDFs
-              </Button>
-              <input
-                ref={vendorFileInputRef}
-                type="file"
-                accept=".pdf"
-                multiple
-                className="hidden"
-                onChange={handleVendorFileSelect}
-              />
-              {state.vendorFiles.length > 0 && (
-                <div className="space-y-1">
-                  {state.vendorFiles.map((file, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between p-2 bg-zinc-50 rounded"
-                    >
-                      <span className="text-sm truncate">{file.name}</span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeVendorFile(idx)}
-                      >
-                        Remove
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+
 
           {/* Status Messages */}
           {state.isParsing && (
