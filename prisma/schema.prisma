@@ -148,7 +148,7 @@ model OwnerStatementIncome {
   platformFee       Decimal
   grossIncome       Decimal
 
-  ownerStatement    OwnerStatement @relation(fields: [ownerStatementId], references: [id])
+  ownerStatement    OwnerStatement @relation(fields: [ownerStatementId], references: [id], onDelete: Cascade)
 }
 
 model OwnerStatementExpense {
@@ -159,7 +159,7 @@ model OwnerStatementExpense {
   vendor            String
   amount            Decimal
 
-  ownerStatement    OwnerStatement @relation(fields: [ownerStatementId], references: [id])
+  ownerStatement    OwnerStatement @relation(fields: [ownerStatementId], references: [id], onDelete: Cascade)
 }
 
 model OwnerStatementAdjustment {
@@ -170,5 +170,5 @@ model OwnerStatementAdjustment {
   description       String
   amount            Decimal
 
-  ownerStatement    OwnerStatement @relation(fields: [ownerStatementId], references: [id])
+  ownerStatement    OwnerStatement @relation(fields: [ownerStatementId], references: [id], onDelete: Cascade)
 }

@@ -3,6 +3,10 @@ import { type NextRequest } from 'next/server'
 import { z } from 'zod'
 import { geminiFlashModel } from '~/lib/gemini/gemini'
 import { parseJsonField } from '~/lib/utils/json'
+import {
+  normalizePropertyName,
+  recalculateStatementTotals,
+} from '~/lib/utils/ownerStatement'
 import { db } from '~/server/db'
 
 const inputSchema = z.object({
@@ -149,9 +153,19 @@ Important Considerations:
     const statementsToUpdate = new Set<string>()
 
     for (const [propertyName, expenses] of Object.entries(expensesMap)) {
-      const statement = monthStatements.find(
+      // Try exact match first, then normalized match
+      let statement = monthStatements.find(
         (s) => s.property?.name === propertyName
       )
+
+      if (!statement) {
+        const normalizedPropertyName = normalizePropertyName(propertyName)
+        statement = monthStatements.find((s) => {
+          if (!s.property?.name) return false
+          const normalizedDbName = normalizePropertyName(s.property.name)
+          return normalizedDbName === normalizedPropertyName
+        })
+      }
 
       if (!statement || expenses.length === 0) continue
 
@@ -172,66 +186,30 @@ Important Considerations:
       throw new Error('No matching properties found for expenses')
     }
 
-    // Optimization 1: Remove timeout entirely - let Prisma use default
-    // Optimization 2: Break into smaller chunks - process in batches
-    // Optimization 3: Optimize aggregation queries - use more efficient bulk operations
+    // Process all expenses and update totals in a single transaction
+    // This ensures data consistency and uses the same reliable calculation logic as other imports
+    await db.$transaction(async (tx) => {
+      // Create all expenses
+      await tx.ownerStatementExpense.createMany({
+        data: allExpenseData,
+      })
 
-    // First, create all expenses in one efficient operation
-    await db.ownerStatementExpense.createMany({
-      data: allExpenseData,
+      // Recalculate totals for each affected statement using the same logic as ownerStatement.ts
+      // Process in smaller batches to avoid overwhelming the transaction
+      const statementIds = Array.from(statementsToUpdate)
+      const BATCH_SIZE = 5
+
+      for (let i = 0; i < statementIds.length; i += BATCH_SIZE) {
+        const batch = statementIds.slice(i, i + BATCH_SIZE)
+
+        // Process each statement in the batch
+        await Promise.all(
+          batch.map((statementId) =>
+            recalculateStatementTotals(tx, statementId, session.userId)
+          )
+        )
+      }
     })
-
-    // Process statement updates in batches to avoid timeout
-    const statementIds = Array.from(statementsToUpdate)
-    const BATCH_SIZE = 5 // Process 5 statements at a time
-
-    for (let i = 0; i < statementIds.length; i += BATCH_SIZE) {
-      const batch = statementIds.slice(i, i + BATCH_SIZE)
-
-      // Use optimized parallel processing for each batch
-      await Promise.all(
-        batch.map(async (statementId) => {
-          // Single optimized query to get all totals at once using raw SQL for better performance
-          const totals = await db.$queryRaw<
-            Array<{
-              totalIncome: number
-              totalExpenses: number
-              totalAdjustments: number
-            }>
-          >`
-             SELECT 
-               COALESCE(SUM(CASE WHEN income.id IS NOT NULL THEN income."grossIncome" ELSE 0 END), 0) as "totalIncome",
-               COALESCE(SUM(CASE WHEN expense.id IS NOT NULL THEN expense.amount ELSE 0 END), 0) as "totalExpenses",
-               COALESCE(SUM(CASE WHEN adjustment.id IS NOT NULL THEN adjustment.amount ELSE 0 END), 0) as "totalAdjustments"
-             FROM "OwnerStatement" stmt
-             LEFT JOIN "OwnerStatementIncome" income ON income."ownerStatementId" = stmt.id
-             LEFT JOIN "OwnerStatementExpense" expense ON expense."ownerStatementId" = stmt.id  
-             LEFT JOIN "OwnerStatementAdjustment" adjustment ON adjustment."ownerStatementId" = stmt.id
-             WHERE stmt.id = ${statementId}
-             GROUP BY stmt.id
-           `
-
-          const result = totals[0]
-          if (!result) return
-
-          const totalIncome = Number(result.totalIncome)
-          const totalExpenses = Number(result.totalExpenses)
-          const totalAdjustments = Number(result.totalAdjustments)
-
-          // Update statement with calculated totals
-          await db.ownerStatement.update({
-            where: { id: statementId },
-            data: {
-              totalIncome,
-              totalExpenses,
-              totalAdjustments,
-              grandTotal: totalIncome - totalExpenses + totalAdjustments,
-              updatedBy: session.userId,
-            },
-          })
-        })
-      )
-    }
 
     const processedCount = statementsToUpdate.size
 
