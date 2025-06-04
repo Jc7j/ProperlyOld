@@ -100,50 +100,7 @@ export default function MonthlyVendorImporter({
     }
   }
 
-  const pollJobStatus = async (jobId: string) => {
-    const maxAttempts = 60 // 5 minutes max
-    let attempts = 0
-
-    const poll = async (): Promise<void> => {
-      const result = await tryCatch(
-        fetch(`/api/vendor-import/status/${jobId}`).then((res) => res.json())
-      )
-
-      if (result.error) {
-        ErrorToast('Failed to check processing status')
-        setIsProcessing(false)
-        return
-      }
-
-      const statusData = result.data as { status: string; result?: { message?: string }; error?: string }
-
-      if (statusData.status === 'completed') {
-        SuccessToast(statusData.result?.message ?? 'Processing completed')
-        handleClose()
-        onSuccess?.()
-        return
-      }
-
-      if (statusData.status === 'failed') {
-        ErrorToast(statusData.error ?? 'Processing failed')
-        setIsProcessing(false)
-        return
-      }
-
-      // Still processing
-      attempts++
-      if (attempts >= maxAttempts) {
-        ErrorToast('Processing timed out. Please try again.')
-        setIsProcessing(false)
-        return
-      }
-
-      setProcessingMessage(`Processing... (${attempts * 5}s)`)
-      setTimeout(() => void poll(), 5000) // Poll every 5 seconds
-    }
-
-    await poll()
-  }
+  // No polling needed anymore - processing is synchronous!
 
   const handleSubmit = async () => {
     if (!selectedFile || !vendor || !description) {
@@ -188,9 +145,11 @@ export default function MonthlyVendorImporter({
 
     const base64String = fileResult.data
 
-    // Start the job
+    // Process directly - much simpler!
+    setProcessingMessage('Processing with AI...')
+    
     const result = await tryCatch(
-      fetch('/api/vendor-import', {
+      fetch('/api/vendor-import/process', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -209,16 +168,21 @@ export default function MonthlyVendorImporter({
     )
 
     if (result.error) {
-      ErrorToast(result.error.message || 'Failed to start processing')
+      ErrorToast(result.error.message || 'Failed to process invoice')
       setIsProcessing(false)
       return
     }
 
-    const { jobId } = result.data as { jobId: string }
-    setProcessingMessage('Processing with AI...')
+    const data = result.data as { success: boolean; message?: string; error?: string }
     
-    // Start polling for status
-    await pollJobStatus(jobId)
+    if (data.success) {
+      SuccessToast(data.message ?? 'Processing completed successfully')
+      handleClose()
+      onSuccess?.()
+    } else {
+      ErrorToast(data.error ?? 'Processing failed')
+      setIsProcessing(false)
+    }
   }
 
   return (
@@ -346,7 +310,7 @@ export default function MonthlyVendorImporter({
                   </span>
                 </div>
                 <p className="text-xs text-blue-600 mt-1">
-                  This may take 30-60 seconds. Please don&apos;t close this window.
+                  This may take 20-40 seconds. Please don&apos;t close this window.
                 </p>
               </div>
             )}

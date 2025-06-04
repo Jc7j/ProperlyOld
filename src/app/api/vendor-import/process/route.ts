@@ -1,89 +1,67 @@
+import { auth } from '@clerk/nextjs/server'
 import { type NextRequest } from 'next/server'
 import { z } from 'zod'
 import { geminiFlashModel } from '~/lib/gemini/gemini'
-import { verifyQStashSignature } from '~/lib/qstash/qstash'
 import { parseJsonField } from '~/lib/utils/json'
-import { tryCatch } from '~/lib/utils/try-catch'
 import { db } from '~/server/db'
 
-const jobSchema = z.object({
+const inputSchema = z.object({
   currentStatementId: z.string(),
   vendor: z.string(),
   description: z.string(),
   pdfBase64: z.string(),
-  orgId: z.string(),
-  userId: z.string(),
-  jobId: z.string(),
 })
 
-// Simple in-memory job status (for single user, this is fine)
-const jobResults = new Map<
-  string,
-  {
-    status: 'processing' | 'completed' | 'failed'
-    result?: any
-    error?: string
-  }
->()
-
 export async function POST(request: NextRequest) {
+  const session = await auth()
+
+  if (!session?.orgId || !session?.userId) {
+    return new Response('Unauthorized', { status: 401 })
+  }
+
   try {
-    // Verify QStash signature
-    const body = await request.text()
-    const isValid = await verifyQStashSignature(request.headers, body)
+    const body = await request.json()
+    const input = inputSchema.parse(body)
 
-    if (!isValid) {
-      return new Response('Unauthorized', { status: 401 })
-    }
-
-    const input = jobSchema.parse(JSON.parse(body))
-
-    // Set job as processing
-    jobResults.set(input.jobId, { status: 'processing' })
-
-    // Get current statement and month statements
+    // Get current statement first
     const current = await db.ownerStatement.findUnique({
       where: { id: input.currentStatementId },
       select: { statementMonth: true, managementGroupId: true },
     })
 
-    if (!current || current.managementGroupId !== input.orgId) {
+    if (!current || current.managementGroupId !== session.orgId) {
       throw new Error('Statement not found')
     }
 
-    const monthStatements = await db.ownerStatement.findMany({
-      where: {
-        managementGroupId: input.orgId,
-        statementMonth: current.statementMonth,
-        deletedAt: null,
-      },
-      select: {
-        id: true,
-        property: { select: { name: true } },
-      },
-    })
+    // Parallel queries with known month
+    const [monthStatements, existingExpense] = await Promise.all([
+      db.ownerStatement.findMany({
+        where: {
+          managementGroupId: session.orgId,
+          statementMonth: current.statementMonth,
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+          property: { select: { name: true } },
+        },
+      }),
+      db.ownerStatementExpense.findFirst({
+        where: {
+          ownerStatement: {
+            managementGroupId: session.orgId,
+            statementMonth: current.statementMonth,
+          },
+          vendor: input.vendor,
+          description: input.description,
+        },
+        select: { id: true },
+      }),
+    ])
 
-    // Check for existing vendor expenses
-    const existingExpenses = await db.ownerStatementExpense.findMany({
-      where: {
-        ownerStatementId: { in: monthStatements.map((s) => s.id) },
-        vendor: input.vendor,
-        description: input.description,
-      },
-      select: {
-        ownerStatement: { select: { property: { select: { name: true } } } },
-      },
-    })
-
-    if (existingExpenses.length > 0) {
-      const properties = existingExpenses
-        .map((e) => e.ownerStatement.property?.name)
-        .filter(Boolean)
-        .slice(0, 3)
-        .join(', ')
-
+    if (existingExpense) {
       throw new Error(
-        `Vendor "${input.vendor}" already has expenses in: ${properties}`
+        `Vendor "${input.vendor}" with description "${input.description}" already has expenses for this month`
       )
     }
 
@@ -96,30 +74,54 @@ export async function POST(request: NextRequest) {
       .map((s) => s.property?.name)
       .filter(Boolean)
 
-    const prompt = `Extract expenses from this PDF and match to these properties:
+    const prompt = `You are an expert data extraction assistant specializing in property management invoices.
+You will receive a PDF invoice file. Invoices can vary significantly in format, including tables, lists, or less structured text.
+You will also receive a list of known property names relevant to this invoice context:
+KNOWN PROPERTY NAMES:
 ${propertyNames.map((name) => `- ${name}`).join('\n')}
 
-Return JSON: {"Property Name": [{"date": "YYYY-MM-DD", "amount": 123.45}]}
-If no matches, return {}.`
+Your task is to extract expense line items from the PDF and associate them with the correct property from the KNOWN PROPERTY NAMES list.
 
-    const result = await tryCatch(
-      geminiFlashModel.generateContent([
-        prompt,
-        {
-          inlineData: {
-            mimeType: 'application/pdf',
-            data: input.pdfBase64,
-          },
+For each expense line item you can confidently match to a property in the KNOWN list, extract ONLY the following details:
+1.  "date": The date the expense occurred or was invoiced. Look for columns labeled 'Date', 'Service Date', or similar. Format as YYYY-MM-DD if possible, otherwise use the exact format found. If no date is available for a line item, you may omit the "date" field or provide an empty string.
+2.  "amount": The cost of the specific line item. Look for columns labeled 'Amount', 'Cost', 'Price', 'Total', or similar. Provide this as a number, removing any currency symbols ($, £, etc.).
+
+Crucially:
+-   Identify the property associated with each expense. The property name or address might be in a dedicated column ('Property', 'Address', 'Location'), listed near the line item(s), or mentioned as a header for a section.
+-   Match the identified property name/address from the invoice to the *closest* name in the provided KNOWN PROPERTY NAMES list.
+-   The output JSON keys MUST be exact matches from the KNOWN PROPERTY NAMES list.
+
+Format your response STRICTLY as a JSON object where:
+- Each key is a property name taken *exactly* from the provided KNOWN PROPERTY NAMES list.
+- Each value is an array of expense objects for that property, containing ONLY the extracted "date" and "amount": {"date": "...", "amount": ...}.
+
+Example Output (assuming "123 Main St" and "456 Oak Ave Apt B" were in the known list):
+{
+  "123 Main St": [{"date": "2024-05-15", "amount": 120.00}],
+  "456 Oak Ave Apt B": [{"date": "2024-05-10", "amount": 350.50}, {"date": "", "amount": 85.00}]
+}
+
+Note: If a date is missing or unclear, you may provide an empty string for the "date" field, and the system will automatically assign an appropriate date.
+
+Important Considerations:
+-   Some invoices might list multiple expenses under a single property header. Group these correctly.
+-   Some invoices might have line items that don't clearly belong to any property or don't match any name in the KNOWN PROPERTY NAMES list. OMIT these line items entirely from your output.
+-   If no expense line items can be successfully extracted and matched to any property in the KNOWN list, return an empty JSON object {}.
+-   Focus solely on extracting the requested 'date' and 'amount' per matched property. Do not extract descriptions, vendors, or other details into the JSON output.
+-   Respond ONLY with the raw JSON object. Do not include explanations, apologies, markdown formatting, or any text outside the JSON structure.`
+
+    const aiResult = await geminiFlashModel.generateContent([
+      prompt,
+      {
+        inlineData: {
+          mimeType: 'application/pdf',
+          data: input.pdfBase64,
         },
-      ])
-    )
-
-    if (result.error) {
-      throw new Error('AI processing failed')
-    }
+      },
+    ])
 
     // Parse AI response
-    const jsonText = result.data.response?.text() ?? '{}'
+    const jsonText = aiResult.response?.text() ?? '{}'
     const jsonMatch = /\{[\s\S]*\}/.exec(jsonText)
     const extractedJson = jsonMatch ? jsonMatch[0] : '{}'
 
@@ -128,16 +130,23 @@ If no matches, return {}.`
     >(extractedJson, { defaultValue: {} })
 
     if (!expensesMap || Object.keys(expensesMap).length === 0) {
-      throw new Error('No expenses found in PDF')
+      throw new Error('No property expenses found in PDF')
     }
 
-    // Process expenses
+    // Process all expenses in batches for better performance
     const defaultDate = new Date(current.statementMonth)
     defaultDate.setUTCDate(15)
     const defaultDateStr = defaultDate.toISOString().split('T')[0]!
 
-    let processedCount = 0
-    const updatedProperties: string[] = []
+    // Prepare all expense data
+    const allExpenseData: Array<{
+      ownerStatementId: string
+      date: string
+      description: string
+      vendor: string
+      amount: number
+    }> = []
+    const statementsToUpdate = new Set<string>()
 
     for (const [propertyName, expenses] of Object.entries(expensesMap)) {
       const statement = monthStatements.find(
@@ -146,91 +155,82 @@ If no matches, return {}.`
 
       if (!statement || expenses.length === 0) continue
 
-      await db.$transaction(async (tx) => {
-        // Create expenses
-        await tx.ownerStatementExpense.createMany({
-          data: expenses.map((expense) => ({
-            ownerStatementId: statement.id,
-            date: expense.date ?? defaultDateStr,
-            description: input.description,
-            vendor: input.vendor,
-            amount: expense.amount,
-          })),
+      statementsToUpdate.add(statement.id)
+
+      for (const expense of expenses) {
+        allExpenseData.push({
+          ownerStatementId: statement.id,
+          date: expense.date ?? defaultDateStr,
+          description: input.description,
+          vendor: input.vendor,
+          amount: expense.amount,
         })
-
-        // Recalculate totals
-        const [incomes, allExpenses, adjustments] = await Promise.all([
-          tx.ownerStatementIncome.findMany({
-            where: { ownerStatementId: statement.id },
-          }),
-          tx.ownerStatementExpense.findMany({
-            where: { ownerStatementId: statement.id },
-          }),
-          tx.ownerStatementAdjustment.findMany({
-            where: { ownerStatementId: statement.id },
-          }),
-        ])
-
-        const totalIncome = incomes.reduce(
-          (sum, i) => sum + Number(i.grossIncome),
-          0
-        )
-        const totalExpenses = allExpenses.reduce(
-          (sum, e) => sum + Number(e.amount),
-          0
-        )
-        const totalAdjustments = adjustments.reduce(
-          (sum, a) => sum + Number(a.amount),
-          0
-        )
-
-        await tx.ownerStatement.update({
-          where: { id: statement.id },
-          data: {
-            totalIncome,
-            totalExpenses,
-            totalAdjustments,
-            grandTotal: totalIncome - totalExpenses + totalAdjustments,
-            updatedBy: input.userId,
-          },
-        })
-      })
-
-      updatedProperties.push(propertyName)
-      processedCount++
+      }
     }
 
-    // Store success result
-    jobResults.set(input.jobId, {
-      status: 'completed',
-      result: {
-        updatedCount: processedCount,
-        updatedProperties,
-        message: `Updated ${processedCount} properties`,
-      },
-    })
+    if (allExpenseData.length === 0) {
+      throw new Error('No matching properties found for expenses')
+    }
 
-    return Response.json({ success: true })
+    // Single transaction for all operations
+    await db.$transaction(
+      async (tx) => {
+        // Create all expenses at once
+        await tx.ownerStatementExpense.createMany({
+          data: allExpenseData,
+        })
+
+        // Batch update statement totals
+        for (const statementId of statementsToUpdate) {
+          // Get aggregated totals efficiently
+          const [incomeSum, expenseSum, adjustmentSum] = await Promise.all([
+            tx.ownerStatementIncome.aggregate({
+              where: { ownerStatementId: statementId },
+              _sum: { grossIncome: true },
+            }),
+            tx.ownerStatementExpense.aggregate({
+              where: { ownerStatementId: statementId },
+              _sum: { amount: true },
+            }),
+            tx.ownerStatementAdjustment.aggregate({
+              where: { ownerStatementId: statementId },
+              _sum: { amount: true },
+            }),
+          ])
+
+          const totalIncome = Number(incomeSum._sum.grossIncome ?? 0)
+          const totalExpenses = Number(expenseSum._sum.amount ?? 0)
+          const totalAdjustments = Number(adjustmentSum._sum.amount ?? 0)
+
+          await tx.ownerStatement.update({
+            where: { id: statementId },
+            data: {
+              totalIncome,
+              totalExpenses,
+              totalAdjustments,
+              grandTotal: totalIncome - totalExpenses + totalAdjustments,
+              updatedBy: session.userId,
+            },
+          })
+        }
+      },
+      { timeout: 30000 }
+    )
+
+    const processedCount = statementsToUpdate.size
+
+    return Response.json({
+      success: true,
+      message: `Successfully processed expenses for ${processedCount} properties`,
+      updatedCount: processedCount,
+    })
   } catch (error) {
+    console.error('Processing error:', error)
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error'
-
-    // Store error result
-    const jobId = JSON.parse(await request.text()).jobId
-    if (jobId) {
-      jobResults.set(jobId, {
-        status: 'failed',
-        error: errorMessage,
-      })
-    }
-
-    console.error('Processing error:', error)
     return Response.json(
       { success: false, error: errorMessage },
       { status: 500 }
     )
   }
 }
-
-// Export job results for status endpoint
-export { jobResults }
