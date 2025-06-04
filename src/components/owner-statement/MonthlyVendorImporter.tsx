@@ -1,6 +1,5 @@
 import { FilePlus } from 'lucide-react'
 import React, { useRef, useState } from 'react'
-import BulkProcessModal from '~/components/owner-statement/BulkProcessModal'
 import {
   Button,
   Dialog,
@@ -11,6 +10,7 @@ import {
   Label,
 } from '~/components/ui'
 import { ErrorToast, SuccessToast } from '~/components/ui/sonner'
+import { tryCatch } from '~/lib/utils/try-catch'
 import { api } from '~/trpc/react'
 
 interface MonthlyVendorImporterProps {
@@ -26,14 +26,8 @@ export default function MonthlyVendorImporter({
   const [vendor, setVendor] = useState('')
   const [description, setDescription] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [showBulkModal, setShowBulkModal] = useState(false)
-  const [bulkProcessInput, setBulkProcessInput] = useState<{
-    currentStatementId: string
-    vendor: string
-    description: string
-    pdfBase64: string
-  } | null>(null)
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [processingMessage, setProcessingMessage] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Get current statement to find the month
@@ -47,7 +41,7 @@ export default function MonthlyVendorImporter({
     api.ownerStatement.getManyWithDetails.useQuery(
       {
         month: currentStatement?.statementMonth
-          ? new Date(currentStatement.statementMonth).toISOString().slice(0, 7) // YYYY-MM format
+          ? new Date(currentStatement.statementMonth).toISOString().slice(0, 7)
           : undefined,
       },
       {
@@ -78,62 +72,21 @@ export default function MonthlyVendorImporter({
       return count + matchingExpenses.length
     }, 0) ?? 0
 
-  // Apply vendor expenses mutation
-  const applyVendorMutation =
-    api.ownerStatement.applyMonthlyVendorExpenses.useMutation({
-      onSuccess: (data) => {
-        SuccessToast(
-          `Applied expenses to ${data.updatedCount} properties in this month`
-        )
-        handleClose()
-        onSuccess?.()
-      },
-      onError: (error) => {
-        // Check if this is a redirect to streaming API
-        if (error.message === 'REDIRECT_TO_STREAMING') {
-          // Don't show error toast, just trigger the bulk process modal
-          return
-        }
-
-        ErrorToast(error.message || 'Failed to apply vendor expenses')
-        setError(error.message || 'Failed to apply vendor expenses')
-      },
-    })
-
   const handleClose = () => {
     setIsOpen(false)
     setVendor('')
     setDescription('')
     setSelectedFile(null)
-    setError(null)
-  }
-
-  const handleBulkModalClose = () => {
-    setShowBulkModal(false)
-    setBulkProcessInput(null)
-    handleClose() // Also close the main modal
-  }
-
-  const handleBulkProcessComplete = (result: {
-    updatedCount: number
-    updatedProperties: string[]
-  }) => {
-    SuccessToast(
-      `Applied expenses to ${result.updatedCount} properties in this month`
-    )
-    setShowBulkModal(false)
-    setBulkProcessInput(null)
-    handleClose()
-    onSuccess?.()
+    setIsProcessing(false)
+    setProcessingMessage('')
   }
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file && file.type === 'application/pdf') {
       setSelectedFile(file)
-      setError(null)
     } else {
-      setError('Please select a valid PDF file')
+      ErrorToast('Please select a valid PDF file')
     }
   }
 
@@ -142,15 +95,59 @@ export default function MonthlyVendorImporter({
     const file = e.dataTransfer.files[0]
     if (file && file.type === 'application/pdf') {
       setSelectedFile(file)
-      setError(null)
     } else {
-      setError('Please select a valid PDF file')
+      ErrorToast('Please select a valid PDF file')
     }
   }
 
-  const handleSubmit = () => {
+  const pollJobStatus = async (jobId: string) => {
+    const maxAttempts = 60 // 5 minutes max
+    let attempts = 0
+
+    const poll = async (): Promise<void> => {
+      const result = await tryCatch(
+        fetch(`/api/vendor-import/status/${jobId}`).then((res) => res.json())
+      )
+
+      if (result.error) {
+        ErrorToast('Failed to check processing status')
+        setIsProcessing(false)
+        return
+      }
+
+      const statusData = result.data as { status: string; result?: { message?: string }; error?: string }
+
+      if (statusData.status === 'completed') {
+        SuccessToast(statusData.result?.message ?? 'Processing completed')
+        handleClose()
+        onSuccess?.()
+        return
+      }
+
+      if (statusData.status === 'failed') {
+        ErrorToast(statusData.error ?? 'Processing failed')
+        setIsProcessing(false)
+        return
+      }
+
+      // Still processing
+      attempts++
+      if (attempts >= maxAttempts) {
+        ErrorToast('Processing timed out. Please try again.')
+        setIsProcessing(false)
+        return
+      }
+
+      setProcessingMessage(`Processing... (${attempts * 5}s)`)
+      setTimeout(() => void poll(), 5000) // Poll every 5 seconds
+    }
+
+    await poll()
+  }
+
+  const handleSubmit = async () => {
     if (!selectedFile || !vendor || !description) {
-      setError('Please fill in all fields and select a PDF file')
+      ErrorToast('Please fill in all fields and select a PDF file')
       return
     }
 
@@ -163,47 +160,65 @@ export default function MonthlyVendorImporter({
       }
     }
 
-    const reader = new FileReader()
-    reader.readAsDataURL(selectedFile)
-    reader.onload = () => {
-      const base64String = (reader.result as string)?.split(',')[1]
-      if (base64String) {
-        // First try the regular tRPC mutation
-        applyVendorMutation.mutate(
-          {
-            currentStatementId,
-            vendor,
-            description,
-            pdfBase64: base64String,
-          },
-          {
-            onError: (error) => {
-              // Check if this is a redirect to streaming API
-              if (error.message === 'REDIRECT_TO_STREAMING') {
-                // Set up bulk process modal
-                setBulkProcessInput({
-                  currentStatementId,
-                  vendor,
-                  description,
-                  pdfBase64: base64String,
-                })
-                setShowBulkModal(true)
-                return
-              }
+    setIsProcessing(true)
+    setProcessingMessage('Starting processing...')
 
-              // Handle other errors normally
-              ErrorToast(error.message || 'Failed to apply vendor expenses')
-              setError(error.message || 'Failed to apply vendor expenses')
-            },
+    // Convert file to base64
+    const fileResult = await tryCatch(
+      new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.readAsDataURL(selectedFile)
+        reader.onload = () => {
+          const base64String = (reader.result as string)?.split(',')[1]
+          if (!base64String) {
+            reject(new Error('Failed to read file'))
+            return
           }
-        )
-      } else {
-        setError('Failed to read file')
-      }
+          resolve(base64String)
+        }
+        reader.onerror = () => reject(new Error('Error reading file'))
+      })
+    )
+
+    if (fileResult.error) {
+      ErrorToast(fileResult.error.message)
+      setIsProcessing(false)
+      return
     }
-    reader.onerror = () => {
-      setError('Error reading file')
+
+    const base64String = fileResult.data
+
+    // Start the job
+    const result = await tryCatch(
+      fetch('/api/vendor-import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentStatementId,
+          vendor,
+          description,
+          pdfBase64: base64String,
+        }),
+      }).then(async (response) => {
+        if (!response.ok) {
+          const error = await response.text()
+          throw new Error(error)
+        }
+        return response.json()
+      })
+    )
+
+    if (result.error) {
+      ErrorToast(result.error.message || 'Failed to start processing')
+      setIsProcessing(false)
+      return
     }
+
+    const { jobId } = result.data as { jobId: string }
+    setProcessingMessage('Processing with AI...')
+    
+    // Start polling for status
+    await pollJobStatus(jobId)
   }
 
   return (
@@ -235,6 +250,7 @@ export default function MonthlyVendorImporter({
                 onChange={(e) => setVendor(e.target.value)}
                 placeholder="e.g., ABC Cleaning Services"
                 className="mt-1"
+                disabled={isProcessing}
               />
             </div>
 
@@ -247,6 +263,7 @@ export default function MonthlyVendorImporter({
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="e.g., Monthly cleaning services"
                 className="mt-1"
+                disabled={isProcessing}
               />
             </div>
 
@@ -279,8 +296,7 @@ export default function MonthlyVendorImporter({
                         {description}&quot; in this month.
                       </p>
                       <p className="mt-1">
-                        Consider using a more specific description (e.g., add
-                        date or invoice number) to avoid duplicates.
+                        Consider using a more specific description to avoid duplicates.
                       </p>
                     </div>
                   </div>
@@ -295,7 +311,7 @@ export default function MonthlyVendorImporter({
                 className="mt-1 border-2 border-dashed border-zinc-300 rounded-lg p-4 text-center cursor-pointer hover:bg-zinc-50"
                 onDrop={handleDrop}
                 onDragOver={(e) => e.preventDefault()}
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => !isProcessing && fileInputRef.current?.click()}
               >
                 <input
                   ref={fileInputRef}
@@ -303,6 +319,7 @@ export default function MonthlyVendorImporter({
                   accept=".pdf"
                   className="hidden"
                   onChange={handleFileSelect}
+                  disabled={isProcessing}
                 />
                 {selectedFile ? (
                   <div className="text-sm">
@@ -319,39 +336,48 @@ export default function MonthlyVendorImporter({
               </div>
             </div>
 
-            {/* Error Message */}
-            {error && <div className="text-sm text-red-600">{error}</div>}
+            {/* Processing Status */}
+            {isProcessing && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-sm font-medium text-blue-800">
+                    {processingMessage}
+                  </span>
+                </div>
+                <p className="text-xs text-blue-600 mt-1">
+                  This may take 30-60 seconds. Please don&apos;t close this window.
+                </p>
+              </div>
+            )}
           </div>
         </DialogBody>
         <DialogActions>
-          <Button variant="outline" onClick={handleClose}>
+          <Button 
+            variant="outline" 
+            onClick={handleClose}
+            disabled={isProcessing}
+          >
             Cancel
           </Button>
           <Button
             variant="default"
             onClick={handleSubmit}
-            disabled={applyVendorMutation.isPending}
+            disabled={isProcessing || !selectedFile || !vendor || !description}
             className={
               hasExistingVendorExpenses
                 ? 'bg-yellow-600 hover:bg-yellow-700'
                 : ''
             }
           >
-            {applyVendorMutation.isPending
+            {isProcessing
               ? 'Processing...'
               : hasExistingVendorExpenses
                 ? 'Import Anyway'
-                : 'Apply to Month'}
+                : 'Start Processing'}
           </Button>
         </DialogActions>
       </Dialog>
-
-      <BulkProcessModal
-        open={showBulkModal}
-        onClose={handleBulkModalClose}
-        onComplete={handleBulkProcessComplete}
-        input={bulkProcessInput}
-      />
     </>
   )
 }

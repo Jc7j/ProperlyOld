@@ -294,8 +294,8 @@ export default function OwnerStatementsPage() {
                   ? `Showing ${filteredStatements.length} of ${ownerStatements?.length ?? 0} statements`
                   : `No results for "${searchQuery}"`}
               </div>
-            </div>
-          )}
+              </div>
+            )}
         </div>
       </div>
 
