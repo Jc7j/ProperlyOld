@@ -1,10 +1,6 @@
+import type { Prisma } from '@prisma/client'
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
-import {
-  calculateTotals,
-  normalizePropertyName,
-  recalculateStatementTotals,
-} from '~/lib/utils/ownerStatement'
 
 import { createTRPCRouter, protectedProcedure } from '../trpc'
 
@@ -58,6 +54,43 @@ const adjustmentSchema = z.object({
   amount: z.number(),
 })
 
+function calculateTotals(
+  incomes: z.infer<typeof incomeSchema>[],
+  expenses: z.infer<typeof expenseSchema>[],
+  adjustments: z.infer<typeof adjustmentSchema>[]
+) {
+  // Ensure all values are properly converted to numbers, handling Decimal objects
+  const safeParseDecimal = (value: any): number => {
+    if (value === null || value === undefined) return 0
+    if (typeof value === 'object' && value.toString) {
+      return parseFloat(value.toString()) || 0
+    }
+    return parseFloat(String(value)) || 0
+  }
+
+  const totalIncome = incomes.reduce(
+    (sum, i) => sum + safeParseDecimal(i.grossIncome),
+    0
+  )
+  const totalExpenses = expenses.reduce(
+    (sum, e) => sum + safeParseDecimal(e.amount),
+    0
+  )
+  const totalAdjustments = adjustments.reduce(
+    (sum, a) => sum + safeParseDecimal(a.amount),
+    0
+  )
+
+  return {
+    totalIncome: parseFloat(totalIncome.toFixed(2)),
+    totalExpenses: parseFloat(totalExpenses.toFixed(2)),
+    totalAdjustments: parseFloat(totalAdjustments.toFixed(2)),
+    grandTotal: parseFloat(
+      (totalIncome - totalExpenses + totalAdjustments).toFixed(2)
+    ),
+  }
+}
+
 function validateTotals(
   provided: {
     totalIncome: number
@@ -102,6 +135,74 @@ function validateTotals(
       message: `Grand total mismatch: provided ${provided.grandTotal}, calculated ${calculated.grandTotal}`,
     })
   }
+}
+
+async function recalculateStatementTotals(
+  tx: Prisma.TransactionClient,
+  statementId: string,
+  userId: string
+) {
+  const [incomes, expenses, adjustments] = await Promise.all([
+    tx.ownerStatementIncome.findMany({
+      where: { ownerStatementId: statementId },
+    }),
+    tx.ownerStatementExpense.findMany({
+      where: { ownerStatementId: statementId },
+    }),
+    tx.ownerStatementAdjustment.findMany({
+      where: { ownerStatementId: statementId },
+    }),
+  ])
+
+  // Use the same safe decimal parsing as in calculateTotals
+  const safeParseDecimal = (value: any): number => {
+    if (value === null || value === undefined) return 0
+    if (typeof value === 'object' && value.toString) {
+      return parseFloat(value.toString()) || 0
+    }
+    return parseFloat(String(value)) || 0
+  }
+
+  const totals = calculateTotals(
+    incomes.map((i) => ({
+      checkIn: i.checkIn,
+      checkOut: i.checkOut,
+      days: i.days,
+      platform: i.platform,
+      guest: i.guest,
+      grossRevenue: safeParseDecimal(i.grossRevenue),
+      hostFee: safeParseDecimal(i.hostFee),
+      platformFee: safeParseDecimal(i.platformFee),
+      grossIncome: safeParseDecimal(i.grossIncome),
+    })),
+    expenses.map((e) => ({
+      date: e.date,
+      description: e.description,
+      vendor: e.vendor,
+      amount: safeParseDecimal(e.amount),
+    })),
+    adjustments.map((a) => ({
+      checkIn: a.checkIn ?? undefined,
+      checkOut: a.checkOut ?? undefined,
+      description: a.description,
+      amount: safeParseDecimal(a.amount),
+    }))
+  )
+
+  return tx.ownerStatement.update({
+    where: { id: statementId },
+    data: {
+      ...totals,
+      updatedAt: new Date(),
+      updatedBy: userId,
+    },
+    include: {
+      property: true,
+      incomes: true,
+      expenses: true,
+      adjustments: true,
+    },
+  })
 }
 
 function prepareUpdateData(
@@ -565,7 +666,7 @@ export const ownerStatementRouter = createTRPCRouter({
           })
         }
 
-        return recalculateStatementTotals(tx, statementId, userId, true)
+        return recalculateStatementTotals(tx, statementId, userId)
       })
     }),
 
@@ -860,6 +961,12 @@ export const ownerStatementRouter = createTRPCRouter({
 
       // Create a map of property names to statement IDs with normalization
       const propertyNameToStatementId = new Map<string, string>()
+      const normalizePropertyName = (name: string): string => {
+        return name
+          .replace(/\s*\((OLD|NEW)\)\s*$/i, '')
+          .replace(/\s+/g, '')
+          .toLowerCase()
+      }
 
       monthStatements.forEach((statement) => {
         if (statement.property?.name) {
