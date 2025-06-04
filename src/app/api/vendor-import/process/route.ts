@@ -199,17 +199,17 @@ Important Considerations:
               totalAdjustments: number
             }>
           >`
-            SELECT 
-              COALESCE(SUM(CASE WHEN income.id IS NOT NULL THEN income.grossIncome ELSE 0 END), 0) as totalIncome,
-              COALESCE(SUM(CASE WHEN expense.id IS NOT NULL THEN expense.amount ELSE 0 END), 0) as totalExpenses,
-              COALESCE(SUM(CASE WHEN adjustment.id IS NOT NULL THEN adjustment.amount ELSE 0 END), 0) as totalAdjustments
-            FROM OwnerStatement stmt
-            LEFT JOIN OwnerStatementIncome income ON income.ownerStatementId = stmt.id
-            LEFT JOIN OwnerStatementExpense expense ON expense.ownerStatementId = stmt.id  
-            LEFT JOIN OwnerStatementAdjustment adjustment ON adjustment.ownerStatementId = stmt.id
-            WHERE stmt.id = ${statementId}
-            GROUP BY stmt.id
-          `
+             SELECT 
+               COALESCE(SUM(CASE WHEN income.id IS NOT NULL THEN income."grossIncome" ELSE 0 END), 0) as "totalIncome",
+               COALESCE(SUM(CASE WHEN expense.id IS NOT NULL THEN expense.amount ELSE 0 END), 0) as "totalExpenses",
+               COALESCE(SUM(CASE WHEN adjustment.id IS NOT NULL THEN adjustment.amount ELSE 0 END), 0) as "totalAdjustments"
+             FROM "OwnerStatement" stmt
+             LEFT JOIN "OwnerStatementIncome" income ON income."ownerStatementId" = stmt.id
+             LEFT JOIN "OwnerStatementExpense" expense ON expense."ownerStatementId" = stmt.id  
+             LEFT JOIN "OwnerStatementAdjustment" adjustment ON adjustment."ownerStatementId" = stmt.id
+             WHERE stmt.id = ${statementId}
+             GROUP BY stmt.id
+           `
 
           const result = totals[0]
           if (!result) return
