@@ -44,6 +44,9 @@ model Property {
   invoices      Invoice[]
   // One-to-many relation: One Property can have many OwnerStatements
   ownerStatements OwnerStatement[]
+
+  @@index([managementGroupId, deletedAt])
+  @@index([name, managementGroupId])
 }
 
 model Invoice {
@@ -133,6 +136,10 @@ model OwnerStatement {
   totalExpenses     Decimal?                 // Sum of amount from expenses
   totalAdjustments  Decimal?                 // Sum of amount from adjustments
   grandTotal        Decimal?                 // Final disbursement amount
+
+  @@index([managementGroupId, statementMonth, deletedAt])
+  @@index([propertyId, statementMonth])
+  @@index([statementMonth, deletedAt])
 }
 
 model OwnerStatementIncome {
@@ -149,6 +156,8 @@ model OwnerStatementIncome {
   grossIncome       Decimal
 
   ownerStatement    OwnerStatement @relation(fields: [ownerStatementId], references: [id], onDelete: Cascade)
+
+  @@index([ownerStatementId])
 }
 
 model OwnerStatementExpense {
@@ -160,6 +169,10 @@ model OwnerStatementExpense {
   amount            Decimal
 
   ownerStatement    OwnerStatement @relation(fields: [ownerStatementId], references: [id], onDelete: Cascade)
+
+  @@index([ownerStatementId])
+  @@index([vendor, description])
+  @@index([date])
 }
 
 model OwnerStatementAdjustment {
@@ -171,4 +184,6 @@ model OwnerStatementAdjustment {
   amount            Decimal
 
   ownerStatement    OwnerStatement @relation(fields: [ownerStatementId], references: [id], onDelete: Cascade)
+
+  @@index([ownerStatementId])
 }

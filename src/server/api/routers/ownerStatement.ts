@@ -1,8 +1,104 @@
 import type { Prisma } from '@prisma/client'
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
+import { VendorCache } from '~/lib/OwnerStatement/vendor-cache'
+import type {
+  MatchedPropertyPreview,
+  UnmatchedPropertyPreview,
+  VendorImportPreviewResponse,
+} from '~/lib/OwnerStatement/vendor-import'
+import { matchPropertiesWithGPT } from '~/lib/ai/ai'
 
 import { createTRPCRouter, protectedProcedure } from '../trpc'
+
+// Optimized property fetching with caching
+async function getCachedMonthProperties(
+  db: Prisma.TransactionClient,
+  orgId: string,
+  statementMonth: Date
+) {
+  const monthKey = `${statementMonth.getUTCFullYear()}-${String(statementMonth.getUTCMonth() + 1).padStart(2, '0')}`
+
+  // Try cache first
+  const cached = await VendorCache.getPropertyMappings(orgId, monthKey)
+  if (cached) {
+    return cached
+  }
+
+  // Fetch from database with optimized query
+  const monthStatements = await db.ownerStatement.findMany({
+    where: {
+      managementGroupId: orgId,
+      statementMonth,
+      deletedAt: null,
+    },
+    select: {
+      id: true,
+      propertyId: true,
+      property: {
+        select: {
+          id: true,
+          name: true,
+          locationInfo: true,
+        },
+      },
+    },
+  })
+
+  // Transform and cache
+  const properties = monthStatements
+    .map((statement) => statement.property)
+    .filter(
+      (property): property is NonNullable<typeof property> => property !== null
+    )
+    .map((property) => ({
+      id: property.id,
+      name: property.name,
+      address:
+        (property.locationInfo as { address?: string } | null)?.address ?? null,
+      statementId:
+        monthStatements.find((s) => s.property?.id === property.id)?.id ?? '',
+    }))
+
+  // Cache for future use
+  await VendorCache.setPropertyMappings(orgId, monthKey, properties)
+
+  return properties
+}
+
+// Optimized GPT matching with caching
+async function getCachedGPTMatching(
+  importPropertyNames: string[],
+  databaseProperties: Array<{
+    id: string
+    name: string
+    address: string | null
+  }>
+) {
+  // Try cache first
+  const cached = await VendorCache.getGPTMappings(
+    importPropertyNames,
+    databaseProperties
+  )
+  if (cached) {
+    return cached
+  }
+
+  // Call GPT
+  const gptResult = await matchPropertiesWithGPT({
+    importProperties: importPropertyNames,
+    databaseProperties,
+  })
+
+  // Cache result
+  await VendorCache.setGPTMappings(
+    importPropertyNames,
+    databaseProperties,
+    gptResult
+  )
+
+  return gptResult
+}
 
 /**
  * Owner Statement Router
@@ -16,17 +112,6 @@ import { createTRPCRouter, protectedProcedure } from '../trpc'
  *   - createMonthlyBatch: 15s (chunked for many statements)
  * - Chunking strategy: 200 expenses per transaction for optimal performance
  */
-
-/**
- * Helper function to chunk arrays for processing within transaction limits
- */
-function chunkArray<T>(array: T[], chunkSize: number): T[][] {
-  const chunks: T[][] = []
-  for (let i = 0; i < array.length; i += chunkSize) {
-    chunks.push(array.slice(i, i + chunkSize))
-  }
-  return chunks
-}
 
 const incomeSchema = z.object({
   checkIn: z.string(),
@@ -597,7 +682,7 @@ export const ownerStatementRouter = createTRPCRouter({
         })
       }
 
-      return ctx.db.$transaction(async (tx) => {
+      const result = await ctx.db.$transaction(async (tx) => {
         let item: any
         let statementId: string
 
@@ -606,7 +691,13 @@ export const ownerStatementRouter = createTRPCRouter({
           item = await tx.ownerStatementIncome.findUnique({
             where: { id: input.id },
             include: {
-              ownerStatement: { select: { managementGroupId: true, id: true } },
+              ownerStatement: {
+                select: {
+                  managementGroupId: true,
+                  id: true,
+                  statementMonth: true,
+                },
+              },
             },
           })
           statementId = item?.ownerStatement.id
@@ -614,7 +705,13 @@ export const ownerStatementRouter = createTRPCRouter({
           item = await tx.ownerStatementExpense.findUnique({
             where: { id: input.id },
             include: {
-              ownerStatement: { select: { managementGroupId: true, id: true } },
+              ownerStatement: {
+                select: {
+                  managementGroupId: true,
+                  id: true,
+                  statementMonth: true,
+                },
+              },
             },
           })
           statementId = item?.ownerStatement.id
@@ -622,7 +719,13 @@ export const ownerStatementRouter = createTRPCRouter({
           item = await tx.ownerStatementAdjustment.findUnique({
             where: { id: input.id },
             include: {
-              ownerStatement: { select: { managementGroupId: true, id: true } },
+              ownerStatement: {
+                select: {
+                  managementGroupId: true,
+                  id: true,
+                  statementMonth: true,
+                },
+              },
             },
           })
           statementId = item?.ownerStatement.id
@@ -666,8 +769,20 @@ export const ownerStatementRouter = createTRPCRouter({
           })
         }
 
-        return recalculateStatementTotals(tx, statementId, userId)
+        const updatedStatement = await recalculateStatementTotals(
+          tx,
+          statementId,
+          userId
+        )
+
+        // Invalidate cache after successful update
+        const monthKey = `${item.ownerStatement.statementMonth.getUTCFullYear()}-${String(item.ownerStatement.statementMonth.getUTCMonth() + 1).padStart(2, '0')}`
+        await VendorCache.invalidateMonth(orgId, monthKey)
+
+        return updatedStatement
       })
+
+      return result
     }),
 
   delete: protectedProcedure
@@ -909,7 +1024,7 @@ export const ownerStatementRouter = createTRPCRouter({
         ),
       })
     )
-    .mutation(async ({ ctx, input }) => {
+    .mutation(async ({ ctx, input }): Promise<VendorImportPreviewResponse> => {
       const { orgId, userId } = ctx.auth
 
       if (!orgId || !userId) {
@@ -945,53 +1060,34 @@ export const ownerStatementRouter = createTRPCRouter({
         })
       }
 
-      // Get all statements for this month
-      const monthStatements = await ctx.db.ownerStatement.findMany({
-        where: {
-          managementGroupId: orgId,
-          statementMonth: current.statementMonth,
-          deletedAt: null,
-        },
-        select: {
-          id: true,
-          propertyId: true,
-          property: { select: { name: true } },
-        },
-      })
+      // Get cached properties for this month (optimized)
+      const databaseProperties = await getCachedMonthProperties(
+        ctx.db,
+        orgId,
+        current.statementMonth
+      )
 
-      // Create a map of property names to statement IDs with normalization
-      const propertyNameToStatementId = new Map<string, string>()
-      const normalizePropertyName = (name: string): string => {
-        return name
-          .replace(/\s*\((OLD|NEW)\)\s*$/i, '')
-          .replace(/\s+/g, '')
-          .toLowerCase()
-      }
+      // Get unique property names from import data
+      const importPropertyNames = [
+        ...new Set(input.expenses.map((expense) => expense.property)),
+      ]
 
-      monthStatements.forEach((statement) => {
-        if (statement.property?.name) {
-          // Store both normalized and original names for flexible matching
-          const normalizedName = normalizePropertyName(statement.property.name)
-          propertyNameToStatementId.set(statement.property.name, statement.id) // Original
-          propertyNameToStatementId.set(normalizedName, statement.id) // Normalized
-        }
-      })
-
-      // Validate that all properties in the Excel exist (try both original and normalized names)
-      const unknownProperties = input.expenses
-        .map((expense) => expense.property)
-        .filter((property) => {
-          // Try exact match first, then normalized match
-          if (propertyNameToStatementId.has(property)) return false
-          const normalizedProperty = normalizePropertyName(property)
-          return !propertyNameToStatementId.has(normalizedProperty)
-        })
-        .filter((property, index, arr) => arr.indexOf(property) === index) // Remove duplicates
-
-      if (unknownProperties.length > 0) {
+      // Use cached GPT matching
+      let gptMatchResult
+      try {
+        gptMatchResult = await getCachedGPTMatching(
+          importPropertyNames,
+          databaseProperties.map((p) => ({
+            id: p.id,
+            name: p.name,
+            address: p.address,
+          }))
+        )
+      } catch (error) {
+        console.error('GPT matching failed:', error)
         throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: `Unknown properties found in Excel: ${unknownProperties.slice(0, 5).join(', ')}${unknownProperties.length > 5 ? ` and ${unknownProperties.length - 5} more` : ''}. Please ensure all property names match exactly.`,
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Property matching service failed. Please try again.',
         })
       }
 
@@ -1036,102 +1132,105 @@ export const ownerStatementRouter = createTRPCRouter({
         })
       }
 
-      // For large datasets, process in chunks to stay within Accelerate's 15-second limit
-      const CHUNK_SIZE = 200 // Process 200 expenses at a time
-      const chunks = chunkArray(input.expenses, CHUNK_SIZE)
+      // Prepare preview data
+      const matched: MatchedPropertyPreview[] = []
+      const unmatched: UnmatchedPropertyPreview[] = []
 
-      let totalCreatedCount = 0
-      const allUpdatedProperties = new Set<string>()
-      const allCreatedExpenses: Array<{
-        property: string
-        date: string
-        description: string
-        vendor: string
-        amount: number
-      }> = []
+      // Group expenses by property match status
+      const expensesByProperty = new Map<string, typeof input.expenses>()
 
-      // Process each chunk in a separate transaction
-      for (const chunk of chunks) {
-        const result = await ctx.db.$transaction(
-          async (tx) => {
-            const updatedStatements = new Set<string>()
-            const createdExpenses: Array<{
-              property: string
-              date: string
-              description: string
-              vendor: string
-              amount: number
-            }> = []
-
-            // Group expenses by statement ID for batch creation
-            const expensesByStatementId = new Map<string, typeof chunk>()
-
-            for (const expense of chunk) {
-              // Try exact match first, then normalized match
-              let statementId = propertyNameToStatementId.get(expense.property)
-              if (!statementId) {
-                const normalizedProperty = normalizePropertyName(
-                  expense.property
-                )
-                statementId = propertyNameToStatementId.get(normalizedProperty)
-              }
-              if (!statementId) continue // This should not happen due to validation above
-
-              if (!expensesByStatementId.has(statementId)) {
-                expensesByStatementId.set(statementId, [])
-              }
-              expensesByStatementId.get(statementId)!.push(expense)
-            }
-
-            // Create expenses for each statement
-            for (const [statementId, expenses] of expensesByStatementId) {
-              await tx.ownerStatementExpense.createMany({
-                data: expenses.map((expense) => ({
-                  ownerStatementId: statementId,
-                  date: expense.date,
-                  description: expense.description,
-                  vendor: expense.vendor,
-                  amount: expense.amount,
-                })),
-              })
-
-              updatedStatements.add(statementId)
-              createdExpenses.push(...expenses)
-            }
-
-            // Batch recalculate totals for all affected statements
-            const recalculationPromises = Array.from(updatedStatements).map(
-              (statementId) =>
-                recalculateStatementTotals(tx, statementId, userId)
-            )
-
-            await Promise.all(recalculationPromises)
-
-            return {
-              createdCount: createdExpenses.length,
-              updatedProperties: Array.from(
-                new Set(createdExpenses.map((expense) => expense.property))
-              ),
-              createdExpenses,
-            }
-          },
-          {
-            timeout: 15000, // 15 seconds timeout (Accelerate limit)
-          }
-        )
-
-        totalCreatedCount += result.createdCount
-        result.updatedProperties.forEach((prop) =>
-          allUpdatedProperties.add(prop)
-        )
-        allCreatedExpenses.push(...result.createdExpenses)
+      for (const expense of input.expenses) {
+        if (!expensesByProperty.has(expense.property)) {
+          expensesByProperty.set(expense.property, [])
+        }
+        expensesByProperty.get(expense.property)!.push(expense)
       }
 
+      // Process matched properties
+      for (const [importPropertyName, match] of Object.entries(
+        gptMatchResult.matches
+      )) {
+        const dbProperty = databaseProperties.find(
+          (p) => p.id === match.propertyId
+        )
+        const expenses = expensesByProperty.get(importPropertyName) ?? []
+
+        if (dbProperty && expenses.length > 0) {
+          const totalAmount = expenses.reduce((sum, exp) => sum + exp.amount, 0)
+
+          matched.push({
+            property: {
+              id: dbProperty.id,
+              name: dbProperty.name,
+              address: dbProperty.address,
+            },
+            confidence: match.confidence,
+            reason: match.reason,
+            expenses: expenses.map((exp) => ({
+              date: exp.date,
+              description: exp.description,
+              vendor: exp.vendor,
+              amount: exp.amount,
+            })),
+            totalAmount: parseFloat(totalAmount.toFixed(2)),
+          })
+        }
+      }
+
+      // Process unmatched properties
+      for (const unmatchedPropertyName of gptMatchResult.unmatched) {
+        const expenses = expensesByProperty.get(unmatchedPropertyName) ?? []
+
+        if (expenses.length > 0) {
+          const totalAmount = expenses.reduce((sum, exp) => sum + exp.amount, 0)
+
+          unmatched.push({
+            propertyName: unmatchedPropertyName,
+            expenses: expenses.map((exp) => ({
+              date: exp.date,
+              description: exp.description,
+              vendor: exp.vendor,
+              amount: exp.amount,
+            })),
+            totalAmount: parseFloat(totalAmount.toFixed(2)),
+          })
+        }
+      }
+
+      // Calculate summary
+      const totalMatchedProperties = matched.length
+      const totalUnmatchedProperties = unmatched.length
+      const totalMatchedExpenses = matched.reduce(
+        (sum, m) => sum + m.expenses.length,
+        0
+      )
+      const totalUnmatchedExpenses = unmatched.reduce(
+        (sum, u) => sum + u.expenses.length,
+        0
+      )
+      const totalMatchedAmount = matched.reduce(
+        (sum, m) => sum + m.totalAmount,
+        0
+      )
+      const totalUnmatchedAmount = unmatched.reduce(
+        (sum, u) => sum + u.totalAmount,
+        0
+      )
+
       return {
-        createdCount: totalCreatedCount,
-        updatedPropertiesCount: allUpdatedProperties.size,
-        updatedProperties: Array.from(allUpdatedProperties),
-        createdExpenses: allCreatedExpenses,
+        success: true,
+        preview: {
+          matched,
+          unmatched,
+          summary: {
+            totalMatchedProperties,
+            totalUnmatchedProperties,
+            totalMatchedExpenses,
+            totalUnmatchedExpenses,
+            totalMatchedAmount: parseFloat(totalMatchedAmount.toFixed(2)),
+            totalUnmatchedAmount: parseFloat(totalUnmatchedAmount.toFixed(2)),
+          },
+        },
       }
     }),
 })

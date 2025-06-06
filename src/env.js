@@ -16,9 +16,9 @@ export const env = createEnv({
     SIGNING_SECRET: z.string(),
     UPLOADTHING_TOKEN: z.string(),
     GEMINI_API_KEY: z.string(),
-    QSTASH_TOKEN: z.string(),
-    QSTASH_CURRENT_SIGNING_KEY: z.string(),
-    QSTASH_NEXT_SIGNING_KEY: z.string(),
+    UPSTASH_REDIS_REST_URL: z.string(),
+    UPSTASH_REDIS_REST_TOKEN: z.string(),
+    OPENAI_API_KEY: z.string(),
   },
 
   /**
@@ -34,7 +34,6 @@ export const env = createEnv({
     NEXT_PUBLIC_CLERK_SIGN_IN_URL: z.string(),
     NEXT_PUBLIC_CLERK_SIGN_UP_URL: z.string(),
     NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: z.string(),
-    NEXT_PUBLIC_QSTASH_URL: z.string(),
   },
 
   /**
@@ -61,10 +60,9 @@ export const env = createEnv({
     NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:
       process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY,
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
-    NEXT_PUBLIC_QSTASH_URL: process.env.NEXT_PUBLIC_QSTASH_URL,
-    QSTASH_TOKEN: process.env.QSTASH_TOKEN,
-    QSTASH_CURRENT_SIGNING_KEY: process.env.QSTASH_CURRENT_SIGNING_KEY,
-    QSTASH_NEXT_SIGNING_KEY: process.env.QSTASH_NEXT_SIGNING_KEY,
+    UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
+    UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially
