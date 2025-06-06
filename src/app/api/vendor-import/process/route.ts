@@ -139,41 +139,41 @@ export async function POST(request: NextRequest) {
       .map((s) => s.property?.name)
       .filter(Boolean)
 
-    const prompt = `You are an expert data extraction assistant specializing in property management invoices.
-You will receive a PDF invoice file. Invoices can vary significantly in format, including tables, lists, or less structured text.
-You will also receive a list of known property names relevant to this invoice context:
-KNOWN PROPERTY NAMES:
+    const prompt = `Extract expense data from this table-based invoice PDF.
+
+EXPECTED OUTPUT: JSON object where each key is a property name/address from the invoice, and each value is an array of expense objects.
+
+PROPERTY MATCHING: Use the property names/addresses EXACTLY as they appear in the invoice, then match them to these known properties:
 ${propertyNames.map((name) => `- ${name}`).join('\n')}
 
-Your task is to extract expense line items from the PDF and associate them with the correct property from the KNOWN PROPERTY NAMES list.
+EXTRACTION RULES:
+1. Find the main table/list of properties and their associated costs
+2. For each property row, extract:
+   - The property name/address (exactly as shown)
+   - The total amount/cost for that property
+   - Use the invoice date or leave date empty if not clear per line
 
-For each expense line item you can confidently match to a property in the KNOWN list, extract ONLY the following details:
-1.  "date": The date the expense occurred or was invoiced. Look for columns labeled 'Date', 'Service Date', or similar. Format as YYYY-MM-DD if possible, otherwise use the exact format found. If no date is available for a line item, you may omit the "date" field or provide an empty string.
-2.  "amount": The cost of the specific line item. Look for columns labeled 'Amount', 'Cost', 'Price', 'Total', or similar. Provide this as a number, removing any currency symbols ($, £, etc.).
+COMMON INVOICE PATTERNS:
+- Property name + total amount (e.g., "Arrowbrook: $760.00")
+- Property address + unit price (e.g., "5405 Royal Yacht $235")
+- Property address + multiple line items (e.g., "Address: TRASH $40, LANDSCAPING $55")
 
-Crucially:
--   Identify the property associated with each expense. The property name or address might be in a dedicated column ('Property', 'Address', 'Location'), listed near the line item(s), or mentioned as a header for a section.
--   Match the identified property name/address from the invoice to the *closest* name in the provided KNOWN PROPERTY NAMES list.
--   The output JSON keys MUST be exact matches from the KNOWN PROPERTY NAMES list.
-
-Format your response STRICTLY as a JSON object where:
-- Each key is a property name taken *exactly* from the provided KNOWN PROPERTY NAMES list.
-- Each value is an array of expense objects for that property, containing ONLY the extracted "date" and "amount": {"date": "...", "amount": ...}.
-
-Example Output (assuming "123 Main St" and "456 Oak Ave Apt B" were in the known list):
+OUTPUT FORMAT:
 {
-  "123 Main St": [{"date": "2024-05-15", "amount": 120.00}],
-  "456 Oak Ave Apt B": [{"date": "2024-05-10", "amount": 350.50}, {"date": "", "amount": 85.00}]
+  "Property Name/Address": [{"date": "YYYY-MM-DD or empty", "amount": number}]
 }
 
-Note: If a date is missing or unclear, you may provide an empty string for the "date" field, and the system will automatically assign an appropriate date.
+EXAMPLE:
+{
+  "Arrowbrook": [{"date": "", "amount": 760.00}],
+  "5405 Royal Yacht": [{"date": "", "amount": 235.00}],
+  "3696 Barcelona St": [{"date": "", "amount": 95.00}]
+}
 
-Important Considerations:
--   Some invoices might list multiple expenses under a single property header. Group these correctly.
--   Some invoices might have line items that don't clearly belong to any property or don't match any name in the KNOWN PROPERTY NAMES list. OMIT these line items entirely from your output.
--   If no expense line items can be successfully extracted and matched to any property in the KNOWN list, return an empty JSON object {}.
--   Focus solely on extracting the requested 'date' and 'amount' per matched property. Do not extract descriptions, vendors, or other details into the JSON output.
--   Respond ONLY with the raw JSON object. Do not include explanations, apologies, markdown formatting, or any text outside the JSON structure.`
+IMPORTANT:
+- Extract the total cost per property (if multiple line items, sum them)
+- Use property names/addresses exactly as they appear in the invoice
+- Respond with ONLY the JSON object, no explanations`
 
     const aiResult = await geminiFlashModel.generateContent([
       prompt,
