@@ -9,7 +9,6 @@ import {
   type PropertyOwner,
 } from '~/server/api/types'
 
-// Define the cell content type for jspdf-autotable (similar to owner statement)
 type CellContent =
   | string
   | {
@@ -19,7 +18,6 @@ type CellContent =
       styles?: UserOptions['styles'] // Use UserOptions['styles'] for consistency
     }
 
-// Export this interface
 export interface AddInvoiceToPdfParams {
   invoice: InvoiceWithUser
   propertyName: string

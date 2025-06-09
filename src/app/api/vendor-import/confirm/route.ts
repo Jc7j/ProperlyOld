@@ -64,7 +64,6 @@ function calculateTotals(incomes: any[], expenses: any[], adjustments: any[]) {
   }
 }
 
-// Proper statement total recalculation
 async function recalculateStatementTotals(
   tx: Prisma.TransactionClient,
   statementId: string,
@@ -94,7 +93,6 @@ async function recalculateStatementTotals(
   })
 }
 
-// Helper function to chunk arrays for processing within transaction limits
 function chunkArray<T>(array: T[], chunkSize: number): T[][] {
   const chunks: T[][] = []
   for (let i = 0; i < array.length; i += chunkSize) {

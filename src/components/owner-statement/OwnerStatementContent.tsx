@@ -79,39 +79,6 @@ function transformStatementData(statement: any) {
   }
 }
 
-// Calculate totals from statement data
-function calculateStatementTotals(statementData: any) {
-  if (!statementData)
-    return {
-      totalIncome: 0,
-      totalExpenses: 0,
-      totalAdjustments: 0,
-      grandTotal: 0,
-    }
-
-  const totalIncome = statementData.incomes.reduce(
-    (sum: number, i: any) => sum + (Number(i.grossIncome) || 0),
-    0
-  )
-  const totalExpenses = statementData.expenses.reduce(
-    (sum: number, e: any) => sum + (Number(e.amount) || 0),
-    0
-  )
-  const totalAdjustments = statementData.adjustments.reduce(
-    (sum: number, a: any) => sum + (Number(a.amount) || 0),
-    0
-  )
-
-  return {
-    totalIncome: parseFloat(totalIncome.toFixed(2)),
-    totalExpenses: parseFloat(totalExpenses.toFixed(2)),
-    totalAdjustments: parseFloat(totalAdjustments.toFixed(2)),
-    grandTotal: parseFloat(
-      (totalIncome - totalExpenses + totalAdjustments).toFixed(2)
-    ),
-  }
-}
-
 export default function OwnerStatementContent({
   statementId,
   onClose,
@@ -132,25 +99,11 @@ export default function OwnerStatementContent({
     }
   )
 
-  // Transform data for the review table
   const statementData = useMemo(
     () => transformStatementData(statement),
     [statement]
   )
 
-  // Update mutation
-  const updateMutation = api.ownerStatement.update.useMutation({
-    onSuccess: () => {
-      SuccessToast('Statement updated successfully')
-      void refetch()
-      onRefresh()
-    },
-    onError: (error) => {
-      ErrorToast(`Failed to update statement: ${error.message}`)
-    },
-  })
-
-  // Delete mutation
   const deleteMutation = api.ownerStatement.delete.useMutation({
     onSuccess: () => {
       SuccessToast('Statement deleted successfully')
@@ -162,41 +115,6 @@ export default function OwnerStatementContent({
       toggleDeleteDialog()
     },
   })
-
-  const handleSave = (updatedData: any) => {
-    if (!updatedData) return
-
-    const totals = calculateStatementTotals(updatedData)
-
-    updateMutation.mutate({
-      id: statementId,
-      notes: updatedData.notes || '',
-      incomes: updatedData.incomes.map((income: any) => ({
-        checkIn: income.checkIn || '',
-        checkOut: income.checkOut || '',
-        days: Number(income.days) || 0,
-        platform: income.platform || '',
-        guest: income.guest || '',
-        grossRevenue: Number(income.grossRevenue) || 0,
-        hostFee: Number(income.hostFee) || 0,
-        platformFee: Number(income.platformFee) || 0,
-        grossIncome: Number(income.grossIncome) || 0,
-      })),
-      expenses: updatedData.expenses.map((expense: any) => ({
-        date: expense.date || '',
-        description: expense.description || '',
-        vendor: expense.vendor || '',
-        amount: Number(expense.amount) || 0,
-      })),
-      adjustments: updatedData.adjustments.map((adjustment: any) => ({
-        checkIn: adjustment.checkIn || '',
-        checkOut: adjustment.checkOut || '',
-        description: adjustment.description || '',
-        amount: Number(adjustment.amount) || 0,
-      })),
-      ...totals,
-    })
-  }
 
   const handleDelete = () => {
     deleteMutation.mutate({ id: statementId })
@@ -210,11 +128,7 @@ export default function OwnerStatementContent({
     exportSingleOwnerStatement(statementData)
   }
 
-  const handleItemUpdateSuccess = () => {
-    SuccessToast('Statement item updated successfully')
-    void refetch()
-    onRefresh()
-  }
+
 
   if (isLoading) {
     return (
@@ -296,9 +210,6 @@ export default function OwnerStatementContent({
           statementDraft={statementData}
           readOnly={false}
           statementId={statement.id}
-          onItemUpdateSuccess={handleItemUpdateSuccess}
-          onSave={handleSave}
-          isUpdating={updateMutation.isPending}
         />
       </div>
 

@@ -1233,4 +1233,326 @@ export const ownerStatementRouter = createTRPCRouter({
         },
       }
     }),
+
+  createIncomeItem: protectedProcedure
+    .input(
+      z.object({
+        ownerStatementId: z.string(),
+        checkIn: z.string().default(''),
+        checkOut: z.string().default(''),
+        days: z.number().default(0),
+        platform: z.string().default(''),
+        guest: z.string().default(''),
+        grossRevenue: z.number().default(0),
+        hostFee: z.number().default(0),
+        platformFee: z.number().default(0),
+        grossIncome: z.number().default(0),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { orgId, userId } = ctx.auth
+
+      if (!orgId || !userId) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'Authentication required',
+        })
+      }
+
+      // Verify statement ownership
+      const statement = await ctx.db.ownerStatement.findUnique({
+        where: { id: input.ownerStatementId },
+        select: { managementGroupId: true },
+      })
+
+      if (!statement || statement.managementGroupId !== orgId) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Access denied',
+        })
+      }
+
+      return ctx.db.$transaction(async (tx) => {
+        const newIncome = await tx.ownerStatementIncome.create({
+          data: {
+            ownerStatementId: input.ownerStatementId,
+            checkIn: input.checkIn,
+            checkOut: input.checkOut,
+            days: input.days,
+            platform: input.platform,
+            guest: input.guest,
+            grossRevenue: input.grossRevenue,
+            hostFee: input.hostFee,
+            platformFee: input.platformFee,
+            grossIncome: input.grossIncome,
+          },
+        })
+
+        // Recalculate statement totals
+        await recalculateStatementTotals(tx, input.ownerStatementId, userId)
+
+        return newIncome
+      })
+    }),
+
+  createExpenseItem: protectedProcedure
+    .input(
+      z.object({
+        ownerStatementId: z.string(),
+        date: z.string().default(''),
+        description: z.string().default(''),
+        vendor: z.string().default(''),
+        amount: z.number().default(0),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { orgId, userId } = ctx.auth
+
+      if (!orgId || !userId) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'Authentication required',
+        })
+      }
+
+      // Verify statement ownership
+      const statement = await ctx.db.ownerStatement.findUnique({
+        where: { id: input.ownerStatementId },
+        select: { managementGroupId: true },
+      })
+
+      if (!statement || statement.managementGroupId !== orgId) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Access denied',
+        })
+      }
+
+      return ctx.db.$transaction(async (tx) => {
+        const newExpense = await tx.ownerStatementExpense.create({
+          data: {
+            ownerStatementId: input.ownerStatementId,
+            date: input.date,
+            description: input.description,
+            vendor: input.vendor,
+            amount: input.amount,
+          },
+        })
+
+        // Recalculate statement totals
+        await recalculateStatementTotals(tx, input.ownerStatementId, userId)
+
+        return newExpense
+      })
+    }),
+
+  createAdjustmentItem: protectedProcedure
+    .input(
+      z.object({
+        ownerStatementId: z.string(),
+        checkIn: z.string().optional(),
+        checkOut: z.string().optional(),
+        description: z.string().default(''),
+        amount: z.number().default(0),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { orgId, userId } = ctx.auth
+
+      if (!orgId || !userId) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'Authentication required',
+        })
+      }
+
+      // Verify statement ownership
+      const statement = await ctx.db.ownerStatement.findUnique({
+        where: { id: input.ownerStatementId },
+        select: { managementGroupId: true },
+      })
+
+      if (!statement || statement.managementGroupId !== orgId) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Access denied',
+        })
+      }
+
+      return ctx.db.$transaction(async (tx) => {
+        const newAdjustment = await tx.ownerStatementAdjustment.create({
+          data: {
+            ownerStatementId: input.ownerStatementId,
+            checkIn: input.checkIn,
+            checkOut: input.checkOut,
+            description: input.description,
+            amount: input.amount,
+          },
+        })
+
+        // Recalculate statement totals
+        await recalculateStatementTotals(tx, input.ownerStatementId, userId)
+
+        return newAdjustment
+      })
+    }),
+
+  deleteIncomeItem: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const { orgId, userId } = ctx.auth
+
+      if (!orgId || !userId) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'Authentication required',
+        })
+      }
+
+      return ctx.db.$transaction(async (tx) => {
+        // Get the income item and verify ownership
+        const incomeItem = await tx.ownerStatementIncome.findUnique({
+          where: { id: input.id },
+          include: {
+            ownerStatement: {
+              select: { managementGroupId: true, id: true },
+            },
+          },
+        })
+
+        if (!incomeItem) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Income item not found',
+          })
+        }
+
+        if (incomeItem.ownerStatement.managementGroupId !== orgId) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Access denied',
+          })
+        }
+
+        // Delete the income item
+        await tx.ownerStatementIncome.delete({
+          where: { id: input.id },
+        })
+
+        // Recalculate statement totals
+        await recalculateStatementTotals(
+          tx,
+          incomeItem.ownerStatement.id,
+          userId
+        )
+
+        return { success: true }
+      })
+    }),
+
+  deleteExpenseItem: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const { orgId, userId } = ctx.auth
+
+      if (!orgId || !userId) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'Authentication required',
+        })
+      }
+
+      return ctx.db.$transaction(async (tx) => {
+        // Get the expense item and verify ownership
+        const expenseItem = await tx.ownerStatementExpense.findUnique({
+          where: { id: input.id },
+          include: {
+            ownerStatement: {
+              select: { managementGroupId: true, id: true },
+            },
+          },
+        })
+
+        if (!expenseItem) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Expense item not found',
+          })
+        }
+
+        if (expenseItem.ownerStatement.managementGroupId !== orgId) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Access denied',
+          })
+        }
+
+        // Delete the expense item
+        await tx.ownerStatementExpense.delete({
+          where: { id: input.id },
+        })
+
+        // Recalculate statement totals
+        await recalculateStatementTotals(
+          tx,
+          expenseItem.ownerStatement.id,
+          userId
+        )
+
+        return { success: true }
+      })
+    }),
+
+  deleteAdjustmentItem: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const { orgId, userId } = ctx.auth
+
+      if (!orgId || !userId) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'Authentication required',
+        })
+      }
+
+      return ctx.db.$transaction(async (tx) => {
+        // Get the adjustment item and verify ownership
+        const adjustmentItem = await tx.ownerStatementAdjustment.findUnique({
+          where: { id: input.id },
+          include: {
+            ownerStatement: {
+              select: { managementGroupId: true, id: true },
+            },
+          },
+        })
+
+        if (!adjustmentItem) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Adjustment item not found',
+          })
+        }
+
+        if (adjustmentItem.ownerStatement.managementGroupId !== orgId) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Access denied',
+          })
+        }
+
+        // Delete the adjustment item
+        await tx.ownerStatementAdjustment.delete({
+          where: { id: input.id },
+        })
+
+        // Recalculate statement totals
+        await recalculateStatementTotals(
+          tx,
+          adjustmentItem.ownerStatement.id,
+          userId
+        )
+
+        return { success: true }
+      })
+    }),
 })

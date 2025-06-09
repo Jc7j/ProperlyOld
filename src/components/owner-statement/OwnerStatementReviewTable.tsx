@@ -6,7 +6,7 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import { Plus, Trash2 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import {  useMemo, useState } from 'react'
 import { DataTable } from '~/components/table/data-table'
 import { Button, Card, Input } from '~/components/ui'
 import { ErrorToast, SuccessToast } from '~/components/ui/sonner'
@@ -74,16 +74,12 @@ interface TableMeta {
   handleDelete: (section: string, index: number) => void
   section: 'incomes' | 'expenses' | 'adjustments'
   statementId?: string
-  onItemUpdateSuccess?: (updatedStatement: FullOwnerStatementType) => void
 }
 
 interface OwnerStatementReviewTableProps {
   statementDraft: any
   readOnly?: boolean
   statementId?: string
-  onItemUpdateSuccess?: (updatedStatement: FullOwnerStatementType) => void
-  onSave?: (updatedData: any) => void
-  isUpdating?: boolean
 }
 
 function isValidDateInput(
@@ -113,39 +109,9 @@ const createEditableCell = <TData extends { id?: string }>(
     const [editValue, setEditValue] = useState<string>('')
 
     const updateItemMutation = api.ownerStatement.updateItemField.useMutation({
-      onSuccess: (data) => {
-        SuccessToast('Item updated successfully')
-        const currentMeta = (table.options as any).meta as TableMeta | undefined
-        if (currentMeta?.onItemUpdateSuccess) {
-          const updatedDataForFrontend: FullOwnerStatementType = {
-            ...data,
-            propertyName: data.property?.name ?? 'Unknown Property',
-            totalIncome: data.totalIncome ? Number(data.totalIncome) : null,
-            totalExpenses: data.totalExpenses
-              ? Number(data.totalExpenses)
-              : null,
-            totalAdjustments: data.totalAdjustments
-              ? Number(data.totalAdjustments)
-              : null,
-            grandTotal: data.grandTotal ? Number(data.grandTotal) : null,
-            incomes: (data.incomes ?? []).map((inc) => ({
-              ...inc,
-              grossRevenue: Number(inc.grossRevenue),
-              hostFee: Number(inc.hostFee),
-              platformFee: Number(inc.platformFee),
-              grossIncome: Number(inc.grossIncome),
-            })),
-            expenses: (data.expenses ?? []).map((exp) => ({
-              ...exp,
-              amount: Number(exp.amount),
-            })),
-            adjustments: (data.adjustments ?? []).map((adj) => ({
-              ...adj,
-              amount: Number(adj.amount),
-            })),
-          }
-          currentMeta.onItemUpdateSuccess(updatedDataForFrontend)
-        }
+      onSuccess: () => {
+        SuccessToast('Updated successfully')
+        // No complex transformations or refetching needed
       },
       onError: (error) => {
         ErrorToast(`Failed to update item: ${error.message}`)
@@ -324,27 +290,13 @@ export default function OwnerStatementReviewTable({
   statementDraft,
   readOnly = false,
   statementId,
-  onItemUpdateSuccess,
-  onSave,
-  isUpdating = false,
 }: OwnerStatementReviewTableProps) {
-  const [localData, setLocalData] = useState(statementDraft)
-
-  // Sync localData when statementDraft changes (e.g., after save or refresh)
-  useEffect(() => {
-    setLocalData(statementDraft)
-  }, [statementDraft])
-
   const {
     incomes = [],
     expenses = [],
     adjustments = [],
     notes,
-  } = localData || {}
-
-  // Derive hasChanges by comparing with original data
-  const hasChanges =
-    JSON.stringify(localData) !== JSON.stringify(statementDraft)
+  } = statementDraft || {}
 
   // Calculate totals
   const totalIncome = incomes.reduce(
@@ -383,47 +335,104 @@ export default function OwnerStatementReviewTable({
     field: string
   } | null>(null)
 
-  const handleLocalChange = (
-    section: string,
-    rowIdx: number,
-    key: string,
-    value: any
-  ) => {
-    setLocalData((prevData: any) => {
-      if (!prevData) return prevData
+  // Create new item mutations
+  const createIncomeMutation = api.ownerStatement.createIncomeItem.useMutation({
+    onSuccess: () => {
+      SuccessToast('Income item added successfully')
+      // The UI will update automatically via the query refetch
+    },
+    onError: (error) => {
+      ErrorToast(`Failed to add income: ${error.message}`)
+    },
+  })
 
-      const newData = { ...prevData }
+  const createExpenseMutation = api.ownerStatement.createExpenseItem.useMutation({
+    onSuccess: () => {
+      SuccessToast('Expense item added successfully')
+    },
+    onError: (error) => {
+      ErrorToast(`Failed to add expense: ${error.message}`)
+    },
+  })
 
-      if (section === 'notes') {
-        newData.notes = value
-      } else if (key === '__delete') {
-        const arr = [...prevData[section]]
-        arr.splice(rowIdx, 1)
-        newData[section] = arr
-      } else if (key === '__add') {
-        newData[section] = [...prevData[section], value]
-      } else {
-        const arr = [...prevData[section]]
-        arr[rowIdx] = { ...arr[rowIdx], [key]: value }
-        newData[section] = arr
-      }
+  const createAdjustmentMutation = api.ownerStatement.createAdjustmentItem.useMutation({
+    onSuccess: () => {
+      SuccessToast('Adjustment item added successfully')
+    },
+    onError: (error) => {
+      ErrorToast(`Failed to add adjustment: ${error.message}`)
+    },
+  })
 
-      return newData
-    })
+  // Delete item mutations
+  const deleteIncomeMutation = api.ownerStatement.deleteIncomeItem.useMutation({
+    onSuccess: () => {
+      SuccessToast('Income item deleted successfully')
+    },
+    onError: (error) => {
+      ErrorToast(`Failed to delete income: ${error.message}`)
+    },
+  })
+
+  const deleteExpenseMutation = api.ownerStatement.deleteExpenseItem.useMutation({
+    onSuccess: () => {
+      SuccessToast('Expense item deleted successfully')
+    },
+    onError: (error) => {
+      ErrorToast(`Failed to delete expense: ${error.message}`)
+    },
+  })
+
+  const deleteAdjustmentMutation = api.ownerStatement.deleteAdjustmentItem.useMutation({
+    onSuccess: () => {
+      SuccessToast('Adjustment item deleted successfully')
+    },
+    onError: (error) => {
+      ErrorToast(`Failed to delete adjustment: ${error.message}`)
+    },
+  })
+
+  // Handle adding new items
+  const handleAddIncome = () => {
+    if (!statementId) return
+    createIncomeMutation.mutate({ ownerStatementId: statementId })
+  }
+
+  const handleAddExpense = () => {
+    if (!statementId) return
+    createExpenseMutation.mutate({ ownerStatementId: statementId })
+  }
+
+  const handleAddAdjustment = () => {
+    if (!statementId) return
+    createAdjustmentMutation.mutate({ ownerStatementId: statementId })
   }
 
   const handleDelete = (section: string, idx: number) => {
-    handleLocalChange(section, idx, '__delete', undefined)
-  }
+    const item = section === 'incomes' 
+      ? incomes[idx] 
+      : section === 'expenses' 
+      ? expenses[idx] 
+      : adjustments[idx]
 
-  const handleAdd = (field: string, template: any) => {
-    handleLocalChange(field, -1, '__add', template)
-  }
+    if (!item?.id) {
+      ErrorToast('Cannot delete item: missing ID')
+      return
+    }
 
-  const handleSave = () => {
-    if (onSave && localData) {
-      onSave(localData)
-      // localData will be reset when statementDraft updates via useEffect
+    // Call appropriate delete mutation based on section
+    switch (section) {
+      case 'incomes':
+        deleteIncomeMutation.mutate({ id: item.id })
+        break
+      case 'expenses':
+        deleteExpenseMutation.mutate({ id: item.id })
+        break
+      case 'adjustments':
+        deleteAdjustmentMutation.mutate({ id: item.id })
+        break
+      default:
+        ErrorToast('Unknown section type')
     }
   }
 
@@ -431,13 +440,14 @@ export default function OwnerStatementReviewTable({
     () => ({
       editing,
       setEditing,
-      onChange: handleLocalChange,
+      onChange: (_section: string, _rowIdx: number, _key: string, _value: any) => {
+        // No-op for now - direct server updates handled in cells
+      },
       readOnly,
       handleDelete,
       statementId,
-      onItemUpdateSuccess,
     }),
-    [editing, readOnly, statementId, onItemUpdateSuccess]
+    [editing, readOnly, statementId]
   )
 
   const incomeColumns = useMemo<ColumnDef<IncomeItem>[]>(
@@ -675,7 +685,8 @@ export default function OwnerStatementReviewTable({
   }
 
   const handleNotesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    handleLocalChange('notes', 0, 'notes', e.target.value)
+    // TODO: Implement notes update mutation
+    console.log('Notes change:', e.target.value)
   }
 
   const handleNotesKeyDownDiv = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -686,27 +697,6 @@ export default function OwnerStatementReviewTable({
 
   return (
     <div className="space-y-6">
-      {/* Save button */}
-      {!readOnly && onSave && (
-        <div className="flex justify-end">
-          <Button
-            variant="default"
-            onClick={handleSave}
-            disabled={!hasChanges || isUpdating}
-            className="text-xs py-1 h-7"
-          >
-            {isUpdating ? 'Saving...' : 'Save Changes'}
-          </Button>
-        </div>
-      )}
-
-      {/* Change indicator */}
-      {hasChanges && !readOnly && (
-        <div className="p-2 bg-yellow-50 border border-yellow-300 text-yellow-800 rounded-md text-xs">
-          You have unsaved changes. Click the save button to update the
-          statement.
-        </div>
-      )}
 
       <Card>
         <div className="p-4 space-y-2">
@@ -714,19 +704,7 @@ export default function OwnerStatementReviewTable({
             <div className="text-sm font-semibold">Income:</div>
             {!readOnly && (
               <Button
-                onClick={() =>
-                  handleAdd('incomes', {
-                    checkIn: '',
-                    checkOut: '',
-                    days: 0,
-                    platform: '',
-                    guest: '',
-                    grossRevenue: 0,
-                    hostFee: 0,
-                    platformFee: 0,
-                    grossIncome: 0,
-                  })
-                }
+                onClick={handleAddIncome}
                 size="sm"
                 className="h-auto px-2 py-1"
               >
@@ -807,14 +785,7 @@ export default function OwnerStatementReviewTable({
             <div className="text-sm font-semibold">Expenses:</div>
             {!readOnly && (
               <Button
-                onClick={() =>
-                  handleAdd('expenses', {
-                    date: '',
-                    description: '',
-                    vendor: '',
-                    amount: 0,
-                  })
-                }
+                onClick={handleAddExpense}
                 size="sm"
                 className="h-auto px-2 py-1"
               >
@@ -861,14 +832,7 @@ export default function OwnerStatementReviewTable({
             <div className="text-sm font-semibold">Adjustments:</div>
             {!readOnly && (
               <Button
-                onClick={() =>
-                  handleAdd('adjustments', {
-                    checkIn: '',
-                    checkOut: '',
-                    description: '',
-                    amount: 0,
-                  })
-                }
+                onClick={handleAddAdjustment}
                 size="sm"
                 className="h-auto px-2 py-1"
               >
