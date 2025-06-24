@@ -108,10 +108,13 @@ const createEditableCell = <TData extends { id?: string }>(
     const initialValue = getValue()
     const [editValue, setEditValue] = useState<string>('')
 
+    const utils = api.useUtils()
+
     const updateItemMutation = api.ownerStatement.updateItemField.useMutation({
       onSuccess: () => {
         SuccessToast('Updated successfully')
-        // No complex transformations or refetching needed
+        // Invalidate the specific statement to trigger refetch
+        void utils.ownerStatement.getOne.invalidate({ id: statementId })
       },
       onError: (error) => {
         ErrorToast(`Failed to update item: ${error.message}`)
