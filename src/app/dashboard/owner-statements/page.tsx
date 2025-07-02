@@ -9,6 +9,13 @@ import MonthlyImportModal from '~/components/owner-statement/MonthlyImportModal'
 import OwnerStatementContent from '~/components/owner-statement/OwnerStatementContent'
 import { Button, Heading, Input } from '~/components/ui'
 import {
+  Dialog,
+  DialogActions,
+  DialogBody,
+  DialogDescription,
+  DialogTitle,
+} from '~/components/ui/dialog'
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -43,6 +50,7 @@ export default function OwnerStatementsPage() {
     useState(false)
   const [isExportAllIndividualDialogOpen, setIsExportAllIndividualDialogOpen] =
     useState(false)
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [selectedStatementId, setSelectedStatementId] = useState<string | null>(
     null
   )
@@ -54,7 +62,6 @@ export default function OwnerStatementsPage() {
     }
   }, [searchParams])
 
-  // Update URL when statement is selected
   const handleSelectStatement = (statementId: string | null) => {
     setSelectedStatementId(statementId)
     const params = new URLSearchParams(searchParams.toString())
@@ -68,7 +75,6 @@ export default function OwnerStatementsPage() {
     router.push(`/dashboard/owner-statements?${params.toString()}`)
   }
 
-  // Update URL and state when month changes
   const handleMonthChange = (date: Date | null) => {
     setSelectedDate(date ?? undefined)
 
@@ -80,14 +86,12 @@ export default function OwnerStatementsPage() {
       params.delete('month')
     }
 
-    // Clear selected statement when changing months
     params.delete('statement')
     setSelectedStatementId(null)
 
     router.push(`/dashboard/owner-statements?${params.toString()}`)
   }
 
-  // Use the month query for the API call
   const {
     data: ownerStatements,
     isLoading,
@@ -98,6 +102,16 @@ export default function OwnerStatementsPage() {
     { month: monthQuery! },
     { enabled: !!monthQuery }
   )
+
+  const deleteAllMutation = api.ownerStatement.deleteAllForMonth.useMutation({
+    onSuccess: (result) => {
+      void refetch()
+      setIsDeleteConfirmOpen(false)
+    },
+    onError: (error) => {
+      console.error('Delete failed:', error.message)
+    },
+  })
 
   // Filter statements based on search query
   const filteredStatements = useMemo(() => {
@@ -111,13 +125,18 @@ export default function OwnerStatementsPage() {
     )
   }, [ownerStatements, searchQuery])
 
-  const handleOpenImportModal = () => {
+  function handleOpenImportModal() {
     setIsModalOpen(true)
   }
 
-  const handleCloseImportModal = () => {
+  function handleCloseImportModal() {
     setIsModalOpen(false)
     void refetch()
+  }
+
+  function handleDeleteAll() {
+    if (!monthQuery) return
+    deleteAllMutation.mutate({ month: monthQuery })
   }
 
   return (
@@ -166,20 +185,31 @@ export default function OwnerStatementsPage() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" className="flex-1 text-xs">
-                    Export
+                    More Options
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem
                     onClick={() => setIsExportSummaryDialogOpen(true)}
                   >
-                    Monthly Summary
+                    Export Monthly Summary
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => setIsExportAllIndividualDialogOpen(true)}
                   >
-                    All Statements
+                    Export All Statements
                   </DropdownMenuItem>
+                  {filteredStatements && filteredStatements.length > 0 && (
+                    <>
+                      <div className="border-t my-1" />
+                      <DropdownMenuItem
+                        onClick={() => setIsDeleteConfirmOpen(true)}
+                        className="text-red-600 focus:text-red-600"
+                      >
+                        Delete All for Month
+                      </DropdownMenuItem>
+                    </>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
 
@@ -364,6 +394,44 @@ export default function OwnerStatementsPage() {
         onOpenChange={setIsExportAllIndividualDialogOpen}
         initialMonth={selectedDate ?? null}
       />
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={isDeleteConfirmOpen}
+        onClose={() => setIsDeleteConfirmOpen(false)}
+        size="md"
+      >
+        <DialogTitle>Delete All Statements</DialogTitle>
+        <DialogDescription>
+          Are you sure you want to delete all {filteredStatements?.length ?? 0}{' '}
+          owner statements for{' '}
+          {selectedDate ? dayjs(selectedDate).format('MMMM YYYY') : 'this month'}?
+          This action cannot be undone.
+        </DialogDescription>
+        <DialogBody>
+          <div className="text-sm text-muted-foreground">
+            This will permanently delete all statements and their associated
+            income, expenses, and adjustments for the selected month.
+          </div>
+        </DialogBody>
+        <DialogActions>
+          <Button
+            variant="outline"
+            onClick={() => setIsDeleteConfirmOpen(false)}
+            disabled={deleteAllMutation.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="default"
+            onClick={handleDeleteAll}
+            disabled={deleteAllMutation.isPending}
+            className="bg-red-600 hover:bg-red-700 text-white"
+          >
+            {deleteAllMutation.isPending ? 'Deleting...' : 'Delete All'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   )
 }

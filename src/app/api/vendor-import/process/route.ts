@@ -267,7 +267,9 @@ Important Considerations:
     }
 
     // Use cached GPT matching for better performance
-    const extractedPropertyNames = Object.keys(expensesMap)
+    const extractedPropertyNames = Object.keys(expensesMap).map((name) =>
+      name.trim()
+    )
 
     let gptMatchResult
     try {
@@ -283,7 +285,7 @@ Important Considerations:
           importProperties: extractedPropertyNames,
           databaseProperties: databaseProperties.map((p) => ({
             id: p.id,
-            name: p.name,
+            name: p.name.trim(),
             address: p.address,
           })),
         })
@@ -312,8 +314,9 @@ Important Considerations:
     for (const [extractedPropertyName, extractedExpenses] of Object.entries(
       expensesMap
     )) {
-      // Check if GPT matched this property
-      const match = gptMatchResult.matches[extractedPropertyName]
+      // Check if GPT matched this property (using trimmed name for lookup)
+      const trimmedPropertyName = extractedPropertyName.trim()
+      const match = gptMatchResult.matches[trimmedPropertyName]
 
       const expenses = extractedExpenses.map((exp) => ({
         date: exp.date ?? defaultDateStr,
@@ -348,7 +351,7 @@ Important Considerations:
           const totalAmount = expenses.reduce((sum, exp) => sum + exp.amount, 0)
 
           unmatched.push({
-            propertyName: extractedPropertyName,
+            propertyName: trimmedPropertyName,
             expenses,
             totalAmount: parseFloat(totalAmount.toFixed(2)),
           })

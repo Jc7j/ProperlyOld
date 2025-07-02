@@ -1555,4 +1555,70 @@ export const ownerStatementRouter = createTRPCRouter({
         return { success: true }
       })
     }),
+
+  deleteAllForMonth: protectedProcedure
+    .input(
+      z.object({
+        month: z
+          .string()
+          .regex(/^\d{4}-\d{2}$/, 'Month must be in YYYY-MM format'),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { orgId, userId } = ctx.auth
+
+      if (!orgId || !userId) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'Authentication required',
+        })
+      }
+
+      return ctx.db.$transaction(async (tx) => {
+        // Find all statements for the given month
+        const statements = await tx.ownerStatement.findMany({
+          where: {
+            managementGroupId: orgId,
+            deletedAt: null,
+          },
+          select: {
+            id: true,
+            statementMonth: true,
+          },
+        })
+
+        // Filter by month (same logic as getMany)
+        const statementsToDelete = statements.filter((statement) => {
+          const statementDate = new Date(statement.statementMonth)
+          const statementMonth = `${statementDate.getUTCFullYear()}-${String(statementDate.getUTCMonth() + 1).padStart(2, '0')}`
+          return statementMonth === input.month
+        })
+
+        if (statementsToDelete.length === 0) {
+          return {
+            success: true,
+            deletedCount: 0,
+            message: 'No statements found for the specified month',
+          }
+        }
+
+        // Soft delete all statements
+        const statementIds = statementsToDelete.map((s) => s.id)
+        await tx.ownerStatement.updateMany({
+          where: {
+            id: { in: statementIds },
+          },
+          data: {
+            deletedAt: new Date(),
+            updatedBy: userId,
+          },
+        })
+
+        return {
+          success: true,
+          deletedCount: statementsToDelete.length,
+          message: `Successfully deleted ${statementsToDelete.length} statements`,
+        }
+      })
+    }),
 })
