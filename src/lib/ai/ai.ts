@@ -2,7 +2,7 @@ import { openai } from '@ai-sdk/openai'
 import { generateObject, generateText } from 'ai'
 import { z } from 'zod'
 
-export const model = openai('gpt-4o-mini')
+export const model = openai('gpt-4o')
 
 // General function for generating structured objects
 export async function generateStructuredObject<T>({
