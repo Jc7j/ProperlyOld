@@ -9,13 +9,16 @@ export async function generateStructuredObject<T>({
   schema,
   prompt,
   messages,
+  temperature = 0.1, // Low temperature for consistent structured responses
 }: {
   schema: any
   prompt?: string
   messages?: any[]
+  temperature?: number
 }): Promise<{ object: T }> {
   return generateObject({
     model,
+    temperature,
     schema,
     ...(prompt ? { prompt } : {}),
     ...(messages ? { messages } : {}),
@@ -66,43 +69,85 @@ export async function matchPropertiesWithGPT({
     address?: string | null
   }>
 }): Promise<PropertyMatchResult> {
-  const prompt = `You are a property matching specialist for a property management system.
+  const exactMatches: Record<string, any> = {}
+  const remainingProperties: string[] = []
 
-Your task is to match property names/addresses from import data to existing properties in the database.
+  for (const importProp of importProperties) {
+    const exactMatch = databaseProperties.find(
+      (dbProp) =>
+        dbProp.name.trim().toLowerCase() === importProp.trim().toLowerCase()
+    )
+
+    if (exactMatch) {
+      exactMatches[importProp] = {
+        propertyId: exactMatch.id,
+        confidence: 1.0,
+        reason: 'exact match',
+      }
+    } else {
+      remainingProperties.push(importProp)
+    }
+  }
+
+  if (remainingProperties.length === 0) {
+    return {
+      matches: exactMatches,
+      unmatched: [],
+    }
+  }
+
+  const prompt = `Match property names from import data to database properties.
 
 DATABASE PROPERTIES:
-${databaseProperties
-  .map(
-    (p) =>
-      `ID: ${p.id} | Name: "${p.name}"${p.address ? ` | Address: "${p.address}"` : ''}`
-  )
-  .join('\n')}
+${databaseProperties.map((p) => `"${p.name}" (ID: ${p.id})`).join('\n')}
 
-IMPORT PROPERTIES TO MATCH:
-${importProperties.map((prop, i) => `${i + 1}. "${prop}"`).join('\n')}
+IMPORT PROPERTIES:
+${remainingProperties.map((prop) => `"${prop}"`).join('\n')}
 
 MATCHING RULES:
-1. Match on property name OR address similarity
-2. Handle variations: abbreviations (St/Street, Ave/Avenue, Apt/Unit), spacing, punctuation
-3. Consider partial matches (e.g., "123 Main St" matches "123 Main Street Apt 2")
-4. Unit numbers should match when possible but property without unit can match property with unit
-5. Confidence score: 0.9+ = very confident, 0.7-0.89 = confident, 0.5-0.69 = uncertain, <0.5 = don't match
+1. Exact matches get confidence 1.0
+2. Very similar matches (minor differences) get confidence 0.8-0.9  
+3. Partial matches get confidence 0.5-0.7
+4. Only return matches with confidence ≥ 0.5
 
-Return matches with confidence scores. Only include matches with confidence >= 0.5.
-For unmatched properties, add them to the unmatched array.
+Return JSON format:
+{
+  "matches": {
+    "importPropertyName": {
+      "propertyId": "database-property-id",
+      "confidence": 0.95,
+      "reason": "exact match"
+    }
+  },
+  "unmatched": ["unmatched-property-name"]
+}`
 
-IMPORTANT: Always return both "matches" and "unmatched" fields:
-- If no properties match, return: {"matches": {}, "unmatched": ["prop1", "prop2"]}
-- If some properties match, return: {"matches": {"prop1": {"propertyId": "id", "confidence": 0.8}}, "unmatched": ["prop2"]}
+  try {
+    const result = await generateStructuredObject<PropertyMatchResult>({
+      schema: propertyMatchSchema,
+      prompt,
+      temperature: 0.3, // Slightly higher temperature for better reasoning
+    })
 
-Be conservative - it's better to leave something unmatched than to make an incorrect match.`
+    // Combine exact matches with GPT matches
+    const combinedMatches = {
+      ...exactMatches,
+      ...result.object.matches,
+    }
 
-  const result = await generateStructuredObject<PropertyMatchResult>({
-    schema: propertyMatchSchema,
-    prompt,
-  })
+    const finalResult = {
+      matches: combinedMatches,
+      unmatched: result.object.unmatched,
+    }
 
-  return result.object
+    return finalResult
+  } catch (error) {
+    console.error('❌ GPT matching failed:', error)
+    return {
+      matches: exactMatches,
+      unmatched: remainingProperties,
+    }
+  }
 }
 
 // Export model for direct use if needed

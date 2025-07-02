@@ -277,7 +277,6 @@ export default function MonthlyImportModal({
     try {
       // Parse Excel file
       const rawData = await parseExcelFile(state.hostawayFile!)
-      console.log("Excel columns found:", rawData.length > 0 ? Object.keys(rawData[0]) : [])
 
       // Get properties
       const formattedMonth = dayjs(state.month).format('YYYY-MM')

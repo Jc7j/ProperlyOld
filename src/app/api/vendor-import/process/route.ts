@@ -8,7 +8,7 @@ import type {
   UnmatchedPropertyPreview,
   VendorImportPreviewResponse,
 } from '~/lib/OwnerStatement/vendor-import'
-import { matchPropertiesWithGPT } from '~/lib/ai/ai'
+import { type PropertyMatchResult, matchPropertiesWithGPT } from '~/lib/ai/ai'
 import { geminiFlashModel } from '~/lib/gemini/gemini'
 import { parseJsonField } from '~/lib/utils/json'
 import { db } from '~/server/db'
@@ -271,18 +271,20 @@ Important Considerations:
       name.trim()
     )
 
-    let gptMatchResult
-    try {
-      // Try cache first
-      gptMatchResult = await VendorCache.getGPTMappings(
-        extractedPropertyNames,
-        databaseProperties
-      )
+    const gptMatchResult: PropertyMatchResult = { matches: {}, unmatched: [] }
 
-      if (!gptMatchResult) {
-        // Not in cache, call GPT
-        gptMatchResult = await matchPropertiesWithGPT({
-          importProperties: extractedPropertyNames,
+    try {
+      // Process in chunks of 10 properties to avoid GPT overload
+      const CHUNK_SIZE = 10
+      const chunks = []
+      for (let i = 0; i < extractedPropertyNames.length; i += CHUNK_SIZE) {
+        chunks.push(extractedPropertyNames.slice(i, i + CHUNK_SIZE))
+      }
+
+      // Process each chunk
+      for (const chunk of chunks) {
+        const chunkResult = await matchPropertiesWithGPT({
+          importProperties: chunk,
           databaseProperties: databaseProperties.map((p) => ({
             id: p.id,
             name: p.name.trim(),
@@ -290,12 +292,15 @@ Important Considerations:
           })),
         })
 
-        // Cache the result
-        await VendorCache.setGPTMappings(
-          extractedPropertyNames,
-          databaseProperties,
-          gptMatchResult
-        )
+        // Combine results
+        gptMatchResult.matches = {
+          ...gptMatchResult.matches,
+          ...chunkResult.matches,
+        }
+        gptMatchResult.unmatched = [
+          ...gptMatchResult.unmatched,
+          ...chunkResult.unmatched,
+        ]
       }
     } catch (error) {
       console.error('GPT matching failed:', error)
