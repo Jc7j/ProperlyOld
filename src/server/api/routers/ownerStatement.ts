@@ -785,6 +785,60 @@ export const ownerStatementRouter = createTRPCRouter({
       return result
     }),
 
+  updateNotes: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        notes: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { orgId, userId } = ctx.auth
+
+      if (!orgId || !userId) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'Authentication required',
+        })
+      }
+
+      return ctx.db.$transaction(async (tx) => {
+        const existing = await tx.ownerStatement.findUnique({
+          where: { id: input.id },
+          select: { managementGroupId: true, deletedAt: true },
+        })
+
+        if (!existing) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Owner statement not found',
+          })
+        }
+
+        if (existing.deletedAt) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Cannot update deleted statement',
+          })
+        }
+
+        if (existing.managementGroupId !== orgId) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Access denied',
+          })
+        }
+
+        return tx.ownerStatement.update({
+          where: { id: input.id },
+          data: {
+            notes: input.notes,
+            updatedBy: userId,
+          },
+        })
+      })
+    }),
+
   delete: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {

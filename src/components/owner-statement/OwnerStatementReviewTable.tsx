@@ -6,7 +6,7 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import { Plus, Trash2 } from 'lucide-react'
-import {  useMemo, useState } from 'react'
+import {  useEffect, useMemo, useState } from 'react'
 import { DataTable } from '~/components/table/data-table'
 import { Button, Card, Input } from '~/components/ui'
 import { ErrorToast, SuccessToast } from '~/components/ui/sonner'
@@ -74,6 +74,7 @@ interface TableMeta {
   handleDelete: (section: string, index: number) => void
   section: 'incomes' | 'expenses' | 'adjustments'
   statementId?: string
+  utils?: any
 }
 
 interface OwnerStatementReviewTableProps {
@@ -108,13 +109,9 @@ const createEditableCell = <TData extends { id?: string }>(
     const initialValue = getValue()
     const [editValue, setEditValue] = useState<string>('')
 
-    const utils = api.useUtils()
-
     const updateItemMutation = api.ownerStatement.updateItemField.useMutation({
       onSuccess: () => {
         SuccessToast('Updated successfully')
-        // Invalidate the specific statement to trigger refetch
-        void utils.ownerStatement.getOne.invalidate({ id: statementId })
       },
       onError: (error) => {
         ErrorToast(`Failed to update item: ${error.message}`)
@@ -127,7 +124,7 @@ const createEditableCell = <TData extends { id?: string }>(
       return <span className="text-red-500 text-xs">Meta Error</span>
     }
 
-    const { editing, setEditing, onChange, readOnly, section, statementId } =
+    const { editing, setEditing, onChange, readOnly, section, statementId, utils } =
       meta
     const field: string = column.id!
     const rowIdx = row.index
@@ -182,12 +179,21 @@ const createEditableCell = <TData extends { id?: string }>(
         item.id !== 'temp-id' &&
         changedDuringEdit
       ) {
-        updateItemMutation.mutate({
-          id: item.id,
-          section: section,
-          field: field,
-          value: processedValue,
-        })
+        updateItemMutation.mutate(
+          {
+            id: item.id,
+            section: section,
+            field: field,
+            value: processedValue,
+          },
+          {
+            onSuccess: () => {
+              if (utils && statementId) {
+                void utils.ownerStatement.getOne.invalidate({ id: statementId })
+              }
+            },
+          }
+        )
       }
     }
 
@@ -337,6 +343,26 @@ export default function OwnerStatementReviewTable({
     rowIdx: number
     field: string
   } | null>(null)
+  
+  const [notesValue, setNotesValue] = useState<string>('')
+  
+  const utils = api.useUtils()
+
+  // Update notes mutation
+  const updateNotesMutation = api.ownerStatement.updateNotes.useMutation({
+    onSuccess: () => {
+      SuccessToast('Notes updated successfully')
+      void utils.ownerStatement.getOne.invalidate({ id: statementId })
+    },
+    onError: (error) => {
+      ErrorToast(`Failed to update notes: ${error.message}`)
+    },
+  })
+
+  // Sync notes value with prop
+  useEffect(() => {
+    setNotesValue(notes || '')
+  }, [notes])
 
   // Create new item mutations
   const createIncomeMutation = api.ownerStatement.createIncomeItem.useMutation({
@@ -449,8 +475,9 @@ export default function OwnerStatementReviewTable({
       readOnly,
       handleDelete,
       statementId,
+      utils,
     }),
-    [editing, readOnly, statementId]
+    [editing, readOnly, statementId, utils]
   )
 
   const incomeColumns = useMemo<ColumnDef<IncomeItem>[]>(
@@ -677,19 +704,29 @@ export default function OwnerStatementReviewTable({
 
   const handleNotesEditStart = () => {
     if (!readOnly) {
+      setNotesValue(notes || '')
       setEditing({ section: 'notes', rowIdx: 0, field: 'notes' })
     }
   }
 
   const handleNotesKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' || e.key === 'Escape') {
-      setEditing(null)
+      handleNotesBlur()
     }
   }
 
   const handleNotesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // TODO: Implement notes update mutation
-    console.log('Notes change:', e.target.value)
+    setNotesValue(e.target.value)
+  }
+
+  const handleNotesBlur = () => {
+    setEditing(null)
+    if (statementId && notesValue !== (notes || '')) {
+      updateNotesMutation.mutate({
+        id: statementId,
+        notes: notesValue.trim() === '' ? undefined : notesValue,
+      })
+    }
   }
 
   const handleNotesKeyDownDiv = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -892,9 +929,9 @@ export default function OwnerStatementReviewTable({
                 <Input
                   id="notesInput"
                   autoFocus
-                  value={notes ?? ''}
+                  value={notesValue}
                   onChange={handleNotesChange}
-                  onBlur={() => setEditing(null)}
+                  onBlur={handleNotesBlur}
                   onKeyDown={handleNotesKeyDown}
                   className="text-xs"
                   aria-label="Edit notes"

@@ -121,7 +121,7 @@ export async function addInvoiceToPdf(
   doc.text('BILL TO:', leftMargin, currentY)
   currentY += 6
   doc.setFont('helvetica', 'normal')
-  doc.text('Avana LLC', leftMargin, currentY) // Adjust company name as needed
+  doc.text('Avava LLC', leftMargin, currentY) // Adjust company name as needed
   currentY += 10
 
   doc.setFontSize(12)
