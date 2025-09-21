@@ -109,43 +109,12 @@ const parseExpenseRow = (
     return { error: `Row ${rowIndex}: Invalid amount "${amountStr}"` }
   }
 
-  // Format date - handle multiple common formats
-  let formattedDate = date.trim()
-  
-  // Handle MM/DD/YYYY or M/D/YYYY format
-  if (date.includes('/')) {
-    const parts = date.split('/')
-    if (parts.length === 3) {
-      const [month, day, year] = parts
-      if (month && day && year) {
-        // Handle 2-digit or 4-digit years
-        const fullYear = year.length === 2 ? `20${year}` : year
-        formattedDate = `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
-      }
-    }
-  }
-  // Handle MM-DD-YYYY or YYYY-MM-DD formats
-  else if (date.includes('-')) {
-    const parts = date.split('-')
-    if (parts.length === 3) {
-      const [first, second, third] = parts
-      if (first && second && third) {
-        // If first part is 4 digits, assume YYYY-MM-DD
-        if (first.length === 4) {
-          formattedDate = `${first}-${second.padStart(2, '0')}-${third.padStart(2, '0')}`
-        }
-        // Otherwise assume MM-DD-YYYY
-        else {
-          const fullYear = third.length === 2 ? `20${third}` : third
-          formattedDate = `${fullYear}-${first.padStart(2, '0')}-${second.padStart(2, '0')}`
-        }
-      }
-    }
-  }
+  // Just keep the date as-is from Excel
+  const formattedDate = date.trim()
 
-  // Validate date
-  if (isNaN(new Date(formattedDate).getTime())) {
-    return { error: `Row ${rowIndex}: Invalid date "${date}"` }
+  // Basic validation - just check it's not empty
+  if (!formattedDate) {
+    return { error: `Row ${rowIndex}: Missing date` }
   }
 
   return {
