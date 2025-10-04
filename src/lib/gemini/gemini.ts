@@ -13,7 +13,7 @@ const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null
 
 // Export the model instance, making it potentially null if API key is missing
 export const geminiFlashModel = genAI
-  ? genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' })
+  ? genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
   : null
 
 // Example usage function (optional, for testing purposes)
